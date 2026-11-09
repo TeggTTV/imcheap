@@ -1,0 +1,8 @@
+{
+  "name": "Clarity Expense",
+  "description": "High-efficiency minimalist expense tracker with mindful work-hour equivalency, mileage preset calculations, and instant bottom-sheet logging.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
