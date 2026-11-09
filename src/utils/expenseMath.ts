@@ -138,17 +138,28 @@ export function applyKeypadKey(
   const { maxLength = 8, maxDecimals = 2 } = options;
 
   if (key === 'backspace' || key === 'back') {
+    if (currentValue === '0.00' || currentValue === '0.0' || currentValue === '0') {
+      return '0';
+    }
     const sliced = currentValue.slice(0, -1);
     return sliced === '' ? '0' : sliced;
   }
 
   if (key === '.') {
+    if (currentValue === '0.00' || currentValue === '0.0' || currentValue === '0' || currentValue === '') {
+      return '0.';
+    }
     if (currentValue.includes('.')) return currentValue;
-    return currentValue === '' ? '0.' : `${currentValue}.`;
+    return `${currentValue}.`;
   }
 
   if (/^[0-9]$/.test(key)) {
-    if (currentValue === '0') {
+    if (
+      currentValue === '0' ||
+      currentValue === '0.00' ||
+      currentValue === '0.0' ||
+      currentValue === ''
+    ) {
       return key;
     }
     const parts = currentValue.split('.');

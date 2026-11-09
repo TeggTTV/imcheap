@@ -11,6 +11,9 @@ import {
 
 test('applyKeypadKey handles digits, decimal point, and backspace accurately', () => {
   assert.equal(applyKeypadKey('0', '5'), '5');
+  assert.equal(applyKeypadKey('0.00', '5'), '5');
+  assert.equal(applyKeypadKey('0.00', '.'), '0.');
+  assert.equal(applyKeypadKey('', '5'), '5');
   assert.equal(applyKeypadKey('18', '.'), '18.');
   assert.equal(applyKeypadKey('18.', '.'), '18.');
   assert.equal(applyKeypadKey('18.5', '9'), '18.59');
@@ -18,6 +21,7 @@ test('applyKeypadKey handles digits, decimal point, and backspace accurately', (
   assert.equal(applyKeypadKey('18.59', '3'), '18.59');
   assert.equal(applyKeypadKey('18.59', 'backspace'), '18.5');
   assert.equal(applyKeypadKey('5', 'back'), '0');
+  assert.equal(applyKeypadKey('0.00', 'back'), '0');
 });
 
 test('calculateWorkHoursLabel matches Screen 4 reference math (~1.1 hrs of work for $18.59 @ $17/hr)', () => {

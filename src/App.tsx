@@ -23,6 +23,8 @@ import {
 	applyKeypadKey,
 	calculateWorkHoursLabel,
 } from './utils/expenseMath';
+import { TransactionManager } from './utils/transactionDataStructure';
+import { UIProvider, useUI } from './utils/uiManager';
 import { PresetSheetModal } from './components/PresetSheetModal';
 import { BalanceBreakdownModal } from './components/BalanceBreakdownModal';
 import { TransactionDetailModal } from './components/TransactionDetailModal';
@@ -95,8 +97,12 @@ export default function App() {
 	);
 	const expandedAmountOpacity = useTransform(dockY, [240, 0], [0, 1]);
 
-	const [transactions, setTransactions] =
-		useState<Transaction[]>(INITIAL_TRANSACTIONS);
+	const [txManager] = useState<TransactionManager>(
+		() => new TransactionManager(INITIAL_TRANSACTIONS),
+	);
+	const [transactions, setTransactions] = useState<Transaction[]>(() =>
+		txManager.getAll(),
+	);
 	const [presets, setPresets] = useState<PresetItem[]>(INITIAL_PRESETS);
 	const [incomeSettings, setIncomeSettings] = useState<IncomeSettings>(
 		INITIAL_INCOME_SETTINGS,
@@ -124,15 +130,8 @@ export default function App() {
 	);
 
 	const filteredTransactions = useMemo(() => {
-		if (!searchQuery.trim()) return transactions;
-		const q = searchQuery.toLowerCase();
-		return transactions.filter(
-			(tx) =>
-				tx.title.toLowerCase().includes(q) ||
-				tx.category.toLowerCase().includes(q) ||
-				(tx.note && tx.note.toLowerCase().includes(q)),
-		);
-	}, [transactions, searchQuery]);
+		return txManager.search(searchQuery);
+	}, [txManager, transactions, searchQuery]);
 
 	const showToast = (msg: string) => {
 		setToastMessage(msg);
@@ -159,19 +158,20 @@ export default function App() {
 	};
 
 	const handlePresetClick = (preset: PresetItem) => {
-		if (selectedPresetLabel === preset.label) {
-			setSelectedPresetLabel(null);
-			return;
-		}
-		setSelectedPresetLabel(preset.label);
-		// showToast(`Attached "${preset.label}"`);
-		setDockAmount(preset.calculatedAmount.toFixed(2));
-		// add transaction
+		const newTx = txManager.createTransaction({
+			title: preset.title,
+			category: preset.category,
+			amount: preset.calculatedAmount,
+			type: 'expense',
+			icon: preset.icon,
+		});
+		setTransactions(txManager.getAll());
+		showToast(`Logged $${newTx.amount.toFixed(2)} to ${preset.label}`);
 	};
 
 	const handleKeypadClick = (val: string) => {
 		setDockAmount((prev) => {
-			const initial = prev && prev.length > 0 ? prev : '18.59';
+			const initial = prev || '';
 			return applyKeypadKey(initial, val, {
 				maxLength: 8,
 				maxDecimals: 2,
@@ -204,21 +204,19 @@ export default function App() {
 				? parsedVal
 				: matchedPreset?.calculatedAmount || 18.59;
 
-		const newTx: Transaction = {
-			id: `tx-${Date.now()}`,
+		const newTx = txManager.createTransaction({
 			title:
 				dockNote.trim() ||
 				(matchedPreset ? matchedPreset.title : catMeta.label),
 			category: catMeta.label,
-			timestamp: 'Just now',
-			amount: Number(finalAmount.toFixed(2)),
+			amount: finalAmount,
 			type: 'expense',
 			icon: matchedPreset ? matchedPreset.icon : catMeta.icon,
 			note: dockNote.trim() || undefined,
-		};
+		});
 
-		setTransactions((prev) => [newTx, ...prev]);
-		showToast(`Logged $${finalAmount.toFixed(2)} to ${catMeta.label}`);
+		setTransactions(txManager.getAll());
+		showToast(`Logged $${newTx.amount.toFixed(2)} to ${catMeta.label}`);
 		setDockAmount('');
 		setSelectedPresetLabel(null);
 		setDockNote('');
@@ -245,19 +243,15 @@ export default function App() {
 	};
 
 	const handleQuickLogPresetFromTab = (preset: PresetItem) => {
-		const newTx: Transaction = {
-			id: `tx-${Date.now()}`,
+		const newTx = txManager.createTransaction({
 			title: preset.title,
 			category: preset.category,
-			timestamp: 'Just now',
 			amount: preset.calculatedAmount,
 			type: 'expense',
 			icon: preset.icon,
-		};
-		setTransactions((prev) => [newTx, ...prev]);
-		showToast(
-			`Logged $${preset.calculatedAmount.toFixed(2)} to ${preset.label}`,
-		);
+		});
+		setTransactions(txManager.getAll());
+		showToast(`Logged $${newTx.amount.toFixed(2)} to ${preset.label}`);
 	};
 
 	const tabTitle =
@@ -399,11 +393,9 @@ export default function App() {
 												)
 											}
 											onDelete={(id) => {
-												setTransactions((prev) =>
-													prev.filter(
-														(item) =>
-															item.id !== id,
-													),
+												txManager.removeTransaction(id);
+												setTransactions(
+													txManager.getAll(),
 												);
 												showToast(
 													'Transaction deleted',
@@ -586,12 +578,14 @@ export default function App() {
 							<div className="relative w-full min-h-[58px] flex items-center justify-center">
 								{/* Centered Scaled Display */}
 								<motion.div
-									style={{
-										// opacity: expandedAmountOpacity,
-										pointerEvents: isDockExpanded
-											? 'auto'
-											: 'none',
-									}}
+									style={
+										{
+											// opacity: expandedAmountOpacity,
+											// pointerEvents: isDockExpanded
+											// 	? 'auto'
+											// 	: 'none',
+										}
+									}
 									className="flex flex-col items-center justify-center text-center pt-1 pb-1 px-6 w-full"
 								>
 									<div className="flex items-baseline justify-center tracking-tight">
@@ -602,6 +596,9 @@ export default function App() {
 											className="font-numeric-entry text-numeric-entry text-on-surface font-bold tabular-nums"
 											id="amount-display"
 											data-testid="log-amount-display"
+											onClick={() =>
+												setIsDockExpanded(true)
+											}
 										>
 											{dockAmount || '0.00'}
 										</span>
@@ -618,7 +615,7 @@ export default function App() {
 												data-testid="log-work-hours-metric"
 											>
 												{calculateWorkHoursLabel(
-													dockAmount || '18.59',
+													dockAmount || '0',
 													incomeSettings.hourlyWage,
 												)}
 											</span>
@@ -920,15 +917,13 @@ export default function App() {
 				transaction={selectedTxForDetail}
 				onClose={() => setSelectedTxForDetail(null)}
 				onSave={(updated) => {
-					setTransactions((prev) =>
-						prev.map((tx) => (tx.id === updated.id ? updated : tx)),
-					);
+					txManager.updateTransaction(updated.id, updated);
+					setTransactions(txManager.getAll());
 					showToast(`Updated "${updated.title}"`);
 				}}
 				onDelete={(id) => {
-					setTransactions((prev) =>
-						prev.filter((tx) => tx.id !== id),
-					);
+					txManager.removeTransaction(id);
+					setTransactions(txManager.getAll());
 					showToast('Transaction deleted');
 				}}
 			/>

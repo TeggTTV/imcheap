@@ -5,6 +5,10 @@ import {
   calculatePresetEquivalence,
   PresetItem,
 } from '../utils/expenseMath';
+import {
+  InteractiveWheelPicker,
+  WheelItem,
+} from './InteractiveWheelPicker';
 
 interface PresetSheetModalProps {
   isOpen: boolean;
@@ -109,12 +113,11 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
     onClose();
   };
 
-  const unitLabels =
-    unit === 'MILES'
-      ? { top: '$ (USD)', mid: 'MILES', bot: 'SERVINGS' }
-      : unit === 'USD'
-      ? { top: 'SERVINGS', mid: '$ (USD)', bot: 'MILES' }
-      : { top: 'MILES', mid: 'SERVINGS', bot: '$ (USD)' };
+  const unitWheelItems: WheelItem<'USD' | 'MILES' | 'SERVINGS'>[] = [
+    { value: 'USD', label: '$ (USD)' },
+    { value: 'MILES', label: 'MILES' },
+    { value: 'SERVINGS', label: 'SERVINGS' },
+  ];
 
   return (
     <AnimatePresence>
@@ -192,26 +195,14 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
               </div>
 
               {/* Interactive Unit Picker Wheel */}
-              <button
-                type="button"
-                onClick={cycleUnit}
-                aria-label={`Change unit, current unit ${unit}`}
-                className="relative h-[70px] w-[104px] bg-surface-container-low rounded-xl px-2 py-1 flex flex-col items-center justify-between overflow-hidden shadow-inner cursor-pointer active:scale-95 transition-transform"
-              >
-                <div className="absolute top-0 inset-x-0 h-3 bg-gradient-to-b from-surface-container-low to-transparent pointer-events-none z-10" />
-                <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant/40 pt-0.5 select-none">
-                  {unitLabels.top}
-                </span>
-                <div className="w-full py-0.5 rounded-lg bg-surface-container-lowest shadow-sm flex items-center justify-center z-0">
-                  <span className="font-label-md text-label-md font-bold tracking-widest text-on-surface uppercase">
-                    {unitLabels.mid}
-                  </span>
-                </div>
-                <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant/40 pb-0.5 select-none">
-                  {unitLabels.bot}
-                </span>
-                <div className="absolute bottom-0 inset-x-0 h-3 bg-gradient-to-t from-surface-container-low to-transparent pointer-events-none z-10" />
-              </button>
+              <InteractiveWheelPicker
+                items={unitWheelItems}
+                value={unit}
+                onChange={(nextUnit) => setUnit(nextUnit)}
+                height={80}
+                itemHeight={28}
+                ariaLabel="Unit Picker Wheel"
+              />
             </div>
 
             {/* Preset Identity Input Bar */}
