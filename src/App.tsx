@@ -40,12 +40,34 @@ type ActiveModal = 'none' | 'preset' | 'breakdown';
 
 const COLLAPSED_DOCK_Y = 420;
 
-const LOG_CATEGORIES = [
+const EXPENSE_CATEGORIES = [
 	{ id: 'Driving', label: 'Driving', emoji: '🚗', icon: 'directions_car' },
 	{ id: 'Fitness', label: 'Fitness', emoji: '🏐', icon: 'fitness_center' },
 	{ id: 'Food', label: 'Food', emoji: '🍔', icon: 'restaurant' },
 	{ id: 'Other', label: 'Other', emoji: '📦', icon: 'shopping_bag' },
 ];
+
+const INCOME_CATEGORIES = [
+	{ id: 'Paycheck', label: 'Paycheck', emoji: '💼', icon: 'payments' },
+	{ id: 'Side Gig', label: 'Side Gig', emoji: '⚡', icon: 'bolt' },
+	{ id: 'Gift', label: 'Gift', emoji: '🎁', icon: 'card_giftcard' },
+	{ id: 'Refund', label: 'Refund', emoji: '🔄', icon: 'replay' },
+];
+
+function AnimatedNumber({ value }: { value: number }) {
+	const [displayVal, setDisplayVal] = useState(value);
+
+	useEffect(() => {
+		const controls = animate(displayVal, value, {
+			duration: 0.45,
+			ease: 'easeInOut',
+			onUpdate: (latest) => setDisplayVal(latest),
+		});
+		return () => controls.stop();
+	}, [value]);
+
+	return <>${displayVal.toFixed(2)}</>;
+}
 
 export default function App() {
 	const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -113,6 +135,10 @@ export default function App() {
 		string | null
 	>(null);
 	const [dockAmount, setDockAmount] = useState<string>('');
+	const [dockType, setDockType] = useState<'expense' | 'income'>('expense');
+	const [isLoggingAction, setIsLoggingAction] = useState<
+		'idle' | 'spinning' | 'success'
+	>('idle');
 	const [toastMessage, setToastMessage] = useState<string | null>(null);
 
 	// Editing state for presets and transactions
@@ -179,15 +205,20 @@ export default function App() {
 		});
 	};
 
+	const currentCategories =
+		dockType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+
 	const handleCommitDockExpense = () => {
+		if (isLoggingAction !== 'idle') return;
+
 		const parsedVal = parseFloat(dockAmount);
 		const matchedPreset = presets.find(
 			(p) => p.label === selectedPresetLabel,
 		);
 		const catMeta =
-			LOG_CATEGORIES.find(
+			currentCategories.find(
 				(c) => c.id.toLowerCase() === selectedCategory.toLowerCase(),
-			) || LOG_CATEGORIES[1];
+			) || currentCategories[0];
 
 		// If dock is collapsed and user has no amount or preset, expand it upward
 		if (
@@ -204,23 +235,35 @@ export default function App() {
 				? parsedVal
 				: matchedPreset?.calculatedAmount || 18.59;
 
-		const newTx = txManager.createTransaction({
-			title:
-				dockNote.trim() ||
-				(matchedPreset ? matchedPreset.title : catMeta.label),
-			category: catMeta.label,
-			amount: finalAmount,
-			type: 'expense',
-			icon: matchedPreset ? matchedPreset.icon : catMeta.icon,
-			note: dockNote.trim() || undefined,
-		});
+		setIsLoggingAction('spinning');
 
-		setTransactions(txManager.getAll());
-		showToast(`Logged $${newTx.amount.toFixed(2)} to ${catMeta.label}`);
-		setDockAmount('');
-		setSelectedPresetLabel(null);
-		setDockNote('');
-		setIsDockExpanded(false);
+		setTimeout(() => {
+			setIsLoggingAction('success');
+
+			const newTx = txManager.createTransaction({
+				title:
+					dockNote.trim() ||
+					(matchedPreset ? matchedPreset.title : catMeta.label),
+				category: catMeta.label,
+				amount: finalAmount,
+				type: dockType,
+				icon: matchedPreset ? matchedPreset.icon : catMeta.icon,
+				note: dockNote.trim() || undefined,
+			});
+
+			setTransactions(txManager.getAll());
+			showToast(
+				`Logged ${dockType === 'income' ? '+' : '-'}$${newTx.amount.toFixed(2)} to ${catMeta.label}`,
+			);
+
+			setTimeout(() => {
+				setIsLoggingAction('idle');
+				setDockAmount('');
+				setSelectedPresetLabel(null);
+				setDockNote('');
+				setIsDockExpanded(false);
+			}, 250);
+		}, 250);
 	};
 
 	const handleSaveNewPreset = (presetData: Omit<PresetItem, 'id'>) => {
@@ -341,24 +384,58 @@ export default function App() {
 			>
 				{activeTab === 'dashboard' && (
 					<div className="flex flex-col w-full space-y-space-lg pb-10">
-						{/* Minimalist Metric Section: $146.00 of $238.00 */}
-						<section className="flex items-baseline justify-between pt-space-md px-space-xs">
-							<button
-								type="button"
+						{/* Elevated Hero Card: Balance, Dual-Tone Progress, and Badge */}
+						<section className="pt-space-md px-space-xs">
+							<div
 								onClick={() => setActiveModal('breakdown')}
+								onKeyDown={(e) => {
+									if (e.key === 'Enter' || e.key === ' ') {
+										e.preventDefault();
+										setActiveModal('breakdown');
+									}
+								}}
+								role="button"
+								tabIndex={0}
 								aria-label="View Balance Breakdown"
-								className="flex items-baseline gap-2 text-left group cursor-pointer focus:outline-none active:scale-[0.99] transition-transform"
+								className="w-full bg-[#FFFFFF] rounded-[20px] p-5 shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-100/80 cursor-pointer focus:outline-none active:scale-[0.99] transition-transform flex flex-col gap-4"
 							>
-								<span
-									className="font-display-hero text-display-hero text-primary tracking-tight font-bold tabular-nums"
-									data-testid="hero-balance"
-								>
-									${summary.availableBalance.toFixed(2)}
-								</span>
-								<span className="font-body-lg text-body-lg text-outline-variant font-normal tracking-tight tabular-nums select-none">
-									of ${summary.basePaycheck.toFixed(2)}
-								</span>
-							</button>
+								<div className="flex items-start justify-between">
+									<div className="flex flex-col text-left">
+										<span className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280] mb-0.5 select-none">
+											Remaining Balance
+										</span>
+										<span
+											className="text-[34px] leading-tight tracking-tight font-bold tabular-nums text-[#059669]"
+											data-testid="hero-balance"
+										>
+											<AnimatedNumber
+												value={summary.availableBalance}
+											/>
+										</span>
+										<span className="text-[13px] text-[#6B7280] font-medium tracking-tight tabular-nums select-none mt-1">
+											remaining of $
+											{summary.basePaycheck.toFixed(2)}{' '}
+											base check
+										</span>
+									</div>
+									<div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#ECFDF5] text-[#059669] text-[12px] font-semibold tracking-tight shadow-sm shrink-0">
+										<span className="text-[13px]">⏱️</span>
+										<span>
+											{summary.unspentWorkHours} hrs left
+										</span>
+									</div>
+								</div>
+
+								{/* Dual-tone Progress Track: 6px bar with percent left */}
+								<div className="w-full h-[6px] bg-[#E5E7EB] rounded-full overflow-hidden flex">
+									<div
+										className="h-full bg-[#10B981] rounded-full transition-all duration-300"
+										style={{
+											width: `${Math.min(100, Math.max(0, summary.percentLeft))}%`,
+										}}
+									/>
+								</div>
+							</div>
 						</section>
 
 						{/* Recent Transactions List with Swipe to Edit / Delete */}
@@ -375,18 +452,22 @@ export default function App() {
 							</div>
 
 							<div
-								className="flex flex-col space-y-2"
+								className="flex flex-col bg-white rounded-[20px] border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.03)] overflow-hidden"
 								data-testid="transactions-list"
 							>
 								{filteredTransactions.length === 0 ? (
-									<div className="bg-surface-container-lowest rounded-xl p-6 text-center text-on-surface-variant text-[14px] border border-surface-container-high/50">
+									<div className="p-6 text-center text-on-surface-variant text-[14px]">
 										No matching transactions found.
 									</div>
 								) : (
-									filteredTransactions.map((tx) => (
+									filteredTransactions.map((tx, idx) => (
 										<SwipeableTransactionItem
 											key={tx.id}
 											tx={tx}
+											isLast={
+												idx ===
+												filteredTransactions.length - 1
+											}
 											onEdit={(transactionToEdit) =>
 												setSelectedTxForDetail(
 													transactionToEdit,
@@ -576,6 +657,93 @@ export default function App() {
 
 							{/* Money Input: Crossfades between compact left-aligned input and centered scaled display */}
 							<div className="relative w-full min-h-[58px] flex items-center justify-center">
+								{/* Ghost toggle button for income/expense: absolutely positioned to the left of the centered input */}
+								<motion.div
+									className="absolute left-6 inset-y-0 flex items-center z-10"
+									initial={{ opacity: 0 }}
+									animate={{
+										opacity: isDockExpanded ? 1 : 0,
+									}}
+									transition={{
+										duration: 0.3,
+										ease: 'easeInOut',
+									}}
+								>
+									<motion.button
+										type="button"
+										aria-label={
+											dockType === 'expense'
+												? 'Switch to income (add money)'
+												: 'Switch to expense (spend money)'
+										}
+										onClick={() => {
+											const nextType =
+												dockType === 'expense'
+													? 'income'
+													: 'expense';
+											setDockType(nextType);
+											const targetCats =
+												nextType === 'income'
+													? INCOME_CATEGORIES
+													: EXPENSE_CATEGORIES;
+											setSelectedCategory(
+												targetCats[0].id,
+											);
+										}}
+										animate={{
+											backgroundColor:
+												dockType === 'income'
+													? 'rgb(236, 253, 245)'
+													: 'rgba(0, 0, 0, 0)',
+											borderColor:
+												dockType === 'income'
+													? 'rgb(16, 185, 129)'
+													: 'rgb(148, 163, 184)',
+											borderStyle:
+												dockType === 'income'
+													? 'solid'
+													: 'dashed',
+											color:
+												dockType === 'income'
+													? 'rgb(5, 150, 105)'
+													: 'rgb(100, 116, 139)',
+											scale: [0.9, 1],
+										}}
+										whileTap={{ scale: 0.88 }}
+										transition={{
+											duration: 0.28,
+											ease: 'easeInOut',
+										}}
+										className="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer border-2 focus:outline-none"
+									>
+										<motion.span
+											key={dockType}
+											initial={{
+												rotate:
+													dockType === 'income'
+														? -90
+														: 90,
+												scale: 0.6,
+												opacity: 0,
+											}}
+											animate={{
+												rotate: 0,
+												scale: 1,
+												opacity: 1,
+											}}
+											transition={{
+												duration: 0.28,
+												ease: 'easeInOut',
+											}}
+											className="material-symbols-outlined text-[20px] font-bold select-none"
+										>
+											{dockType === 'income'
+												? 'add'
+												: 'remove'}
+										</motion.span>
+									</motion.button>
+								</motion.div>
+
 								{/* Centered Scaled Display */}
 								<motion.div
 									style={
@@ -638,46 +806,85 @@ export default function App() {
 							>
 								{/* Category Selector Carousel */}
 								<div className="mt-2 mb-3">
-									<span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider block mb-2 px-1">
-										Category
-									</span>
+									<div className="flex items-center justify-between mb-2 px-1">
+										<span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider block">
+											Category
+										</span>
+										<span
+											className={`text-[11px] font-semibold tracking-wide uppercase ${
+												dockType === 'income'
+													? 'text-emerald-600'
+													: 'text-gray-400'
+											}`}
+										>
+											{dockType === 'income'
+												? 'Income Source'
+												: 'Expense Type'}
+										</span>
+									</div>
 									<div
 										className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1"
 										id="category-pills"
 									>
-										{LOG_CATEGORIES.map((cat) => {
-											const isSelected =
-												selectedCategory.toLowerCase() ===
-												cat.id.toLowerCase();
-											return (
-												<button
-													key={cat.id}
-													type="button"
-													onClick={() =>
-														setSelectedCategory(
-															cat.id,
-														)
-													}
-													className={`category-pill flex items-center gap-1.5 rounded-full font-label-md text-label-md transition-all active:scale-95 shrink-0 whitespace-nowrap cursor-pointer ${
-														isSelected
-															? 'px-4 py-2 bg-primary text-on-primary shadow-sm'
-															: 'px-3.5 py-2 bg-surface-container text-on-surface'
-													}`}
-												>
-													<span className="text-sm">
-														{cat.emoji}
-													</span>
-													<span>{cat.label}</span>
-												</button>
-											);
-										})}
+										<AnimatePresence mode="wait">
+											<motion.div
+												key={dockType}
+												initial={{
+													opacity: 0,
+													y: 6,
+												}}
+												animate={{
+													opacity: 1,
+													y: 0,
+												}}
+												exit={{
+													opacity: 0,
+													y: -6,
+												}}
+												transition={{
+													duration: 0.2,
+												}}
+												className="flex items-center gap-2 w-full"
+											>
+												{currentCategories.map(
+													(cat) => {
+														const isSelected =
+															selectedCategory.toLowerCase() ===
+															cat.id.toLowerCase();
+														return (
+															<button
+																key={cat.id}
+																type="button"
+																onClick={() =>
+																	setSelectedCategory(
+																		cat.id,
+																	)
+																}
+																className={`category-pill flex items-center gap-1.5 rounded-full font-label-md text-label-md transition-all active:scale-95 shrink-0 whitespace-nowrap cursor-pointer ${
+																	isSelected
+																		? 'px-4 py-2 bg-primary text-on-primary shadow-sm'
+																		: 'px-3.5 py-2 bg-surface-container text-on-surface'
+																}`}
+															>
+																<span className="text-sm">
+																	{cat.emoji}
+																</span>
+																<span>
+																	{cat.label}
+																</span>
+															</button>
+														);
+													},
+												)}
+											</motion.div>
+										</AnimatePresence>
 									</div>
 								</div>
 
 								{/* Optional Note Container */}
 								<div className="mb-4">
 									<div className="flex items-center gap-2.5 px-3 py-2 bg-surface-container-low rounded-xl">
-										<span className="material-symbols-outlined text-outline text-[18px]">
+										<span className="material-symbols-outlined text-outline text-[18px] translate-y-[1px] select-none">
 											edit_note
 										</span>
 										<input
@@ -741,13 +948,38 @@ export default function App() {
 								<button
 									type="button"
 									id="save-expense-btn"
+									disabled={isLoggingAction !== 'idle'}
 									onClick={handleCommitDockExpense}
-									className="w-full h-[52px] bg-primary text-on-primary rounded-xl font-label-lg text-label-lg uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-primary/10 active:scale-[0.98] transition-transform cursor-pointer whitespace-nowrap"
+									className={`w-full h-[52px] rounded-xl font-label-lg text-label-lg uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-primary/10 active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap ${
+										isLoggingAction === 'success'
+											? 'bg-emerald-600 text-white'
+											: 'bg-primary text-on-primary'
+									}`}
 								>
-									<span>Log</span>
-									<span className="material-symbols-outlined text-[18px]">
-										arrow_forward
-									</span>
+									{isLoggingAction === 'spinning' ? (
+										<span className="material-symbols-outlined text-[22px] animate-spin">
+											progress_activity
+										</span>
+									) : isLoggingAction === 'success' ? (
+										<motion.span
+											initial={{ scale: 0.5 }}
+											animate={{ scale: 1 }}
+											className="material-symbols-outlined text-[24px]"
+										>
+											check_circle
+										</motion.span>
+									) : (
+										<>
+											<span>
+												{dockType === 'income'
+													? 'Log Income'
+													: 'Log Expense'}
+											</span>
+											<span className="material-symbols-outlined text-[18px]">
+												arrow_forward
+											</span>
+										</>
+									)}
 								</button>
 							</motion.div>
 						</motion.div>
@@ -787,6 +1019,9 @@ export default function App() {
 					<SettingsView
 						settings={incomeSettings}
 						onUpdateSettings={setIncomeSettings}
+						summary={summary}
+						transactions={transactions}
+						showToast={showToast}
 						onOpenSheet={(sheet) => {
 							if (sheet === 'log') {
 								setActiveTab('dashboard');

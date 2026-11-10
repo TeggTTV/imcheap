@@ -6,15 +6,50 @@ interface SwipeableTransactionItemProps {
   tx: Transaction;
   onEdit: (tx: Transaction) => void;
   onDelete: (id: string) => void;
+  isLast?: boolean;
 }
+
+const getCategoryPalette = (category: string, title: string, icon: string) => {
+  const normalized = `${category} ${title} ${icon}`.toLowerCase();
+  if (normalized.includes('coffee') || normalized.includes('cafe') || normalized.includes('everyday')) {
+    return {
+      bg: 'bg-[#FEF3C7]',
+      iconColor: 'text-[#D97706]',
+    };
+  }
+  if (normalized.includes('driv') || normalized.includes('commute') || normalized.includes('car') || normalized.includes('gas') || normalized.includes('transit')) {
+    return {
+      bg: 'bg-[#EEF2FF]',
+      iconColor: 'text-[#4F46E5]',
+    };
+  }
+  if (normalized.includes('fit') || normalized.includes('sport') || normalized.includes('gym') || normalized.includes('volley')) {
+    return {
+      bg: 'bg-[#FFE4E6]',
+      iconColor: 'text-[#E11D48]',
+    };
+  }
+  if (normalized.includes('groc') || normalized.includes('food') || normalized.includes('mart') || normalized.includes('market') || normalized.includes('supplies')) {
+    return {
+      bg: 'bg-[#ECFDF5]',
+      iconColor: 'text-[#059669]',
+    };
+  }
+  return {
+    bg: 'bg-[#EEF2FF]',
+    iconColor: 'text-[#4F46E5]',
+  };
+};
 
 export const SwipeableTransactionItem: React.FC<SwipeableTransactionItemProps> = ({
   tx,
   onEdit,
   onDelete,
+  isLast = false,
 }) => {
   const x = useMotionValue(0);
   const [isDeleting, setIsDeleting] = useState(false);
+  const palette = getCategoryPalette(tx.category, tx.title, tx.icon);
 
   // When sliding right (x > 0), green area on the left reveals with "Editing transaction"
   const editOpacity = useTransform(x, [10, 70], [0, 1]);
@@ -47,11 +82,11 @@ export const SwipeableTransactionItem: React.FC<SwipeableTransactionItemProps> =
   }
 
   return (
-    <div className="relative w-full rounded-xl overflow-hidden select-none">
+    <div className="relative w-full overflow-hidden select-none">
       {/* Green Left Background (Editing) revealed when sliding right */}
       <motion.div
         style={{ opacity: editOpacity }}
-        className="absolute inset-0 bg-emerald-600 rounded-xl flex items-center justify-start px-4 text-white"
+        className="absolute inset-0 bg-emerald-600 flex items-center justify-start px-4 text-white"
         aria-hidden="true"
       >
         <div className="flex items-center gap-2 font-semibold text-[13px] tracking-tight">
@@ -63,7 +98,7 @@ export const SwipeableTransactionItem: React.FC<SwipeableTransactionItemProps> =
       {/* Red Right Background (Deleting) revealed when sliding left */}
       <motion.div
         style={{ opacity: deleteOpacity }}
-        className="absolute inset-0 bg-red-600 rounded-xl flex items-center justify-end px-4 text-white"
+        className="absolute inset-0 bg-red-600 flex items-center justify-end px-4 text-white"
         aria-hidden="true"
       >
         <div className="flex items-center gap-2 font-semibold text-[13px] tracking-tight">
@@ -80,10 +115,14 @@ export const SwipeableTransactionItem: React.FC<SwipeableTransactionItemProps> =
         dragElastic={0.25}
         onDragEnd={handleDragEnd}
         style={{ x }}
-        className="relative z-10 bg-surface-container-lowest rounded-xl p-3.5 flex items-center justify-between shadow-[0_2px_8px_rgba(0,0,0,0.02)] border border-surface-container-high/50 cursor-grab active:cursor-grabbing transition-[box-shadow]"
+        className={`relative z-10 bg-white p-3.5 flex items-center justify-between cursor-grab active:cursor-grabbing ${
+          !isLast ? 'border-b border-gray-100' : ''
+        }`}
       >
         <div className="flex items-center gap-3 pointer-events-none">
-          <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface shrink-0">
+          <div
+            className={`w-10 h-10 rounded-full ${palette.bg} ${palette.iconColor} flex items-center justify-center shrink-0`}
+          >
             <span className="material-symbols-outlined text-[20px]">
               {tx.icon}
             </span>
@@ -101,7 +140,7 @@ export const SwipeableTransactionItem: React.FC<SwipeableTransactionItemProps> =
         <div className="flex items-center gap-2 pointer-events-none">
           <span
             className={`font-bold text-[15px] tracking-tight tabular-nums ${
-              tx.type === 'income' ? 'text-secondary' : 'text-on-surface'
+              tx.type === 'income' ? 'text-secondary' : 'text-[#BA1A1A]'
             }`}
           >
             {tx.type === 'income' ? '+' : '-'}${tx.amount.toFixed(2)}
