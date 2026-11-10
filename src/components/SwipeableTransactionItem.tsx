@@ -66,7 +66,7 @@ export const SwipeableTransactionItem: React.FC<
 	SwipeableTransactionItemProps
 > = ({ tx, onEdit, onDelete, isLast = false }) => {
 	const x = useMotionValue(0);
-	const [isDeleting, setIsDeleting] = useState(false);
+	const [isDismissing, setIsDismissing] = useState(false);
 	const palette = getCategoryPalette(tx.category, tx.title, tx.icon);
 
 	// When sliding right (x > 0), green area on the left reveals with "Editing transaction"
@@ -83,27 +83,33 @@ export const SwipeableTransactionItem: React.FC<
 			// Swiped right -> Edit
 			onEdit(tx);
 		} else if (info.offset.x < -threshold) {
-			// Swiped left -> Delete
-			setIsDeleting(true);
+			// Swiped left -> Delete: animate sliding completely off-screen first
+			setIsDismissing(true);
 			setTimeout(() => {
 				onDelete(tx.id);
-			}, 200);
+			}, 300);
 		}
 	};
 
-	if (isDeleting) {
-		return (
-			<motion.div
-				initial={{ opacity: 1, height: 'auto', scaleY: 1 }}
-				animate={{ opacity: 0, height: 0, scaleY: 0 }}
-				transition={{ duration: 0.2 }}
-				className="w-full overflow-hidden"
-			/>
-		);
-	}
-
 	return (
-		<div className="relative w-full overflow-hidden select-none shrink-0 min-h-16">
+		<motion.div
+			layout
+			initial={{ opacity: 0, y: -24, scale: 0.96 }}
+			animate={{
+				opacity: isDismissing ? 0 : 1,
+				y: 0,
+				scale: 1,
+				height: isDismissing ? 0 : 'auto',
+			}}
+			exit={{ opacity: 0, x: -350, height: 0 }}
+			transition={{
+				layout: { duration: 0.28, ease: 'easeOut' },
+				opacity: { duration: 0.24 },
+				y: { duration: 0.28, ease: 'easeOut' },
+				height: { duration: 0.28 },
+			}}
+			className="relative w-full overflow-hidden select-none shrink-0"
+		>
 			{/* Green Left Background (Editing) revealed when sliding right */}
 			<motion.div
 				style={{ opacity: editOpacity }}
@@ -135,10 +141,12 @@ export const SwipeableTransactionItem: React.FC<
 			{/* Draggable Transaction Card */}
 			<motion.div
 				drag="x"
-				dragSnapToOrigin
+				dragSnapToOrigin={!isDismissing}
 				dragConstraints={{ left: -140, right: 140 }}
 				dragElastic={0.25}
 				onDragEnd={handleDragEnd}
+				animate={isDismissing ? { x: -450 } : undefined}
+				transition={isDismissing ? { duration: 0.28, ease: 'easeIn' } : undefined}
 				style={{ x }}
 				className={`relative z-10 bg-white p-3.5 flex items-center justify-between cursor-grab active:cursor-grabbing min-h-16 ${
 					!isLast ? 'border-b border-gray-100' : ''
@@ -175,6 +183,6 @@ export const SwipeableTransactionItem: React.FC<
 					</span>
 				</div>
 			</motion.div>
-		</div>
+		</motion.div>
 	);
 };

@@ -27,6 +27,7 @@ import {
 	AnalyticsView,
 	PresetsView,
 	SettingsView,
+	SettingsSubpage,
 } from './components/SecondaryTabs';
 
 type ActiveTab = 'dashboard' | 'analytics' | 'presets' | 'settings';
@@ -117,6 +118,9 @@ export default function App() {
 	const [incomeSettings, setIncomeSettings] = useState<IncomeSettings>(
 		INITIAL_INCOME_SETTINGS,
 	);
+
+	const [initialSettingsSubpage, setInitialSettingsSubpage] =
+		useState<SettingsSubpage>('main');
 
 	// Quick dock state
 	const [selectedPresetLabel, setSelectedPresetLabel] = useState<
@@ -391,7 +395,7 @@ export default function App() {
 											Remaining Balance
 										</span>
 										<span
-											className="text-[34px] leading-tight tracking-tight font-bold tabular-nums text-[#059669]"
+											className="text-[34px] leading-tight tracking-tight font-bold tabular-nums text-secondary"
 											data-testid="hero-balance"
 										>
 											<AnimatedNumber
@@ -404,7 +408,7 @@ export default function App() {
 											base check
 										</span>
 									</div>
-									<div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#ECFDF5] text-[#059669] text-[12px] font-semibold tracking-tight shadow-sm shrink-0">
+									<div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#ECFDF5] text-secondary text-[12px] font-semibold tracking-tight shadow-sm shrink-0">
 										<span className="text-[13px]">⏱️</span>
 										<span>
 											{summary.unspentWorkHours} hrs left
@@ -443,7 +447,7 @@ export default function App() {
 								className="flex flex-col flex-1 min-h-0 bg-white rounded-[20px] border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.03)] overflow-hidden"
 								data-testid="transactions-list"
 							>
-								<div className="flex flex-col overflow-y-auto h-full divide-y divide-gray-100">
+								<div className="flex flex-col overflow-y-auto h-full divide-y divide-gray-100 pb-20">
 									{filteredTransactions.length === 0 ? (
 										<div className="p-6 text-center text-on-surface-variant text-[14px]">
 											No matching transactions found.
@@ -695,7 +699,7 @@ export default function App() {
 											borderColor:
 												dockType === 'income'
 													? 'rgb(16, 185, 129)'
-													: 'rgb(148, 163, 184)',
+													: 'rgb(218, 61, 74)',
 											borderStyle:
 												dockType === 'income'
 													? 'solid'
@@ -703,7 +707,7 @@ export default function App() {
 											color:
 												dockType === 'income'
 													? 'rgb(5, 150, 105)'
-													: 'rgb(100, 116, 139)',
+													: 'rgb(218, 61, 74)',
 											scale: [0.9, 1],
 										}}
 										whileTap={{ scale: 0.88 }}
@@ -1013,21 +1017,32 @@ export default function App() {
 				)}
 
 				{activeTab === 'settings' && (
-					<SettingsView
-						settings={incomeSettings}
-						onUpdateSettings={setIncomeSettings}
-						summary={summary}
-						transactions={transactions}
-						showToast={showToast}
-						onOpenSheet={(sheet) => {
-							if (sheet === 'log') {
-								setActiveTab('dashboard');
-								setIsDockExpanded(true);
-							} else {
-								setActiveModal(sheet);
-							}
-						}}
-					/>
+					<motion.div
+						key="settings"
+						initial={{ x: 60, opacity: 0 }}
+						animate={{ x: 0, opacity: 1 }}
+						exit={{ x: -60, opacity: 0 }}
+						transition={{ duration: 0.25, ease: 'easeOut' }}
+						className="w-full"
+					>
+						<SettingsView
+							key={initialSettingsSubpage}
+							initialSubpage={initialSettingsSubpage}
+							settings={incomeSettings}
+							onUpdateSettings={setIncomeSettings}
+							summary={summary}
+							transactions={transactions}
+							showToast={showToast}
+							onOpenSheet={(sheet) => {
+								if (sheet === 'log') {
+									setActiveTab('dashboard');
+									setIsDockExpanded(true);
+								} else {
+									setActiveModal(sheet);
+								}
+							}}
+						/>
+					</motion.div>
 				)}
 			</main>
 
@@ -1035,7 +1050,7 @@ export default function App() {
 			<motion.nav
 				aria-label="Primary Bottom Navigation"
 				style={{ y: navY }}
-				className="fixed bottom-0 inset-x-0 z-35 bg-surface-container-lowest shadow-[0_-2px_12px_rgba(0,0,0,0.03)]"
+				className="fixed bottom-0 inset-x-0 z-50 bg-surface-container-lowest shadow-[0_-2px_12px_rgba(0,0,0,0.03)]"
 			>
 				<div className="flex justify-around items-center h-16 max-w-120 mx-auto px-margin-sm">
 					<button
@@ -1100,7 +1115,10 @@ export default function App() {
 
 					<button
 						type="button"
-						onClick={() => setActiveTab('settings')}
+						onClick={() => {
+							setInitialSettingsSubpage('main');
+							setActiveTab('settings');
+						}}
 						aria-current={
 							activeTab === 'settings' ? 'page' : undefined
 						}
@@ -1140,6 +1158,7 @@ export default function App() {
 				settings={incomeSettings}
 				onOpenIncomeSettings={() => {
 					setActiveModal('none');
+					setInitialSettingsSubpage('paycheck');
 					setActiveTab('settings');
 				}}
 			/>

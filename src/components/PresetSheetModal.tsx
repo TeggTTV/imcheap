@@ -217,9 +217,9 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 						</button>
 
 						{/* Numeric Value & Unit Selector Row */}
-						<div className="relative w-full min-h-21 py-1 flex items-center justify-between border-none">
+						<div className="relative w-full min-h-21 py-1 flex items-center justify-center border-none">
 							{/* Left: Ghost Toggle Button for income/expense matching the action dock */}
-							<div className="flex-1 flex justify-start">
+							<div className="absolute left-0 inset-y-0 flex items-center z-10">
 								<motion.button
 									type="button"
 									aria-label={
@@ -236,7 +236,7 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 										borderColor:
 											presetType === 'income'
 												? 'rgb(16, 185, 129)'
-												: 'rgb(148, 163, 184)',
+												: 'rgb(218, 61, 74)',
 										borderStyle:
 											presetType === 'income'
 												? 'solid'
@@ -244,7 +244,7 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 										color:
 											presetType === 'income'
 												? 'rgb(5, 150, 105)'
-												: 'rgb(100, 116, 139)',
+												: 'rgb(218, 61, 74)',
 										scale: [0.9, 1],
 									}}
 									whileTap={{ scale: 0.88 }}
@@ -282,8 +282,8 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 								</motion.button>
 							</div>
 
-							{/* Center: Large Number with Integrated Tap-to-Cycle Pill */}
-							<div className="flex-1 flex items-baseline justify-center gap-2">
+							{/* Center: Large Number in the exact middle with Pill off to its right */}
+							<div className="relative flex items-center justify-center">
 								<span
 									className="font-bold text-on-surface tracking-tight leading-none text-[40px] tabular-nums"
 									id="numeric-val"
@@ -292,29 +292,26 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 									{currentValue}
 								</span>
 
-								{/* Inline Tap-to-Cycle Pill (Camera Mode / Speedometer Style) */}
-								<motion.button
-									type="button"
-									onClick={cycleUnit}
-									whileTap={{ scale: 0.88 }}
-									className="group inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-container-high border border-gray-300/80 shadow-xs active:bg-surface-container-highest transition-colors cursor-pointer focus:outline-none select-none"
-									aria-label={`Cycle unit. Current: ${unit}`}
-								>
-									<span className="material-symbols-outlined text-[14px] text-on-surface-variant group-hover:text-primary transition-colors">
-										{UNIT_ICONS[unit]}
-									</span>
-									<span className="font-bold text-[12px] tracking-wider uppercase text-on-surface">
-										{unit}
-									</span>
-									<span className="material-symbols-outlined text-[13px] text-outline opacity-60 group-hover:opacity-100 transition-opacity">
-										sync
-									</span>
-								</motion.button>
-							</div>
-
-							{/* Right Placeholder for symmetry with the ghost toggle button */}
-							<div className="flex-1 flex justify-end">
-								<div className="w-9 h-9" />
+								{/* Inline Tap-to-Cycle Pill positioned directly to the right without shifting the number center */}
+								<div className="absolute left-full ml-2 flex items-center">
+									<motion.button
+										type="button"
+										onClick={cycleUnit}
+										whileTap={{ scale: 0.88 }}
+										className="group inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-container-high border border-gray-300/80 shadow-xs active:bg-surface-container-highest transition-colors cursor-pointer focus:outline-none select-none whitespace-nowrap"
+										aria-label={`Cycle unit. Current: ${unit}`}
+									>
+										<span className="material-symbols-outlined text-[14px] text-on-surface-variant group-hover:text-primary transition-colors">
+											{UNIT_ICONS[unit]}
+										</span>
+										<span className="font-bold text-[12px] tracking-wider uppercase text-on-surface">
+											{unit}
+										</span>
+										<span className="material-symbols-outlined text-[13px] text-outline opacity-60 group-hover:opacity-100 transition-opacity">
+											sync
+										</span>
+									</motion.button>
+								</div>
 							</div>
 						</div>
 
@@ -366,93 +363,56 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 							</button>
 						</div>
 
-						{/* Round Trip & Category Section */}
-						<div className="mt-2.5 flex flex-col gap-2">
-							{/* Round Trip Toggle */}
-							{unit == 'MILES' && (
-								<div className="flex items-center justify-between py-0.5">
-									<div className="flex items-center gap-2">
-										<div className="w-6 h-6 rounded-lg bg-surface-container flex items-center justify-center text-on-surface">
-											<span className="material-symbols-outlined text-[14px]">
-												sync_alt
-											</span>
-										</div>
-										<div>
-											<p className="font-label-md text-label-md font-medium text-on-surface">
-												Round Trip (x2)
-											</p>
-											<p className="font-body-sm text-body-sm text-on-surface-variant">
-												Multiplies mileage calculation
-											</p>
-										</div>
+						{/* Round Trip Section */}
+						{unit === 'MILES' && (
+							<div className="mt-2.5 flex items-center justify-between py-0.5">
+								<div className="flex items-center gap-2">
+									<div className="w-6 h-6 rounded-lg bg-surface-container flex items-center justify-center text-on-surface">
+										<span className="material-symbols-outlined text-[14px]">
+											sync_alt
+										</span>
 									</div>
-									<button
-										aria-checked={isRoundTrip}
-										aria-label="Round Trip (x2)"
-										onClick={() =>
-											setIsRoundTrip((prev) => !prev)
-										}
-										className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 ease-in-out flex items-center relative focus:outline-none cursor-pointer ${
+									<div>
+										<p className="font-label-md text-label-md font-medium text-on-surface">
+											Round Trip (x2)
+										</p>
+										<p className="font-body-sm text-body-sm text-on-surface-variant">
+											Multiplies mileage calculation
+										</p>
+									</div>
+								</div>
+								<button
+									aria-checked={isRoundTrip}
+									aria-label="Round Trip (x2)"
+									onClick={() =>
+										setIsRoundTrip((prev) => !prev)
+									}
+									className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 ease-in-out flex items-center relative focus:outline-none cursor-pointer ${
+										isRoundTrip
+											? 'bg-primary'
+											: 'bg-surface-container-highest'
+									}`}
+									id="toggle-btn"
+									role="switch"
+									type="button"
+								>
+									<div
+										className={`w-5 h-5 bg-surface-container-lowest rounded-full shadow-md transform transition-transform duration-200 ${
 											isRoundTrip
-												? 'bg-primary'
-												: 'bg-surface-container-highest'
+												? 'translate-x-5'
+												: 'translate-x-0.5'
 										}`}
-										id="toggle-btn"
-										role="switch"
-										type="button"
-									>
-										<div
-											className={`w-5 h-5 bg-surface-container-lowest rounded-full shadow-md transform transition-transform duration-200 ${
-												isRoundTrip
-													? 'translate-x-5'
-													: 'translate-x-0.5'
-											}`}
-											id="toggle-knob"
-										/>
-									</button>
-								</div>
-							)}
-							{/* Category Pills */}
-							<div>
-								<span className="font-label-sm text-label-sm uppercase font-bold tracking-wider text-on-surface-variant/70 mb-1.5 block">
-									Category
-								</span>
-								<div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-									{allCategories.map((cat) => {
-										const isSelected =
-											selectedCategory === cat.id;
-										return (
-											<button
-												key={cat.id}
-												type="button"
-												onClick={() =>
-													setSelectedCategory(cat.id)
-												}
-												className={`category-pill flex items-center gap-1.5 px-3 py-1.5 rounded-full font-label-md text-label-md shrink-0 active:scale-95 transition-all whitespace-nowrap cursor-pointer ${
-													isSelected
-														? 'bg-primary text-on-primary shadow-sm active'
-														: 'bg-surface-container-low text-on-surface hover:bg-surface-container'
-												}`}
-											>
-												<span
-													className={`material-symbols-outlined text-[16px] ${
-														isSelected
-															? ''
-															: 'text-on-surface-variant'
-													}`}
-												>
-													{cat.icon}
-												</span>
-												<span>{cat.label}</span>
-											</button>
-										);
-									})}
-								</div>
+										id="toggle-knob"
+									/>
+								</button>
 							</div>
-						</div>
+						)}
 
-						{/* 3x4 Numeric Keypad */}
-						<div className="mt-3 pt-0.5 grid grid-cols-3 gap-y-1.5 gap-x-3 text-center">
+						{/* Custom iOS Numeric Keypad (Matches Main Action Dock) */}
+						<div
+							className="grid grid-cols-3 gap-2 mt-3 mb-2"
+							id="numeric-keypad"
+						>
 							{[
 								'1',
 								'2',
@@ -465,23 +425,23 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 								'9',
 								'.',
 								'0',
-							].map((key) => (
+							].map((val) => (
 								<button
-									key={key}
+									key={val}
 									type="button"
-									onClick={() => handleKeyPress(key)}
-									className="key-btn h-10 flex items-center justify-center font-headline-md text-headline-md font-bold text-on-surface rounded-xl active:bg-surface-container hover:bg-surface-container-low transition-colors cursor-pointer"
+									onClick={() => handleKeyPress(val)}
+									className="num-key h-14 rounded-full bg-transparent hover:bg-surface-container-low font-headline-lg text-headline-lg font-bold text-on-surface flex items-center justify-center transition-all active:scale-95 active:bg-surface-container cursor-pointer"
 								>
-									{key}
+									{val}
 								</button>
 							))}
 							<button
-								aria-label="Backspace"
 								type="button"
+								aria-label="Backspace"
 								onClick={() => handleKeyPress('backspace')}
-								className="key-btn h-10 flex items-center justify-center text-on-surface rounded-xl active:bg-surface-container hover:bg-surface-container-low transition-colors cursor-pointer"
+								className="num-key h-14 rounded-full bg-transparent hover:bg-surface-container-low font-headline-lg text-headline-lg font-bold text-on-surface flex items-center justify-center transition-all active:scale-95 active:bg-surface-container cursor-pointer"
 							>
-								<span className="material-symbols-outlined text-[20px]">
+								<span className="material-symbols-outlined text-[28px]">
 									backspace
 								</span>
 							</button>

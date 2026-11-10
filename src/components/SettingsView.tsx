@@ -29,6 +29,7 @@ export interface SettingsViewProps {
 	transactions?: Transaction[];
 	onOpenSheet?: (sheet: 'preset' | 'breakdown' | 'log') => void;
 	showToast?: (message: string) => void;
+	initialSubpage?: SettingsSubpage;
 }
 
 const slideVariants = {
@@ -59,9 +60,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	},
 	transactions = [],
 	showToast,
+	initialSubpage = 'main',
 }) => {
 	const [currentSubpage, setCurrentSubpage] =
-		useState<SettingsSubpage>('main');
+		useState<SettingsSubpage>(initialSubpage);
 	const [direction, setDirection] = useState<number>(1);
 
 	const navigateTo = (nextPage: SettingsSubpage) => {
@@ -93,12 +95,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	const [paycheckToast, setPaycheckToast] = useState(false);
 
 	// Vehicle & Transit State
-	const mpgOptions = [25, 29, 34, 42];
-	const gasOptions = [3.65, 4.05, 4.45, 4.89];
+	const mpgOptions = [25, 30, 35, 40];
+	const gasOptions = [3.55, 3.95, 4.35, 4.79];
 	const capOptions = [12.0, 14.0, 16.5, 18.0];
-	const [mpgIdx, setMpgIdx] = useState(1);
-	const [gasIdx, setGasIdx] = useState(1);
-	const [capIdx, setCapIdx] = useState(1);
+	const [mpgIdx, setMpgIdx] = useState<number | null>(1);
+	const [customMpg, setCustomMpg] = useState<number | null>(null);
+	const [customMpgInput, setCustomMpgInput] = useState('');
+	const [mpgBtnState, setMpgBtnState] = useState<
+		'idle' | 'loading' | 'success'
+	>('idle');
+
+	const [gasIdx, setGasIdx] = useState<number | null>(1);
+	const [customGas, setCustomGas] = useState<number | null>(null);
+	const [customGasInput, setCustomGasInput] = useState('');
+	const [gasBtnState, setGasBtnState] = useState<
+		'idle' | 'loading' | 'success'
+	>('idle');
+
+	const [capIdx, setCapIdx] = useState<number | null>(1);
+	const [customCap, setCustomCap] = useState<number | null>(null);
+	const [customCapInput, setCustomCapInput] = useState('');
+	const [capBtnState, setCapBtnState] = useState<
+		'idle' | 'loading' | 'success'
+	>('idle');
+
 	const [vehicleSaved, setVehicleSaved] = useState(false);
 
 	// Export State
@@ -143,9 +163,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	};
 
 	// Helper calculations for Vehicle Math
-	const currentMpg = mpgOptions[mpgIdx];
-	const currentGas = gasOptions[gasIdx];
-	const currentCap = capOptions[capIdx];
+	const currentMpg = customMpg ?? (mpgIdx !== null ? mpgOptions[mpgIdx] : 29);
+	const currentGas =
+		customGas ?? (gasIdx !== null ? gasOptions[gasIdx] : 4.05);
+	const currentCap =
+		customCap ?? (capIdx !== null ? capOptions[capIdx] : 14.0);
 	const vehicleCostPerMile = currentGas / currentMpg;
 	const maxRange = Math.round(currentMpg * currentCap);
 	const commuteCost = vehicleCostPerMile * 10;
@@ -270,7 +292,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						initial="enter"
 						animate="center"
 						exit="exit"
-						transition={{ duration: 0.25, ease: 'easeInOut' }}
+						transition={{ duration: 0.1, ease: 'easeInOut' }}
 						className="w-full flex flex-col"
 					>
 						<div className="flex items-center justify-between pb-3 mb-2">
@@ -304,43 +326,88 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</p>
 							</div>
 
-							<div className="flex flex-col space-y-2">
-								{[0, 8, 10, 12, 15, 20, 25].map((pct) => (
-									<button
-										key={pct}
-										type="button"
-										onClick={() => setTempTaxBuffer(pct)}
-										className="w-full p-3.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer text-left"
-										style={{
-											borderColor:
-												tempTaxBuffer === pct
-													? '#111111'
-													: '#F3F4F6',
-											backgroundColor:
-												tempTaxBuffer === pct
-													? '#F9FAFB'
-													: '#FFFFFF',
-										}}
-									>
-										<div className="flex flex-col">
-											<span className="font-semibold text-sm text-on-surface">
-												{pct === 0
-													? 'No Tax Buffer (0%)'
-													: `${pct}% Buffer`}
-											</span>
-											<span className="text-xs text-outline">
-												{pct === 12
-													? 'Recommended standard for part-time income'
-													: `Estimated withholding deduction`}
-											</span>
-										</div>
-										{tempTaxBuffer === pct && (
-											<span className="material-symbols-outlined text-primary text-[20px]">
-												check_circle
-											</span>
-										)}
-									</button>
-								))}
+							{/* Separate 0% Option */}
+							<div>
+								<span className="text-[10px] font-bold uppercase tracking-wider text-outline mb-1.5 block">
+									No Withholding
+								</span>
+								<button
+									type="button"
+									onClick={() => setTempTaxBuffer(0)}
+									className="w-full p-3.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer text-left"
+									style={{
+										borderColor:
+											tempTaxBuffer === 0
+												? '#111111'
+												: '#F3F4F6',
+										backgroundColor:
+											tempTaxBuffer === 0
+												? '#F9FAFB'
+												: '#FFFFFF',
+									}}
+								>
+									<div className="flex flex-col">
+										<span className="font-semibold text-sm text-on-surface">
+											0% (None)
+										</span>
+										<span className="text-xs text-outline">
+											No tax buffer deduction from
+											paycheck
+										</span>
+									</div>
+									{tempTaxBuffer === 0 && (
+										<span className="material-symbols-outlined text-primary text-[20px]">
+											check_circle
+										</span>
+									)}
+								</button>
+							</div>
+
+							<div className="h-px bg-slate-100 my-1" />
+
+							{/* Percentage Buffer Selection */}
+							<div>
+								<span className="text-[10px] font-bold uppercase tracking-wider text-outline mb-1.5 block">
+									Buffer Rates
+								</span>
+								<div className="flex flex-col space-y-2">
+									{[8, 10, 12, 15, 20, 25].map((pct) => (
+										<button
+											key={pct}
+											type="button"
+											onClick={() =>
+												setTempTaxBuffer(pct)
+											}
+											className="w-full p-3.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer text-left"
+											style={{
+												borderColor:
+													tempTaxBuffer === pct
+														? '#111111'
+														: '#F3F4F6',
+												backgroundColor:
+													tempTaxBuffer === pct
+														? '#F9FAFB'
+														: '#FFFFFF',
+											}}
+										>
+											<div className="flex flex-col">
+												<span className="font-semibold text-sm text-on-surface">
+													{pct}% Buffer
+												</span>
+												<span className="text-xs text-outline">
+													{pct === 12
+														? 'Recommended standard for part-time income'
+														: 'Estimated withholding deduction'}
+												</span>
+											</div>
+											{tempTaxBuffer === pct && (
+												<span className="material-symbols-outlined text-primary text-[20px]">
+													check_circle
+												</span>
+											)}
+										</button>
+									))}
+								</div>
 							</div>
 
 							<button
@@ -370,7 +437,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						initial="enter"
 						animate="center"
 						exit="exit"
-						transition={{ duration: 0.25, ease: 'easeInOut' }}
+						transition={{ duration: 0.1, ease: 'easeInOut' }}
 						className="w-full flex flex-col"
 					>
 						<div className="flex items-center justify-between pb-3 mb-2">
@@ -404,51 +471,129 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							</div>
 
 							<div className="flex flex-col space-y-2">
-								{mpgOptions.map((mpg, idx) => (
-									<button
-										key={mpg}
-										type="button"
-										onClick={() => {
-											setMpgIdx(idx);
-											if (showToast)
-												showToast(
-													`Fuel economy set to ${mpg} MPG`,
-												);
-											navigateBack('vehicle');
-										}}
-										className="w-full p-4 rounded-xl border flex items-center justify-between transition-all cursor-pointer text-left"
-										style={{
-											borderColor:
-												mpgIdx === idx
+								{mpgOptions.map((mpg, idx) => {
+									const isSelected =
+										customMpg === null && mpgIdx === idx;
+									return (
+										<button
+											key={mpg}
+											type="button"
+											onClick={() => {
+												setCustomMpg(null);
+												setMpgIdx(idx);
+												if (showToast)
+													showToast(
+														`Fuel economy set to ${mpg} MPG`,
+													);
+											}}
+											className="w-full p-4 rounded-xl border flex items-center justify-between transition-all cursor-pointer text-left"
+											style={{
+												borderColor: isSelected
 													? '#111111'
 													: '#F3F4F6',
-											backgroundColor:
-												mpgIdx === idx
+												backgroundColor: isSelected
 													? '#F9FAFB'
 													: '#FFFFFF',
+											}}
+										>
+											<div className="flex flex-col">
+												<span className="font-semibold text-base text-on-surface">
+													{mpg} MPG
+												</span>
+												<span className="text-xs text-outline">
+													{mpg === 25
+														? 'Standard SUV / Truck'
+														: mpg === 29
+															? 'Average compact sedan'
+															: mpg === 34
+																? 'High efficiency subcompact'
+																: 'Hybrid vehicle benchmark'}
+												</span>
+											</div>
+											{isSelected && (
+												<span className="material-symbols-outlined text-primary text-[20px]">
+													check_circle
+												</span>
+											)}
+										</button>
+									);
+								})}
+							</div>
+
+							{/* Custom MPG Input */}
+							<div className="pt-2 border-t border-[#F3F4F6]">
+								<span className="text-[10px] font-bold uppercase tracking-wider text-outline mb-2 block">
+									Custom Value
+								</span>
+								<div className="flex items-center gap-2">
+									<div className="relative flex-1 group">
+										<input
+											type="number"
+											step="any"
+											min="1"
+											max="150"
+											value={customMpgInput}
+											onChange={(e) =>
+												setCustomMpgInput(
+													e.target.value,
+												)
+											}
+											placeholder={
+												customMpg
+													? `${customMpg} MPG`
+													: 'Enter custom MPG...'
+											}
+											className="w-full bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-3.5 py-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all duration-200 tabular-nums"
+										/>
+										<span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-outline pointer-events-none">
+											MPG
+										</span>
+									</div>
+									<button
+										type="button"
+										disabled={mpgBtnState !== 'idle'}
+										onClick={() => {
+											const val =
+												parseFloat(customMpgInput);
+											if (!isNaN(val) && val > 0) {
+												setMpgBtnState('loading');
+												setTimeout(() => {
+													setMpgBtnState('success');
+													setCustomMpg(val);
+													setMpgIdx(null);
+													if (showToast)
+														showToast(
+															`Fuel economy set to ${val} MPG`,
+														);
+													setTimeout(() => {
+														setMpgBtnState('idle');
+													}, 250);
+												}, 250);
+											}
 										}}
+										className="w-16 h-11 bg-primary text-on-primary font-semibold text-sm rounded-xl active:scale-95 transition-all flex items-center justify-center cursor-pointer disabled:opacity-90 shrink-0"
 									>
-										<div className="flex flex-col">
-											<span className="font-semibold text-base text-on-surface">
-												{mpg} MPG
+										{mpgBtnState === 'loading' ? (
+											<span className="material-symbols-outlined text-[18px] animate-spin">
+												progress_activity
 											</span>
-											<span className="text-xs text-outline">
-												{mpg === 25
-													? 'Standard SUV / Truck'
-													: mpg === 29
-														? 'Average compact sedan'
-														: mpg === 34
-															? 'High efficiency subcompact'
-															: 'Hybrid vehicle benchmark'}
+										) : mpgBtnState === 'success' ? (
+											<span className="material-symbols-outlined text-[18px] text-emerald-300">
+												check
 											</span>
-										</div>
-										{mpgIdx === idx && (
-											<span className="material-symbols-outlined text-primary text-[20px]">
-												check_circle
-											</span>
+										) : (
+											'Set'
 										)}
 									</button>
-								))}
+								</div>
+								{customMpg !== null && (
+									<p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
+										<span className="material-symbols-outlined text-[14px]">
+											check
+										</span>
+										Current custom: {customMpg} MPG
+									</p>
+								)}
 							</div>
 						</div>
 					</motion.div>
@@ -463,7 +608,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						initial="enter"
 						animate="center"
 						exit="exit"
-						transition={{ duration: 0.25, ease: 'easeInOut' }}
+						transition={{ duration: 0.1, ease: 'easeInOut' }}
 						className="w-full flex flex-col"
 					>
 						<div className="flex items-center justify-between pb-3 mb-2">
@@ -497,51 +642,133 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							</div>
 
 							<div className="flex flex-col space-y-2">
-								{gasOptions.map((price, idx) => (
-									<button
-										key={price}
-										type="button"
-										onClick={() => {
-											setGasIdx(idx);
-											if (showToast)
-												showToast(
-													`Gas price set to $${price.toFixed(2)}/gal`,
-												);
-											navigateBack('vehicle');
-										}}
-										className="w-full p-4 rounded-xl border flex items-center justify-between transition-all cursor-pointer text-left"
-										style={{
-											borderColor:
-												gasIdx === idx
+								{gasOptions.map((price, idx) => {
+									const isSelected =
+										customGas === null && gasIdx === idx;
+									return (
+										<button
+											key={price}
+											type="button"
+											onClick={() => {
+												setCustomGas(null);
+												setGasIdx(idx);
+												if (showToast)
+													showToast(
+														`Gas price set to $${price.toFixed(2)}/gal`,
+													);
+											}}
+											className="w-full p-4 rounded-xl border flex items-center justify-between transition-all cursor-pointer text-left"
+											style={{
+												borderColor: isSelected
 													? '#111111'
 													: '#F3F4F6',
-											backgroundColor:
-												gasIdx === idx
+												backgroundColor: isSelected
 													? '#F9FAFB'
 													: '#FFFFFF',
+											}}
+										>
+											<div className="flex flex-col">
+												<span className="font-semibold text-base text-on-surface">
+													${price.toFixed(2)} / gallon
+												</span>
+												<span className="text-xs text-outline">
+													{price === 3.65
+														? 'Low regional benchmark'
+														: price === 4.05
+															? 'National average benchmark'
+															: price === 4.45
+																? 'Metro regional benchmark'
+																: 'Premium / High-cost benchmark'}
+												</span>
+											</div>
+											{isSelected && (
+												<span className="material-symbols-outlined text-primary text-[20px]">
+													check_circle
+												</span>
+											)}
+										</button>
+									);
+								})}
+							</div>
+
+							{/* Custom Gas Price Input */}
+							<div className="pt-2 border-t border-[#F3F4F6]">
+								<span className="text-[10px] font-bold uppercase tracking-wider text-outline mb-2 block">
+									Custom Value
+								</span>
+								<div className="flex items-center gap-2">
+									<div className="relative flex-1 group">
+										<span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-outline pointer-events-none">
+											$
+										</span>
+										<input
+											type="number"
+											step="0.01"
+											min="0.5"
+											max="20"
+											value={customGasInput}
+											onChange={(e) =>
+												setCustomGasInput(
+													e.target.value,
+												)
+											}
+											placeholder={
+												customGas
+													? `${customGas.toFixed(2)}`
+													: 'Enter gas price...'
+											}
+											className="w-full bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl pl-7 pr-12 py-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all duration-200 tabular-nums"
+										/>
+										<span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-outline pointer-events-none">
+											/gal
+										</span>
+									</div>
+									<button
+										type="button"
+										disabled={gasBtnState !== 'idle'}
+										onClick={() => {
+											const val =
+												parseFloat(customGasInput);
+											if (!isNaN(val) && val > 0) {
+												setGasBtnState('loading');
+												setTimeout(() => {
+													setGasBtnState('success');
+													setCustomGas(val);
+													setGasIdx(null);
+													if (showToast)
+														showToast(
+															`Gas price set to $${val.toFixed(2)}/gal`,
+														);
+													setTimeout(() => {
+														setGasBtnState('idle');
+													}, 250);
+												}, 250);
+											}
 										}}
+										className="w-16 h-11 bg-primary text-on-primary font-semibold text-sm rounded-xl active:scale-95 transition-all flex items-center justify-center cursor-pointer disabled:opacity-90 shrink-0"
 									>
-										<div className="flex flex-col">
-											<span className="font-semibold text-base text-on-surface">
-												${price.toFixed(2)} / gallon
+										{gasBtnState === 'loading' ? (
+											<span className="material-symbols-outlined text-[18px] animate-spin">
+												progress_activity
 											</span>
-											<span className="text-xs text-outline">
-												{price === 3.65
-													? 'Low regional benchmark'
-													: price === 4.05
-														? 'National average benchmark'
-														: price === 4.45
-															? 'Metro regional benchmark'
-															: 'Premium / High-cost benchmark'}
+										) : gasBtnState === 'success' ? (
+											<span className="material-symbols-outlined text-[18px] text-emerald-300">
+												check
 											</span>
-										</div>
-										{gasIdx === idx && (
-											<span className="material-symbols-outlined text-primary text-[20px]">
-												check_circle
-											</span>
+										) : (
+											'Set'
 										)}
 									</button>
-								))}
+								</div>
+								{customGas !== null && (
+									<p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
+										<span className="material-symbols-outlined text-[14px]">
+											check
+										</span>
+										Current custom: ${customGas.toFixed(2)}{' '}
+										/ gallon
+									</p>
+								)}
 							</div>
 						</div>
 					</motion.div>
@@ -556,7 +783,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						initial="enter"
 						animate="center"
 						exit="exit"
-						transition={{ duration: 0.25, ease: 'easeInOut' }}
+						transition={{ duration: 0.1, ease: 'easeInOut' }}
 						className="w-full flex flex-col"
 					>
 						<div className="flex items-center justify-between pb-3 mb-2">
@@ -590,51 +817,130 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							</div>
 
 							<div className="flex flex-col space-y-2">
-								{capOptions.map((cap, idx) => (
-									<button
-										key={cap}
-										type="button"
-										onClick={() => {
-											setCapIdx(idx);
-											if (showToast)
-												showToast(
-													`Tank capacity set to ${cap.toFixed(1)} gal`,
-												);
-											navigateBack('vehicle');
-										}}
-										className="w-full p-4 rounded-xl border flex items-center justify-between transition-all cursor-pointer text-left"
-										style={{
-											borderColor:
-												capIdx === idx
+								{capOptions.map((cap, idx) => {
+									const isSelected =
+										customCap === null && capIdx === idx;
+									return (
+										<button
+											key={cap}
+											type="button"
+											onClick={() => {
+												setCustomCap(null);
+												setCapIdx(idx);
+												if (showToast)
+													showToast(
+														`Tank capacity set to ${cap.toFixed(1)} gal`,
+													);
+											}}
+											className="w-full p-4 rounded-xl border flex items-center justify-between transition-all cursor-pointer text-left"
+											style={{
+												borderColor: isSelected
 													? '#111111'
 													: '#F3F4F6',
-											backgroundColor:
-												capIdx === idx
+												backgroundColor: isSelected
 													? '#F9FAFB'
 													: '#FFFFFF',
+											}}
+										>
+											<div className="flex flex-col">
+												<span className="font-semibold text-base text-on-surface">
+													{cap.toFixed(1)} Gallons
+												</span>
+												<span className="text-xs text-outline">
+													{cap === 12
+														? 'Compact hatchback (e.g. Civic / Corolla)'
+														: cap === 14
+															? 'Mid-size sedan (e.g. Accord / Camry)'
+															: cap === 16.5
+																? 'Crossover / Small SUV'
+																: 'Full-size SUV / Truck'}
+												</span>
+											</div>
+											{isSelected && (
+												<span className="material-symbols-outlined text-primary text-[20px]">
+													check_circle
+												</span>
+											)}
+										</button>
+									);
+								})}
+							</div>
+
+							{/* Custom Tank Capacity Input */}
+							<div className="pt-2 border-t border-[#F3F4F6]">
+								<span className="text-[10px] font-bold uppercase tracking-wider text-outline mb-2 block">
+									Custom Value
+								</span>
+								<div className="flex items-center gap-2">
+									<div className="relative flex-1 group">
+										<input
+											type="number"
+											step="0.1"
+											min="1"
+											max="100"
+											value={customCapInput}
+											onChange={(e) =>
+												setCustomCapInput(
+													e.target.value,
+												)
+											}
+											placeholder={
+												customCap
+													? `${customCap.toFixed(1)} gal`
+													: 'Enter tank size...'
+											}
+											className="w-full bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl px-3.5 py-3 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all duration-200 tabular-nums"
+										/>
+										<span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-outline pointer-events-none">
+											gal
+										</span>
+									</div>
+									<button
+										type="button"
+										disabled={capBtnState !== 'idle'}
+										onClick={() => {
+											const val =
+												parseFloat(customCapInput);
+											if (!isNaN(val) && val > 0) {
+												setCapBtnState('loading');
+												setTimeout(() => {
+													setCapBtnState('success');
+													setCustomCap(val);
+													setCapIdx(null);
+													if (showToast)
+														showToast(
+															`Tank capacity set to ${val.toFixed(1)} gal`,
+														);
+													setTimeout(() => {
+														setCapBtnState('idle');
+													}, 250);
+												}, 250);
+											}
 										}}
+										className="w-16 h-11 bg-primary text-on-primary font-semibold text-sm rounded-xl active:scale-95 transition-all flex items-center justify-center cursor-pointer disabled:opacity-90 shrink-0"
 									>
-										<div className="flex flex-col">
-											<span className="font-semibold text-base text-on-surface">
-												{cap.toFixed(1)} Gallons
+										{capBtnState === 'loading' ? (
+											<span className="material-symbols-outlined text-[18px] animate-spin">
+												progress_activity
 											</span>
-											<span className="text-xs text-outline">
-												{cap === 12
-													? 'Compact hatchback (e.g. Civic / Corolla)'
-													: cap === 14
-														? 'Mid-size sedan (e.g. Accord / Camry)'
-														: cap === 16.5
-															? 'Crossover / Small SUV'
-															: 'Full-size SUV / Truck'}
+										) : capBtnState === 'success' ? (
+											<span className="material-symbols-outlined text-[18px] text-emerald-300">
+												check
 											</span>
-										</div>
-										{capIdx === idx && (
-											<span className="material-symbols-outlined text-primary text-[20px]">
-												check_circle
-											</span>
+										) : (
+											'Set'
 										)}
 									</button>
-								))}
+								</div>
+								{customCap !== null && (
+									<p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
+										<span className="material-symbols-outlined text-[14px]">
+											check
+										</span>
+										Current custom: {customCap.toFixed(1)}{' '}
+										Gallons
+									</p>
+								)}
 							</div>
 						</div>
 					</motion.div>
@@ -649,7 +955,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						initial="enter"
 						animate="center"
 						exit="exit"
-						transition={{ duration: 0.25, ease: 'easeInOut' }}
+						transition={{ duration: 0.1, ease: 'easeInOut' }}
 						className="flex flex-col w-full -mt-2"
 					>
 						{/* Subpage Header */}
@@ -889,7 +1195,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										: 'opacity-0 pointer-events-none translate-y-2'
 								}`}
 							>
-								<span className="material-symbols-outlined text-[16px] text-emerald-400">
+								<span className="material-symbols-outlined text-[16px] text-secondary">
 									check_circle
 								</span>
 								<span>Shift logged successfully</span>
@@ -907,7 +1213,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						initial="enter"
 						animate="center"
 						exit="exit"
-						transition={{ duration: 0.25, ease: 'easeInOut' }}
+						transition={{ duration: 0.1, ease: 'easeInOut' }}
 						className="flex flex-col w-full -mt-2"
 					>
 						{/* Header */}
@@ -942,21 +1248,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 									</span>
 								</div>
 							</div>
-							<div className="flex items-baseline gap-1.5 mt-2 mb-2">
-								<span className="text-[32px] font-bold leading-9 text-primary tracking-tight tabular-nums">
-									${vehicleCostPerMile.toFixed(2)}
-								</span>
-								<span className="text-[18px] text-outline font-normal">
-									/ mi
-								</span>
-							</div>
-							<div className="inline-flex items-center gap-1.5 bg-secondary-container/30 px-2.5 py-1 rounded-full mb-2.5">
-								<span className="material-symbols-outlined text-[14px] text-secondary">
-									schedule
-								</span>
-								<span className="text-xs text-secondary font-semibold">
-									≈ 30s of work
-								</span>
+							<div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-2 mb-2">
+								<div className="flex items-baseline gap-1">
+									<span className="text-[32px] font-bold leading-9 text-primary tracking-tight tabular-nums">
+										${vehicleCostPerMile.toFixed(2)}
+									</span>
+									<span className="text-[18px] text-outline font-normal">
+										/ mi
+									</span>
+								</div>
+								<div className="inline-flex items-center gap-1.5 bg-secondary-container/30 px-2.5 py-1 rounded-full">
+									<span className="material-symbols-outlined text-[14px] text-secondary">
+										schedule
+									</span>
+									<span className="text-xs text-secondary font-semibold">
+										≈ 30s of work
+									</span>
+								</div>
 							</div>
 							<div className="w-full bg-surface-container-high h-1.5 rounded-full overflow-hidden mb-3">
 								<div
@@ -1211,7 +1519,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						initial="enter"
 						animate="center"
 						exit="exit"
-						transition={{ duration: 0.25, ease: 'easeInOut' }}
+						transition={{ duration: 0.1, ease: 'easeInOut' }}
 						className="flex flex-col w-full -mt-2"
 					>
 						{/* Header */}
@@ -1335,7 +1643,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						initial="enter"
 						animate="center"
 						exit="exit"
-						transition={{ duration: 0.25, ease: 'easeInOut' }}
+						transition={{ duration: 0.1, ease: 'easeInOut' }}
 						className="flex flex-col w-full -mt-2"
 					>
 						{/* Header */}
@@ -1666,7 +1974,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						initial="enter"
 						animate="center"
 						exit="exit"
-						transition={{ duration: 0.25, ease: 'easeInOut' }}
+						transition={{ duration: 0.1, ease: 'easeInOut' }}
 						className="flex flex-col w-full"
 					>
 						{/* SECTION 1: ENGINES & CALCULATIONS */}
