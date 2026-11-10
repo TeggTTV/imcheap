@@ -14,6 +14,7 @@ export interface PresetItem {
   label: string;
   title: string;
   category: string;
+  type?: 'expense' | 'income';
   icon: string;
   bgColor: string;
   iconColor: string;

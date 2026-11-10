@@ -1,9 +1,4 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
 	motion,
 	AnimatePresence,
@@ -24,7 +19,6 @@ import {
 	calculateWorkHoursLabel,
 } from './utils/expenseMath';
 import { TransactionManager } from './utils/transactionDataStructure';
-import { UIProvider, useUI } from './utils/uiManager';
 import { PresetSheetModal } from './components/PresetSheetModal';
 import { BalanceBreakdownModal } from './components/BalanceBreakdownModal';
 import { TransactionDetailModal } from './components/TransactionDetailModal';
@@ -112,12 +106,6 @@ export default function App() {
 	const navY = useTransform(dockY, [COLLAPSED_DOCK_Y, 160], [0, 80]);
 	const presetsOpacity = useTransform(dockY, [COLLAPSED_DOCK_Y, 200], [1, 0]);
 	const presetsHeight = useTransform(dockY, [COLLAPSED_DOCK_Y, 180], [68, 0]);
-	const compactAmountOpacity = useTransform(
-		dockY,
-		[COLLAPSED_DOCK_Y, 240],
-		[1, 0],
-	);
-	const expandedAmountOpacity = useTransform(dockY, [240, 0], [0, 1]);
 
 	const [txManager] = useState<TransactionManager>(
 		() => new TransactionManager(INITIAL_TRANSACTIONS),
@@ -171,28 +159,19 @@ export default function App() {
 		return () => clearTimeout(timer);
 	}, [toastMessage]);
 
-	const handleDockAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		let val = e.target.value.replace(/[^0-9.]/g, '');
-		const parts = val.split('.');
-		if (parts.length > 2) {
-			val = parts[0] + '.' + parts.slice(1).join('');
-		}
-		if (parts[1] && parts[1].length > 2) {
-			val = parts[0] + '.' + parts[1].slice(0, 2);
-		}
-		setDockAmount(val);
-	};
-
 	const handlePresetClick = (preset: PresetItem) => {
+		const txType = preset.type || 'expense';
 		const newTx = txManager.createTransaction({
 			title: preset.title,
 			category: preset.category,
 			amount: preset.calculatedAmount,
-			type: 'expense',
+			type: txType,
 			icon: preset.icon,
 		});
 		setTransactions(txManager.getAll());
-		showToast(`Logged $${newTx.amount.toFixed(2)} to ${preset.label}`);
+		showToast(
+			`Logged ${txType === 'income' ? '+' : '-'}$${newTx.amount.toFixed(2)} to ${preset.label}`,
+		);
 	};
 
 	const handleKeypadClick = (val: string) => {
@@ -286,15 +265,18 @@ export default function App() {
 	};
 
 	const handleQuickLogPresetFromTab = (preset: PresetItem) => {
+		const txType = preset.type || 'expense';
 		const newTx = txManager.createTransaction({
 			title: preset.title,
 			category: preset.category,
 			amount: preset.calculatedAmount,
-			type: 'expense',
+			type: txType,
 			icon: preset.icon,
 		});
 		setTransactions(txManager.getAll());
-		showToast(`Logged $${newTx.amount.toFixed(2)} to ${preset.label}`);
+		showToast(
+			`Logged ${txType === 'income' ? '+' : '-'}$${newTx.amount.toFixed(2)} to ${preset.label}`,
+		);
 	};
 
 	const tabTitle =
@@ -309,8 +291,8 @@ export default function App() {
 	return (
 		<div className="bg-surface font-body-md text-on-surface min-h-screen flex flex-col antialiased">
 			{/* Top App Header - Icon stays constant (toll), profile icon has no function */}
-			<header className="fixed top-0 inset-x-0 z-[60] bg-surface/85 backdrop-blur-xl">
-				<div className="h-16 px-margin max-w-[480px] mx-auto flex items-center justify-between">
+			<header className="fixed top-0 inset-x-0 z-60 bg-surface/85 backdrop-blur-xl">
+				<div className="h-16 px-margin max-w-120 mx-auto flex items-center justify-between">
 					<div className="flex items-center gap-space-sm">
 						<span className="material-symbols-outlined text-primary text-[22px]">
 							toll
@@ -345,7 +327,7 @@ export default function App() {
 
 				{/* Optional Collapsible Search Bar */}
 				{isSearchOpen && (
-					<div className="px-margin pb-3 max-w-[480px] mx-auto">
+					<div className="px-margin pb-3 max-w-120 mx-auto">
 						<div className="flex items-center gap-2 bg-surface-container-lowest border border-surface-container-high rounded-xl px-3 py-2 shadow-xs">
 							<span className="material-symbols-outlined text-outline text-[18px]">
 								search
@@ -378,14 +360,18 @@ export default function App() {
 
 			{/* Main Content Container */}
 			<main
-				className={`flex flex-col relative w-full max-w-[480px] mx-auto px-margin ${
+				className={`flex flex-col relative w-full max-w-120 mx-auto px-margin ${
 					isSearchOpen ? 'pt-28' : 'pt-16'
-				} pb-28 bg-surface min-h-screen`}
+				} ${
+					activeTab === 'dashboard'
+						? 'h-screen pb-24 overflow-hidden'
+						: 'pb-28 min-h-screen'
+				} bg-surface`}
 			>
 				{activeTab === 'dashboard' && (
-					<div className="flex flex-col w-full space-y-space-lg pb-10">
-						{/* Elevated Hero Card: Balance, Dual-Tone Progress, and Badge */}
-						<section className="pt-space-md px-space-xs">
+					<div className="flex flex-col w-full h-full overflow-hidden">
+						{/* Elevated Hero Card: Balance, Dual-Tone Progress, and Badge (Fixed) */}
+						<section className="pt-space-md px-space-xs shrink-0">
 							<div
 								onClick={() => setActiveModal('breakdown')}
 								onKeyDown={(e) => {
@@ -427,7 +413,7 @@ export default function App() {
 								</div>
 
 								{/* Dual-tone Progress Track: 6px bar with percent left */}
-								<div className="w-full h-[6px] bg-[#E5E7EB] rounded-full overflow-hidden flex">
+								<div className="w-full h-1.5 bg-[#E5E7EB] rounded-full overflow-hidden flex">
 									<div
 										className="h-full bg-[#10B981] rounded-full transition-all duration-300"
 										style={{
@@ -439,8 +425,9 @@ export default function App() {
 						</section>
 
 						{/* Recent Transactions List with Swipe to Edit / Delete */}
-						<div className="flex flex-col space-y-3 px-space-xs pt-2 pb-48">
-							<div className="flex items-center justify-between text-on-surface-variant text-[12px] font-label-md tracking-wider uppercase px-1">
+						<div className="flex flex-col flex-1 min-h-0 px-space-xs pt-4 pb-2">
+							{/* Fixed Section Header */}
+							<div className="flex items-center justify-between text-on-surface-variant text-[12px] font-label-md tracking-wider uppercase px-1 pb-2 shrink-0">
 								<span>Recent Transactions</span>
 								<button
 									type="button"
@@ -451,40 +438,46 @@ export default function App() {
 								</button>
 							</div>
 
+							{/* Independently Scrollable Transaction Items Container */}
 							<div
-								className="flex flex-col bg-white rounded-[20px] border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.03)] overflow-hidden"
+								className="flex flex-col flex-1 min-h-0 bg-white rounded-[20px] border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.03)] overflow-hidden"
 								data-testid="transactions-list"
 							>
-								{filteredTransactions.length === 0 ? (
-									<div className="p-6 text-center text-on-surface-variant text-[14px]">
-										No matching transactions found.
-									</div>
-								) : (
-									filteredTransactions.map((tx, idx) => (
-										<SwipeableTransactionItem
-											key={tx.id}
-											tx={tx}
-											isLast={
-												idx ===
-												filteredTransactions.length - 1
-											}
-											onEdit={(transactionToEdit) =>
-												setSelectedTxForDetail(
-													transactionToEdit,
-												)
-											}
-											onDelete={(id) => {
-												txManager.removeTransaction(id);
-												setTransactions(
-													txManager.getAll(),
-												);
-												showToast(
-													'Transaction deleted',
-												);
-											}}
-										/>
-									))
-								)}
+								<div className="flex flex-col overflow-y-auto h-full divide-y divide-gray-100">
+									{filteredTransactions.length === 0 ? (
+										<div className="p-6 text-center text-on-surface-variant text-[14px]">
+											No matching transactions found.
+										</div>
+									) : (
+										filteredTransactions.map((tx, idx) => (
+											<SwipeableTransactionItem
+												key={tx.id}
+												tx={tx}
+												isLast={
+													idx ===
+													filteredTransactions.length -
+														1
+												}
+												onEdit={(transactionToEdit) =>
+													setSelectedTxForDetail(
+														transactionToEdit,
+													)
+												}
+												onDelete={(id) => {
+													txManager.removeTransaction(
+														id,
+													);
+													setTransactions(
+														txManager.getAll(),
+													);
+													showToast(
+														'Transaction deleted',
+													);
+												}}
+											/>
+										))
+									)}
+								</div>
 							</div>
 						</div>
 
@@ -561,7 +554,7 @@ export default function App() {
 								}
 							}}
 							style={{ y: dockY }}
-							className="fixed bottom-0 inset-x-0 max-w-[480px] mx-auto bg-white rounded-t-[28px] border-t border-gray-100 shadow-[0_-6px_25px_rgba(0,0,0,0.08)] flex flex-col z-50 overflow-hidden min-h-[570px] cursor-grab active:cursor-grabbing touch-none select-none"
+							className="fixed bottom-0 inset-x-0 max-w-120 mx-auto bg-white rounded-t-[28px] border-t border-gray-100 shadow-[0_-6px_25px_rgba(0,0,0,0.08)] flex flex-col z-50 overflow-hidden min-h-142.5 cursor-grab active:cursor-grabbing touch-none select-none"
 						>
 							{/* Grab Bar Handle */}
 							<div
@@ -577,7 +570,7 @@ export default function App() {
 										: 'Drag up to expand'
 								}
 							>
-								<div className="w-[36px] h-[4px] bg-[#E5E7EB] rounded-full" />
+								<div className="w-9 h-[4px] bg-[#E5E7EB] rounded-full" />
 							</div>
 
 							{/* Preset Quick-Action Row (Collapses height and fades out as dock rises) */}
@@ -589,10 +582,13 @@ export default function App() {
 								className="overflow-hidden"
 							>
 								<div
-									className="px-6 pt-1 pb-2 flex items-center justify-between overflow-x-auto no-scrollbar gap-2"
+									className="px-4 pt-1 pb-2 flex items-center overflow-x-auto no-scrollbar gap-2"
 									onPointerDown={(e) => e.stopPropagation()}
+									onTouchStart={(e) => e.stopPropagation()}
+									onTouchMove={(e) => e.stopPropagation()}
+									onTouchEnd={(e) => e.stopPropagation()}
 								>
-									{presets.slice(0, 4).map((preset) => {
+									{presets.map((preset) => {
 										const isSelected =
 											selectedPresetLabel ===
 											preset.label;
@@ -603,10 +599,10 @@ export default function App() {
 												onClick={() =>
 													handlePresetClick(preset)
 												}
-												className="preset-btn flex flex-col items-center gap-1 focus:outline-none group cursor-pointer shrink-0"
+												className="preset-btn flex flex-col items-center gap-1 focus:outline-none group cursor-pointer shrink-0 w-[calc((100%-32px)/5)]"
 											>
 												<div
-													className={`w-[42px] h-[42px] rounded-full flex items-center justify-center group-active:scale-95 transition-all ${
+													className={`w-10.5 h-10.5 rounded-full flex items-center justify-center group-active:scale-95 transition-all ${
 														isSelected
 															? 'ring-2 ring-primary ring-offset-2'
 															: ''
@@ -622,7 +618,7 @@ export default function App() {
 													</span>
 												</div>
 												<span
-													className={`text-[11px] font-medium ${
+													className={`text-[11px] font-medium text-center truncate w-full ${
 														isSelected
 															? 'text-primary font-bold'
 															: 'text-[#4B5563]'
@@ -638,11 +634,12 @@ export default function App() {
 										type="button"
 										onClick={() => {
 											setEditingPreset(null);
+
 											setActiveModal('preset');
 										}}
-										className="flex flex-col items-center gap-1 focus:outline-none group cursor-pointer shrink-0"
+										className="flex flex-col items-center gap-1 focus:outline-none group cursor-pointer shrink-0 w-[calc((100%-32px)/5)]"
 									>
-										<div className="w-[42px] h-[42px] rounded-full bg-[#F3F4F6] border border-dashed border-gray-300 flex items-center justify-center text-[#9CA3AF] group-active:scale-95 transition-transform">
+										<div className="w-10.5 h-10.5 rounded-full bg-[#F3F4F6] border border-dashed border-gray-300 flex items-center justify-center text-[#9CA3AF] group-active:scale-95 transition-transform">
 											<span className="material-symbols-outlined text-[20px]">
 												add
 											</span>
@@ -656,7 +653,7 @@ export default function App() {
 							</motion.div>
 
 							{/* Money Input: Crossfades between compact left-aligned input and centered scaled display */}
-							<div className="relative w-full min-h-[58px] flex items-center justify-center">
+							<div className="relative w-full min-h-14.5 flex items-center justify-center">
 								{/* Ghost toggle button for income/expense: absolutely positioned to the left of the centered input */}
 								<motion.div
 									className="absolute left-6 inset-y-0 flex items-center z-10"
@@ -884,7 +881,7 @@ export default function App() {
 								{/* Optional Note Container */}
 								<div className="mb-4">
 									<div className="flex items-center gap-2.5 px-3 py-2 bg-surface-container-low rounded-xl">
-										<span className="material-symbols-outlined text-outline text-[18px] translate-y-[1px] select-none">
+										<span className="material-symbols-outlined text-outline text-[18px] translate-y-px select-none">
 											edit_note
 										</span>
 										<input
@@ -950,7 +947,7 @@ export default function App() {
 									id="save-expense-btn"
 									disabled={isLoggingAction !== 'idle'}
 									onClick={handleCommitDockExpense}
-									className={`w-full h-[52px] rounded-xl font-label-lg text-label-lg uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-primary/10 active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap ${
+									className={`w-full h-13 rounded-xl font-label-lg text-label-lg uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-primary/10 active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap ${
 										isLoggingAction === 'success'
 											? 'bg-emerald-600 text-white'
 											: 'bg-primary text-on-primary'
@@ -1038,16 +1035,16 @@ export default function App() {
 			<motion.nav
 				aria-label="Primary Bottom Navigation"
 				style={{ y: navY }}
-				className="fixed bottom-0 inset-x-0 z-35 bg-surface-container-lowest shadow-[0_-2px_12px_rgba(0,0,0,0.03)] z-50"
+				className="fixed bottom-0 inset-x-0 z-35 bg-surface-container-lowest shadow-[0_-2px_12px_rgba(0,0,0,0.03)]"
 			>
-				<div className="flex justify-around items-center h-16 max-w-[480px] mx-auto px-margin-sm">
+				<div className="flex justify-around items-center h-16 max-w-120 mx-auto px-margin-sm">
 					<button
 						type="button"
 						onClick={() => setActiveTab('dashboard')}
 						aria-current={
 							activeTab === 'dashboard' ? 'page' : undefined
 						}
-						className={`flex flex-col items-center justify-center min-w-[56px] h-12 transition-all gap-0.5 cursor-pointer ${
+						className={`flex flex-col items-center justify-center min-w-14 h-12 transition-all gap-0.5 cursor-pointer ${
 							activeTab === 'dashboard'
 								? 'text-primary font-bold'
 								: 'text-on-surface-variant hover:text-on-surface'
@@ -1067,7 +1064,7 @@ export default function App() {
 						aria-current={
 							activeTab === 'analytics' ? 'page' : undefined
 						}
-						className={`flex flex-col items-center justify-center min-w-[56px] h-12 transition-all gap-0.5 cursor-pointer ${
+						className={`flex flex-col items-center justify-center min-w-14 h-12 transition-all gap-0.5 cursor-pointer ${
 							activeTab === 'analytics'
 								? 'text-primary font-bold'
 								: 'text-on-surface-variant hover:text-on-surface'
@@ -1087,7 +1084,7 @@ export default function App() {
 						aria-current={
 							activeTab === 'presets' ? 'page' : undefined
 						}
-						className={`flex flex-col items-center justify-center min-w-[56px] h-12 transition-all gap-0.5 cursor-pointer ${
+						className={`flex flex-col items-center justify-center min-w-14 h-12 transition-all gap-0.5 cursor-pointer ${
 							activeTab === 'presets'
 								? 'text-primary font-bold'
 								: 'text-on-surface-variant hover:text-on-surface'
@@ -1107,7 +1104,7 @@ export default function App() {
 						aria-current={
 							activeTab === 'settings' ? 'page' : undefined
 						}
-						className={`flex flex-col items-center justify-center min-w-[56px] h-12 transition-all gap-0.5 cursor-pointer ${
+						className={`flex flex-col items-center justify-center min-w-14 h-12 transition-all gap-0.5 cursor-pointer ${
 							activeTab === 'settings'
 								? 'text-primary font-bold'
 								: 'text-on-surface-variant hover:text-on-surface'

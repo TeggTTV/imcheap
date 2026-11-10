@@ -5,7 +5,6 @@ import {
 	calculatePresetEquivalence,
 	PresetItem,
 } from '../utils/expenseMath';
-import { InteractiveWheelPicker, WheelItem } from './InteractiveWheelPicker';
 
 interface PresetSheetModalProps {
 	isOpen: boolean;
@@ -15,13 +14,20 @@ interface PresetSheetModalProps {
 	initialPreset?: Partial<PresetItem>;
 }
 
-const PRESET_CATEGORIES = [
+const EXPENSE_CATEGORIES = [
 	{ id: 'Driving', label: 'Driving', icon: 'directions_car' },
 	{ id: 'Fitness', label: 'Fitness', icon: 'sports_volleyball' },
 	{ id: 'Food', label: 'Food', icon: 'fastfood' },
 ];
 
-const ICON_CYCLE = [
+const INCOME_CATEGORIES = [
+	{ id: 'Paycheck', label: 'Paycheck', icon: 'payments' },
+	{ id: 'Side Gig', label: 'Side Gig', icon: 'bolt' },
+	{ id: 'Gift', label: 'Gift', icon: 'card_giftcard' },
+	{ id: 'Refund', label: 'Refund', icon: 'replay' },
+];
+
+const EXPENSE_ICONS = [
 	{ icon: 'shopping_cart', bgColor: '#ECFDF5', iconColor: '#059669' },
 	{ icon: 'coffee', bgColor: '#FEF3C7', iconColor: '#D97706' },
 	{ icon: 'directions_car', bgColor: '#EEF2FF', iconColor: '#4F46E5' },
@@ -29,7 +35,27 @@ const ICON_CYCLE = [
 	{ icon: 'school', bgColor: '#EEF2FF', iconColor: '#3730A3' },
 ];
 
+const INCOME_ICONS = [
+	{ icon: 'payments', bgColor: '#ECFDF5', iconColor: '#059669' },
+	{ icon: 'bolt', bgColor: '#FEF3C7', iconColor: '#D97706' },
+	{ icon: 'card_giftcard', bgColor: '#EEF2FF', iconColor: '#4F46E5' },
+	{ icon: 'account_balance', bgColor: '#ECFDF5', iconColor: '#059669' },
+	{ icon: 'trending_up', bgColor: '#ECFDF5', iconColor: '#059669' },
+];
+
 const UNITS: Array<'USD' | 'MILES' | 'SERVINGS'> = ['USD', 'MILES', 'SERVINGS'];
+
+const UNIT_LABELS: Record<'USD' | 'MILES' | 'SERVINGS', string> = {
+	USD: '$ (USD)',
+	MILES: 'MILES',
+	SERVINGS: 'SERVINGS',
+};
+
+const UNIT_ICONS: Record<'USD' | 'MILES' | 'SERVINGS', string> = {
+	USD: 'attach_money',
+	MILES: 'directions_car',
+	SERVINGS: 'restaurant',
+};
 
 export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 	isOpen,
@@ -38,6 +64,9 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 	mileageRate,
 	initialPreset,
 }) => {
+	const [presetType, setPresetType] = useState<'expense' | 'income'>(
+		initialPreset?.type || 'expense',
+	);
 	const [currentValue, setCurrentValue] = useState<string>(
 		initialPreset?.rawValue !== undefined
 			? String(initialPreset.rawValue)
@@ -46,14 +75,13 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 	const [unit, setUnit] = useState<'USD' | 'MILES' | 'SERVINGS'>(
 		initialPreset?.unit || 'MILES',
 	);
-	const [title, setTitle] = useState<string>(
-		initialPreset?.title || 'School → Rowan',
-	);
+	const [title, setTitle] = useState<string>(initialPreset?.title || '');
 	const [isRoundTrip, setIsRoundTrip] = useState<boolean>(
 		initialPreset?.isRoundTrip ?? false,
 	);
 	const [selectedCategory, setSelectedCategory] = useState<string>(
-		initialPreset?.category || 'Driving',
+		initialPreset?.category ||
+			(initialPreset?.type === 'income' ? 'Paycheck' : 'Driving'),
 	);
 	const [customCategories, setCustomCategories] = useState<
 		Array<{ id: string; label: string; icon: string }>
@@ -62,8 +90,32 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 	const [newCategoryName, setNewCategoryName] = useState('');
 	const [iconIndex, setIconIndex] = useState(0);
 
-	const allCategories = [...PRESET_CATEGORIES, ...customCategories];
-	const currentIconMeta = ICON_CYCLE[iconIndex % ICON_CYCLE.length];
+	const baseCategories =
+		presetType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+	const allCategories = [...baseCategories, ...customCategories];
+	const iconList = presetType === 'income' ? INCOME_ICONS : EXPENSE_ICONS;
+	const currentIconMeta = iconList[iconIndex % iconList.length];
+
+	const togglePresetType = () => {
+		const nextType = presetType === 'expense' ? 'income' : 'expense';
+		setPresetType(nextType);
+		setIconIndex(0);
+		const nextCats =
+			nextType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+		setSelectedCategory(nextCats[0].id);
+	};
+
+	const cycleUnit = () => {
+		if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+			try {
+				navigator.vibrate(15);
+			} catch {
+				// ignore
+			}
+		}
+		const nextIdx = (UNITS.indexOf(unit) + 1) % UNITS.length;
+		setUnit(UNITS[nextIdx]);
+	};
 
 	const equiv = calculatePresetEquivalence(
 		currentValue,
@@ -76,11 +128,6 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 		setCurrentValue((prev) =>
 			applyKeypadKey(prev, key, { maxLength: 6, maxDecimals: 2 }),
 		);
-	};
-
-	const cycleUnit = () => {
-		const nextIdx = (UNITS.indexOf(unit) + 1) % UNITS.length;
-		setUnit(UNITS[nextIdx]);
 	};
 
 	const handleAddCategorySubmit = (e: React.FormEvent) => {
@@ -101,6 +148,7 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 			label: shortLabel.slice(0, 10),
 			title: cleanTitle,
 			category: selectedCategory,
+			type: presetType,
 			icon: currentIconMeta.icon,
 			bgColor: currentIconMeta.bgColor,
 			iconColor: currentIconMeta.iconColor,
@@ -110,13 +158,13 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 			calculatedAmount: equiv.numericCost > 0 ? equiv.numericCost : 0.89,
 		});
 		onClose();
+		setSelectedCategory(baseCategories[0].id);
+		setCurrentValue('0.00');
+		setUnit('USD');
+		setTitle('');
+		setIsRoundTrip(false);
+		setIconIndex(0);
 	};
-
-	const unitWheelItems: WheelItem<'USD' | 'MILES' | 'SERVINGS'>[] = [
-		{ value: 'USD', label: '$ (USD)' },
-		{ value: 'MILES', label: 'MILES' },
-		{ value: 'SERVINGS', label: 'SERVINGS' },
-	];
 
 	return (
 		<AnimatePresence>
@@ -156,12 +204,12 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 							damping: 28,
 							stiffness: 320,
 						}}
-						className="relative z-20 w-full max-w-[480px] mx-auto bg-surface-container-lowest rounded-t-[28px] shadow-[0_-8px_30px_rgba(0,0,0,0.12)] flex flex-col pt-2 pb-5 px-6 touch-none"
+						className="relative z-20 w-full max-w-120 mx-auto bg-surface-container-lowest rounded-t-[28px] shadow-[0_-8px_30px_rgba(0,0,0,0.12)] flex flex-col pt-2 pb-5 px-6 touch-none"
 					>
 						{/* Top Grab Handle */}
 						<button
 							type="button"
-							onClick={onClose}
+							// onClick={onClose}
 							aria-label="Close preset sheet"
 							className="w-full flex flex-col items-center py-1.5 cursor-grab active:cursor-grabbing focus:outline-none"
 						>
@@ -169,28 +217,73 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 						</button>
 
 						{/* Numeric Value & Unit Selector Row */}
-						<div className="relative w-full min-h-[84px] py-1 flex items-center justify-between border-none">
-							{/* Left: Vibrant Emerald Math Pill */}
+						<div className="relative w-full min-h-21 py-1 flex items-center justify-between border-none">
+							{/* Left: Ghost Toggle Button for income/expense matching the action dock */}
 							<div className="flex-1 flex justify-start">
-								<div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ECFDF5] border border-[#047857] text-[#047857] shadow-xs shrink-0">
-									<span className="material-symbols-outlined text-[13px] text-[#047857]">
-										schedule
-									</span>
-									<span
-										className="text-[12px] font-semibold tabular-nums"
-										id="equiv-label"
-										data-testid="preset-equiv-label"
+								<motion.button
+									type="button"
+									aria-label={
+										presetType === 'expense'
+											? 'Switch to income preset (add money)'
+											: 'Switch to expense preset (spend money)'
+									}
+									onClick={togglePresetType}
+									animate={{
+										backgroundColor:
+											presetType === 'income'
+												? 'rgb(236, 253, 245)'
+												: 'rgba(0, 0, 0, 0)',
+										borderColor:
+											presetType === 'income'
+												? 'rgb(16, 185, 129)'
+												: 'rgb(148, 163, 184)',
+										borderStyle:
+											presetType === 'income'
+												? 'solid'
+												: 'dashed',
+										color:
+											presetType === 'income'
+												? 'rgb(5, 150, 105)'
+												: 'rgb(100, 116, 139)',
+										scale: [0.9, 1],
+									}}
+									whileTap={{ scale: 0.88 }}
+									transition={{
+										duration: 0.28,
+										ease: 'easeInOut',
+									}}
+									className="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer border-2 focus:outline-none"
+								>
+									<motion.span
+										key={presetType}
+										initial={{
+											rotate:
+												presetType === 'income'
+													? -90
+													: 90,
+											scale: 0.6,
+											opacity: 0,
+										}}
+										animate={{
+											rotate: 0,
+											scale: 1,
+											opacity: 1,
+										}}
+										transition={{
+											duration: 0.28,
+											ease: 'easeInOut',
+										}}
+										className="material-symbols-outlined text-[20px] font-bold select-none"
 									>
-										≈ ${equiv.costFormatted}{' '}
-										<span className="font-normal opacity-90 text-[11px]">
-											({equiv.minutesWork}m)
-										</span>
-									</span>
-								</div>
+										{presetType === 'income'
+											? 'add'
+											: 'remove'}
+									</motion.span>
+								</motion.button>
 							</div>
 
-							{/* Center: Large Number */}
-							<div className="flex-1 flex justify-center">
+							{/* Center: Large Number with Integrated Tap-to-Cycle Pill */}
+							<div className="flex-1 flex items-baseline justify-center gap-2">
 								<span
 									className="font-bold text-on-surface tracking-tight leading-none text-[40px] tabular-nums"
 									id="numeric-val"
@@ -198,22 +291,30 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 								>
 									{currentValue}
 								</span>
+
+								{/* Inline Tap-to-Cycle Pill (Camera Mode / Speedometer Style) */}
+								<motion.button
+									type="button"
+									onClick={cycleUnit}
+									whileTap={{ scale: 0.88 }}
+									className="group inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-container-high border border-gray-300/80 shadow-xs active:bg-surface-container-highest transition-colors cursor-pointer focus:outline-none select-none"
+									aria-label={`Cycle unit. Current: ${unit}`}
+								>
+									<span className="material-symbols-outlined text-[14px] text-on-surface-variant group-hover:text-primary transition-colors">
+										{UNIT_ICONS[unit]}
+									</span>
+									<span className="font-bold text-[12px] tracking-wider uppercase text-on-surface">
+										{unit}
+									</span>
+									<span className="material-symbols-outlined text-[13px] text-outline opacity-60 group-hover:opacity-100 transition-opacity">
+										sync
+									</span>
+								</motion.button>
 							</div>
 
-							{/* Close Right: Unit Picker Tumbler Wheel */}
-							<div
-								className="flex-1 flex justify-end"
-								onPointerDown={(e) => e.stopPropagation()}
-								onClick={(e) => e.stopPropagation()}
-							>
-								<InteractiveWheelPicker
-									items={unitWheelItems}
-									value={unit}
-									onChange={(nextUnit) => setUnit(nextUnit)}
-									height={80}
-									itemHeight={28}
-									ariaLabel="Unit Picker Wheel"
-								/>
+							{/* Right Placeholder for symmetry with the ghost toggle button */}
+							<div className="flex-1 flex justify-end">
+								<div className="w-9 h-9" />
 							</div>
 						</div>
 
@@ -268,48 +369,49 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 						{/* Round Trip & Category Section */}
 						<div className="mt-2.5 flex flex-col gap-2">
 							{/* Round Trip Toggle */}
-							<div className="flex items-center justify-between py-0.5">
-								<div className="flex items-center gap-2">
-									<div className="w-6 h-6 rounded-lg bg-surface-container flex items-center justify-center text-on-surface">
-										<span className="material-symbols-outlined text-[14px]">
-											sync_alt
-										</span>
+							{unit == 'MILES' && (
+								<div className="flex items-center justify-between py-0.5">
+									<div className="flex items-center gap-2">
+										<div className="w-6 h-6 rounded-lg bg-surface-container flex items-center justify-center text-on-surface">
+											<span className="material-symbols-outlined text-[14px]">
+												sync_alt
+											</span>
+										</div>
+										<div>
+											<p className="font-label-md text-label-md font-medium text-on-surface">
+												Round Trip (x2)
+											</p>
+											<p className="font-body-sm text-body-sm text-on-surface-variant">
+												Multiplies mileage calculation
+											</p>
+										</div>
 									</div>
-									<div>
-										<p className="font-label-md text-label-md font-medium text-on-surface">
-											Round Trip (x2)
-										</p>
-										<p className="font-body-sm text-body-sm text-on-surface-variant">
-											Multiplies mileage calculation
-										</p>
-									</div>
-								</div>
-								<button
-									aria-checked={isRoundTrip}
-									aria-label="Round Trip (x2)"
-									onClick={() =>
-										setIsRoundTrip((prev) => !prev)
-									}
-									className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 ease-in-out flex items-center relative focus:outline-none cursor-pointer ${
-										isRoundTrip
-											? 'bg-primary'
-											: 'bg-surface-container-highest'
-									}`}
-									id="toggle-btn"
-									role="switch"
-									type="button"
-								>
-									<div
-										className={`w-5 h-5 bg-surface-container-lowest rounded-full shadow-md transform transition-transform duration-200 ${
+									<button
+										aria-checked={isRoundTrip}
+										aria-label="Round Trip (x2)"
+										onClick={() =>
+											setIsRoundTrip((prev) => !prev)
+										}
+										className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-200 ease-in-out flex items-center relative focus:outline-none cursor-pointer ${
 											isRoundTrip
-												? 'translate-x-5'
-												: 'translate-x-0.5'
+												? 'bg-primary'
+												: 'bg-surface-container-highest'
 										}`}
-										id="toggle-knob"
-									/>
-								</button>
-							</div>
-
+										id="toggle-btn"
+										role="switch"
+										type="button"
+									>
+										<div
+											className={`w-5 h-5 bg-surface-container-lowest rounded-full shadow-md transform transition-transform duration-200 ${
+												isRoundTrip
+													? 'translate-x-5'
+													: 'translate-x-0.5'
+											}`}
+											id="toggle-knob"
+										/>
+									</button>
+								</div>
+							)}
 							{/* Category Pills */}
 							<div>
 								<span className="font-label-sm text-label-sm uppercase font-bold tracking-wider text-on-surface-variant/70 mb-1.5 block">
@@ -345,45 +447,6 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 											</button>
 										);
 									})}
-									{!isAddingCategory ? (
-										<button
-											type="button"
-											onClick={() =>
-												setIsAddingCategory(true)
-											}
-											className="category-pill flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-dashed border-outline-variant bg-transparent text-on-surface-variant font-label-md text-label-md shrink-0 active:scale-95 transition-all hover:border-outline hover:text-on-surface whitespace-nowrap cursor-pointer"
-										>
-											<span className="material-symbols-outlined text-[16px]">
-												add
-											</span>
-											<span>New</span>
-										</button>
-									) : (
-										<form
-											onSubmit={handleAddCategorySubmit}
-											className="flex items-center gap-1 shrink-0"
-										>
-											<input
-												type="text"
-												value={newCategoryName}
-												onChange={(e) =>
-													setNewCategoryName(
-														e.target.value,
-													)
-												}
-												placeholder="Category..."
-												aria-label="New category name"
-												autoFocus
-												className="px-2.5 py-1 rounded-full bg-surface-container-low text-on-surface font-label-md text-label-md w-24 focus:outline-none border border-primary"
-											/>
-											<button
-												type="submit"
-												className="px-2.5 py-1 rounded-full bg-primary text-on-primary font-label-md text-label-md cursor-pointer"
-											>
-												Add
-											</button>
-										</form>
-									)}
 								</div>
 							</div>
 						</div>
@@ -430,7 +493,7 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 								type="button"
 								id="save-preset-btn"
 								onClick={handleSave}
-								className="w-full h-[50px] bg-primary text-on-primary rounded-2xl flex items-center justify-center gap-2 font-label-lg text-label-lg font-bold uppercase tracking-wider shadow-lg active:scale-[0.98] transition-all hover:bg-neutral-800 cursor-pointer whitespace-nowrap"
+								className="w-full h-12.5 bg-primary text-on-primary rounded-2xl flex items-center justify-center gap-2 font-label-lg text-label-lg font-bold uppercase tracking-wider shadow-lg active:scale-[0.98] transition-all hover:bg-neutral-800 cursor-pointer whitespace-nowrap"
 							>
 								<span>Save Preset</span>
 								<span className="material-symbols-outlined text-[18px]">

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 
 export interface WheelItem<T> {
 	value: T;
@@ -69,6 +69,8 @@ export function InteractiveWheelPicker<T extends string | number>({
 	// Mouse & Touch drag handling for natural spinning
 	const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
 		e.stopPropagation();
+		// Prevent parent gesture handlers (e.g. Framer Motion drag) from intercepting
+		(e.nativeEvent as any)?.stopImmediatePropagation?.();
 		const container = containerRef.current;
 		if (!container) return;
 		isDraggingRef.current = true;
@@ -79,6 +81,7 @@ export function InteractiveWheelPicker<T extends string | number>({
 
 	const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
 		e.stopPropagation();
+		(e.nativeEvent as any)?.stopImmediatePropagation?.();
 		if (!isDraggingRef.current) return;
 		const container = containerRef.current;
 		if (!container) return;
@@ -88,6 +91,7 @@ export function InteractiveWheelPicker<T extends string | number>({
 
 	const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
 		e.stopPropagation();
+		(e.nativeEvent as any)?.stopImmediatePropagation?.();
 		if (!isDraggingRef.current) return;
 		isDraggingRef.current = false;
 		const container = containerRef.current;
@@ -105,6 +109,26 @@ export function InteractiveWheelPicker<T extends string | number>({
 		}
 	};
 
+	const onTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+		e.stopPropagation();
+		(e.nativeEvent as any)?.stopImmediatePropagation?.();
+	};
+
+	const onTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+		e.stopPropagation();
+		(e.nativeEvent as any)?.stopImmediatePropagation?.();
+	};
+
+	const onTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+		e.stopPropagation();
+		(e.nativeEvent as any)?.stopImmediatePropagation?.();
+	};
+
+	const onMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+		e.stopPropagation();
+		(e.nativeEvent as any)?.stopImmediatePropagation?.();
+	};
+
 	// Initial scroll position
 	useEffect(() => {
 		if (selectedIndex >= 0) {
@@ -118,17 +142,21 @@ export function InteractiveWheelPicker<T extends string | number>({
 		<div
 			role="region"
 			aria-label={ariaLabel}
-			className="relative w-[114px] bg-white rounded-2xl overflow-hidden select-none shadow-xs border border-gray-300 cursor-grab active:cursor-grabbing touch-none"
+			className="relative w-28.5 bg-white rounded-2xl overflow-hidden select-none shadow-xs border border-gray-300 cursor-grab active:cursor-grabbing touch-none"
 			style={{ height: `${height}px` }}
 			onClick={(e) => e.stopPropagation()}
 			onPointerDown={onPointerDown}
 			onPointerMove={onPointerMove}
 			onPointerUp={onPointerUp}
 			onPointerCancel={onPointerUp}
+			onTouchStart={onTouchStart}
+			onTouchMove={onTouchMove}
+			onTouchEnd={onTouchEnd}
+			onMouseDown={onMouseDown}
 		>
 			{/* 3D Wheel Vignette Gradients */}
-			<div className="absolute top-0 inset-x-0 h-6 bg-gradient-to-b from-white via-white/80 to-transparent pointer-events-none z-20" />
-			<div className="absolute bottom-0 inset-x-0 h-6 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none z-20" />
+			<div className="absolute top-0 inset-x-0 h-6 bg-linear-to-b from-white via-white/80 to-transparent pointer-events-none z-20" />
+			<div className="absolute bottom-0 inset-x-0 h-6 bg-linear-to-t from-white via-white/80 to-transparent pointer-events-none z-20" />
 
 			{/* Center Selection Lens */}
 			<div
