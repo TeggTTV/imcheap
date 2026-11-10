@@ -5,6 +5,7 @@ import {
 	BalanceSummary,
 	Transaction,
 } from '../utils/expenseMath';
+import { SetActionFeedbackButton } from './SetActionFeedbackButton';
 
 export type SettingsSubpage =
 	| 'main'
@@ -101,23 +102,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	const [mpgIdx, setMpgIdx] = useState<number | null>(1);
 	const [customMpg, setCustomMpg] = useState<number | null>(null);
 	const [customMpgInput, setCustomMpgInput] = useState('');
-	const [mpgBtnState, setMpgBtnState] = useState<
-		'idle' | 'loading' | 'success'
-	>('idle');
 
 	const [gasIdx, setGasIdx] = useState<number | null>(1);
 	const [customGas, setCustomGas] = useState<number | null>(null);
 	const [customGasInput, setCustomGasInput] = useState('');
-	const [gasBtnState, setGasBtnState] = useState<
-		'idle' | 'loading' | 'success'
-	>('idle');
 
 	const [capIdx, setCapIdx] = useState<number | null>(1);
 	const [customCap, setCustomCap] = useState<number | null>(null);
 	const [customCapInput, setCustomCapInput] = useState('');
-	const [capBtnState, setCapBtnState] = useState<
-		'idle' | 'loading' | 'success'
-	>('idle');
 
 	const [vehicleSaved, setVehicleSaved] = useState(false);
 
@@ -549,42 +541,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											MPG
 										</span>
 									</div>
-									<button
-										type="button"
-										disabled={mpgBtnState !== 'idle'}
-										onClick={() => {
+									<SetActionFeedbackButton
+										onAction={() => {
 											const val =
 												parseFloat(customMpgInput);
 											if (!isNaN(val) && val > 0) {
-												setMpgBtnState('loading');
-												setTimeout(() => {
-													setMpgBtnState('success');
-													setCustomMpg(val);
-													setMpgIdx(null);
-													if (showToast)
-														showToast(
-															`Fuel economy set to ${val} MPG`,
-														);
-													setTimeout(() => {
-														setMpgBtnState('idle');
-													}, 250);
-												}, 250);
+												setCustomMpg(val);
+												setMpgIdx(null);
+												if (showToast)
+													showToast(
+														`Fuel economy set to ${val} MPG`,
+													);
+												return true;
 											}
+											return false;
 										}}
-										className="w-16 h-11 bg-primary text-on-primary font-semibold text-sm rounded-xl active:scale-95 transition-all flex items-center justify-center cursor-pointer disabled:opacity-90 shrink-0"
-									>
-										{mpgBtnState === 'loading' ? (
-											<span className="material-symbols-outlined text-[18px] animate-spin">
-												progress_activity
-											</span>
-										) : mpgBtnState === 'success' ? (
-											<span className="material-symbols-outlined text-[18px] text-emerald-300">
-												check
-											</span>
-										) : (
-											'Set'
-										)}
-									</button>
+									/>
 								</div>
 								{customMpg !== null && (
 									<p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
@@ -723,42 +695,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											/gal
 										</span>
 									</div>
-									<button
-										type="button"
-										disabled={gasBtnState !== 'idle'}
-										onClick={() => {
+									<SetActionFeedbackButton
+										onAction={() => {
 											const val =
 												parseFloat(customGasInput);
 											if (!isNaN(val) && val > 0) {
-												setGasBtnState('loading');
-												setTimeout(() => {
-													setGasBtnState('success');
-													setCustomGas(val);
-													setGasIdx(null);
-													if (showToast)
-														showToast(
-															`Gas price set to $${val.toFixed(2)}/gal`,
-														);
-													setTimeout(() => {
-														setGasBtnState('idle');
-													}, 250);
-												}, 250);
+												setCustomGas(val);
+												setGasIdx(null);
+												if (showToast)
+													showToast(
+														`Gas price set to $${val.toFixed(2)}/gal`,
+													);
+												return true;
 											}
+											return false;
 										}}
-										className="w-16 h-11 bg-primary text-on-primary font-semibold text-sm rounded-xl active:scale-95 transition-all flex items-center justify-center cursor-pointer disabled:opacity-90 shrink-0"
-									>
-										{gasBtnState === 'loading' ? (
-											<span className="material-symbols-outlined text-[18px] animate-spin">
-												progress_activity
-											</span>
-										) : gasBtnState === 'success' ? (
-											<span className="material-symbols-outlined text-[18px] text-emerald-300">
-												check
-											</span>
-										) : (
-											'Set'
-										)}
-									</button>
+									/>
 								</div>
 								{customGas !== null && (
 									<p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
@@ -895,42 +847,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											gal
 										</span>
 									</div>
-									<button
-										type="button"
-										disabled={capBtnState !== 'idle'}
-										onClick={() => {
+									<SetActionFeedbackButton
+										onAction={() => {
 											const val =
 												parseFloat(customCapInput);
 											if (!isNaN(val) && val > 0) {
-												setCapBtnState('loading');
-												setTimeout(() => {
-													setCapBtnState('success');
-													setCustomCap(val);
-													setCapIdx(null);
-													if (showToast)
-														showToast(
-															`Tank capacity set to ${val.toFixed(1)} gal`,
-														);
-													setTimeout(() => {
-														setCapBtnState('idle');
-													}, 250);
-												}, 250);
+												setCustomCap(val);
+												setCapIdx(null);
+												if (showToast)
+													showToast(
+														`Tank capacity set to ${val.toFixed(1)} gal`,
+													);
+												return true;
 											}
+											return false;
 										}}
-										className="w-16 h-11 bg-primary text-on-primary font-semibold text-sm rounded-xl active:scale-95 transition-all flex items-center justify-center cursor-pointer disabled:opacity-90 shrink-0"
-									>
-										{capBtnState === 'loading' ? (
-											<span className="material-symbols-outlined text-[18px] animate-spin">
-												progress_activity
-											</span>
-										) : capBtnState === 'success' ? (
-											<span className="material-symbols-outlined text-[18px] text-emerald-300">
-												check
-											</span>
-										) : (
-											'Set'
-										)}
-									</button>
+									/>
 								</div>
 								{customCap !== null && (
 									<p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1">

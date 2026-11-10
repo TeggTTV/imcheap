@@ -7,13 +7,17 @@ export interface SetActionFeedbackButtonProps {
 	disabled?: boolean;
 }
 
-export const SetActionFeedbackButton: React.FC<SetActionFeedbackButtonProps> = ({
+export const SetActionFeedbackButton: React.FC<
+	SetActionFeedbackButtonProps
+> = ({
 	onAction,
 	label = 'Set',
 	className = 'w-16 h-11 bg-primary text-on-primary font-semibold text-sm rounded-xl active:scale-95 transition-all flex items-center justify-center cursor-pointer disabled:opacity-90 shrink-0',
 	disabled = false,
 }) => {
-	const [status, setStatus] = useState<'idle' | 'loading' | 'success'>('idle');
+	const [status, setStatus] = useState<'idle' | 'loading' | 'success'>(
+		'idle',
+	);
 
 	const handleClick = async () => {
 		if (status !== 'idle' || disabled) return;
@@ -26,7 +30,8 @@ export const SetActionFeedbackButton: React.FC<SetActionFeedbackButtonProps> = (
 			setStatus('success');
 			setTimeout(() => {
 				setStatus('idle');
-			}, 250);
+				setTimeout(() => {}, 250);
+			}, 750);
 		}, 250);
 	};
 
