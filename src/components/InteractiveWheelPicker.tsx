@@ -68,6 +68,7 @@ export function InteractiveWheelPicker<T extends string | number>({
 
 	// Mouse & Touch drag handling for natural spinning
 	const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+		e.stopPropagation();
 		const container = containerRef.current;
 		if (!container) return;
 		isDraggingRef.current = true;
@@ -77,6 +78,7 @@ export function InteractiveWheelPicker<T extends string | number>({
 	};
 
 	const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+		e.stopPropagation();
 		if (!isDraggingRef.current) return;
 		const container = containerRef.current;
 		if (!container) return;
@@ -85,6 +87,7 @@ export function InteractiveWheelPicker<T extends string | number>({
 	};
 
 	const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+		e.stopPropagation();
 		if (!isDraggingRef.current) return;
 		isDraggingRef.current = false;
 		const container = containerRef.current;
@@ -117,6 +120,7 @@ export function InteractiveWheelPicker<T extends string | number>({
 			aria-label={ariaLabel}
 			className="relative w-[114px] bg-white rounded-2xl overflow-hidden select-none shadow-xs border border-gray-300 cursor-grab active:cursor-grabbing touch-none"
 			style={{ height: `${height}px` }}
+			onClick={(e) => e.stopPropagation()}
 			onPointerDown={onPointerDown}
 			onPointerMove={onPointerMove}
 			onPointerUp={onPointerUp}

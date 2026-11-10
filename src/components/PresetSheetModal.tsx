@@ -31,18 +31,6 @@ const ICON_CYCLE = [
 
 const UNITS: Array<'USD' | 'MILES' | 'SERVINGS'> = ['USD', 'MILES', 'SERVINGS'];
 
-const UNIT_ICONS: Record<'USD' | 'MILES' | 'SERVINGS', string> = {
-	USD: 'attach_money',
-	MILES: 'directions_car',
-	SERVINGS: 'restaurant',
-};
-
-const UNIT_LABELS: Record<'USD' | 'MILES' | 'SERVINGS', string> = {
-	USD: '$ (USD)',
-	MILES: 'MILES',
-	SERVINGS: 'SERVINGS',
-};
-
 export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 	isOpen,
 	onClose,
@@ -73,8 +61,6 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 	const [isAddingCategory, setIsAddingCategory] = useState(false);
 	const [newCategoryName, setNewCategoryName] = useState('');
 	const [iconIndex, setIconIndex] = useState(0);
-
-	const [unitDropdownOpen, setUnitDropdownOpen] = useState(false);
 
 	const allCategories = [...PRESET_CATEGORIES, ...customCategories];
 	const currentIconMeta = ICON_CYCLE[iconIndex % ICON_CYCLE.length];
@@ -183,74 +169,10 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 						</button>
 
 						{/* Numeric Value & Unit Selector Row */}
-						<div className="flex items-center justify-between py-1.5 border-none">
-							<div className="flex flex-col items-start min-w-0">
-								{/* Unified Value & High-Contrast Unit Selector Pill on the same baseline */}
-								<div className="flex items-baseline gap-2.5 relative">
-									<span
-										className="font-bold text-on-surface tracking-tight leading-none text-[38px] tabular-nums"
-										id="numeric-val"
-										data-testid="preset-numeric-val"
-									>
-										{currentValue}
-									</span>
-
-									{/* Sleek Selector Dropdown Pill */}
-									<div className="relative inline-block">
-										<button
-											type="button"
-											onClick={() =>
-												setUnitDropdownOpen(
-													(prev) => !prev,
-												)
-											}
-											aria-label="Select Unit"
-											className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#1F2937] text-white text-[12px] font-semibold tracking-wider uppercase shadow-xs hover:bg-black transition-colors cursor-pointer active:scale-95"
-										>
-											<span className="material-symbols-outlined text-[14px]">
-												{UNIT_ICONS[unit]}
-											</span>
-											<span>{unit}</span>
-											<span className="material-symbols-outlined text-[14px] opacity-70">
-												arrow_drop_down
-											</span>
-										</button>
-
-										{unitDropdownOpen && (
-											<div className="absolute left-0 top-full mt-1.5 w-36 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-30 flex flex-col">
-												{UNITS.map((u) => (
-													<button
-														key={u}
-														type="button"
-														onClick={() => {
-															setUnit(u);
-															setUnitDropdownOpen(
-																false,
-															);
-														}}
-														className={`px-3 py-1.5 text-left text-[12px] font-semibold flex items-center justify-between transition-colors ${
-															unit === u
-																? 'bg-gray-100 text-black'
-																: 'text-gray-600 hover:bg-gray-50'
-														}`}
-													>
-														<span>
-															{UNIT_LABELS[u]}
-														</span>
-														{unit === u && (
-															<span className="material-symbols-outlined text-[14px] text-[#059669]">
-																check
-															</span>
-														)}
-													</button>
-												))}
-											</div>
-										)}
-									</div>
-								</div>
-
-								{/* Vibrant Emerald Math Pill */}
-								<div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ECFDF5] border border-[#047857] text-[#047857] shadow-xs">
+						<div className="relative w-full min-h-[84px] py-1 flex items-center justify-between border-none">
+							{/* Left: Vibrant Emerald Math Pill */}
+							<div className="flex-1 flex justify-start">
+								<div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ECFDF5] border border-[#047857] text-[#047857] shadow-xs shrink-0">
 									<span className="material-symbols-outlined text-[13px] text-[#047857]">
 										schedule
 									</span>
@@ -260,22 +182,39 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 										data-testid="preset-equiv-label"
 									>
 										≈ ${equiv.costFormatted}{' '}
-										<span className="font-normal opacity-90">
-											({equiv.minutesWork}m of work)
+										<span className="font-normal opacity-90 text-[11px]">
+											({equiv.minutesWork}m)
 										</span>
 									</span>
 								</div>
 							</div>
 
-							{/* Interactive Unit Picker Wheel (Option A tumbler) */}
-							<InteractiveWheelPicker
-								items={unitWheelItems}
-								value={unit}
-								onChange={(nextUnit) => setUnit(nextUnit)}
-								height={80}
-								itemHeight={28}
-								ariaLabel="Unit Picker Wheel"
-							/>
+							{/* Center: Large Number */}
+							<div className="flex-1 flex justify-center">
+								<span
+									className="font-bold text-on-surface tracking-tight leading-none text-[40px] tabular-nums"
+									id="numeric-val"
+									data-testid="preset-numeric-val"
+								>
+									{currentValue}
+								</span>
+							</div>
+
+							{/* Close Right: Unit Picker Tumbler Wheel */}
+							<div
+								className="flex-1 flex justify-end"
+								onPointerDown={(e) => e.stopPropagation()}
+								onClick={(e) => e.stopPropagation()}
+							>
+								<InteractiveWheelPicker
+									items={unitWheelItems}
+									value={unit}
+									onChange={(nextUnit) => setUnit(nextUnit)}
+									height={80}
+									itemHeight={28}
+									ariaLabel="Unit Picker Wheel"
+								/>
+							</div>
 						</div>
 
 						{/* Preset Identity Input Bar */}
