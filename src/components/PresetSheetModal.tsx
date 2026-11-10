@@ -27,7 +27,7 @@ const INCOME_CATEGORIES = [
 	{ id: 'Refund', label: 'Refund', icon: 'replay' },
 ];
 
-const EXPENSE_ICONS = [
+export const EXPENSE_ICONS = [
 	{ icon: 'shopping_cart', bgColor: '#ECFDF5', iconColor: '#059669' },
 	{ icon: 'coffee', bgColor: '#FEF3C7', iconColor: '#D97706' },
 	{ icon: 'directions_car', bgColor: '#EEF2FF', iconColor: '#4F46E5' },
@@ -35,7 +35,7 @@ const EXPENSE_ICONS = [
 	{ icon: 'school', bgColor: '#EEF2FF', iconColor: '#3730A3' },
 ];
 
-const INCOME_ICONS = [
+export const INCOME_ICONS = [
 	{ icon: 'payments', bgColor: '#ECFDF5', iconColor: '#059669' },
 	{ icon: 'bolt', bgColor: '#FEF3C7', iconColor: '#D97706' },
 	{ icon: 'card_giftcard', bgColor: '#EEF2FF', iconColor: '#4F46E5' },
@@ -70,10 +70,10 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 	const [currentValue, setCurrentValue] = useState<string>(
 		initialPreset?.rawValue !== undefined
 			? String(initialPreset.rawValue)
-			: '6.4',
+			: '0',
 	);
 	const [unit, setUnit] = useState<'USD' | 'MILES' | 'SERVINGS'>(
-		initialPreset?.unit || 'MILES',
+		initialPreset?.unit || 'USD',
 	);
 	const [title, setTitle] = useState<string>(initialPreset?.title || '');
 	const [isRoundTrip, setIsRoundTrip] = useState<boolean>(
@@ -89,6 +89,38 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 	const [isAddingCategory, setIsAddingCategory] = useState(false);
 	const [newCategoryName, setNewCategoryName] = useState('');
 	const [iconIndex, setIconIndex] = useState(0);
+
+	// Synchronize or reset form states whenever the modal opens or initialPreset changes
+	React.useEffect(() => {
+		if (isOpen) {
+			if (initialPreset) {
+				setPresetType(initialPreset.type || 'expense');
+				setCurrentValue(
+					initialPreset.rawValue !== undefined
+						? String(initialPreset.rawValue)
+						: '0',
+				);
+				setUnit(initialPreset.unit || 'USD');
+				setTitle(initialPreset.title || '');
+				setIsRoundTrip(initialPreset.isRoundTrip ?? false);
+				setSelectedCategory(
+					initialPreset.category ||
+						(initialPreset.type === 'income' ? 'Paycheck' : 'Driving'),
+				);
+			} else {
+				// Reset all fields clean for new preset
+				setPresetType('expense');
+				setCurrentValue('0');
+				setUnit('USD');
+				setTitle('');
+				setIsRoundTrip(false);
+				setSelectedCategory('Driving');
+				setIconIndex(0);
+				setIsAddingCategory(false);
+				setNewCategoryName('');
+			}
+		}
+	}, [isOpen, initialPreset]);
 
 	const baseCategories =
 		presetType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;

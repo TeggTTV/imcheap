@@ -19,10 +19,15 @@ import {
 	calculateWorkHoursLabel,
 } from './utils/expenseMath';
 import { TransactionManager } from './utils/transactionDataStructure';
-import { PresetSheetModal } from './components/PresetSheetModal';
+import {
+	PresetSheetModal,
+	EXPENSE_ICONS,
+	INCOME_ICONS,
+} from './components/PresetSheetModal';
 import { BalanceBreakdownModal } from './components/BalanceBreakdownModal';
 import { TransactionDetailModal } from './components/TransactionDetailModal';
 import { SwipeableTransactionItem } from './components/SwipeableTransactionItem';
+import { TopBar } from './components/TopBar';
 import {
 	AnalyticsView,
 	PresetsView,
@@ -54,8 +59,8 @@ function AnimatedNumber({ value }: { value: number }) {
 
 	useEffect(() => {
 		const controls = animate(displayVal, value, {
-			duration: 0.45,
-			ease: 'easeInOut',
+			duration: 0.8,
+			ease: [0.16, 1, 0.3, 1],
 			onUpdate: (latest) => setDisplayVal(latest),
 		});
 		return () => controls.stop();
@@ -86,6 +91,12 @@ export default function App() {
 	});
 	const [selectedCategory, setSelectedCategory] = useState<string>('Fitness');
 	const [dockNote, setDockNote] = useState<string>('');
+	const [dockIconIndex, setDockIconIndex] = useState<number>(0);
+	const [customDockIcon, setCustomDockIcon] = useState<{
+		icon: string;
+		bgColor: string;
+		iconColor: string;
+	} | null>(null);
 
 	// Continuous motion values for smooth live dragging
 	const dockY = useMotionValue(COLLAPSED_DOCK_Y);
@@ -151,10 +162,6 @@ export default function App() {
 		return txManager.search(searchQuery);
 	}, [txManager, transactions, searchQuery]);
 
-	const showToast = (msg: string) => {
-		setToastMessage(msg);
-	};
-
 	useEffect(() => {
 		if (!toastMessage) return;
 		const timer = setTimeout(() => {
@@ -164,18 +171,22 @@ export default function App() {
 	}, [toastMessage]);
 
 	const handlePresetClick = (preset: PresetItem) => {
+		// Prefill dock with preset data and open dock for review / editing / logging
 		const txType = preset.type || 'expense';
-		const newTx = txManager.createTransaction({
-			title: preset.title,
-			category: preset.category,
-			amount: preset.calculatedAmount,
-			type: txType,
+		setDockAmount(preset.calculatedAmount.toFixed(2));
+		setDockType(txType);
+		setSelectedCategory(preset.category);
+		setSelectedPresetLabel(preset.label);
+		setDockNote(preset.title);
+		setCustomDockIcon({
 			icon: preset.icon,
+			bgColor: preset.bgColor,
+			iconColor: preset.iconColor,
 		});
-		setTransactions(txManager.getAll());
-		showToast(
-			`Logged ${txType === 'income' ? '+' : '-'}$${newTx.amount.toFixed(2)} to ${preset.label}`,
-		);
+		if (activeTab !== 'dashboard') {
+			setActiveTab('dashboard');
+		}
+		setIsDockExpanded(true);
 	};
 
 	const handleKeypadClick = (val: string) => {
@@ -190,6 +201,9 @@ export default function App() {
 
 	const currentCategories =
 		dockType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+	const iconList = dockType === 'income' ? INCOME_ICONS : EXPENSE_ICONS;
+	const currentDockIcon =
+		customDockIcon || iconList[dockIconIndex % iconList.length];
 
 	const handleCommitDockExpense = () => {
 		if (isLoggingAction !== 'idle') return;
@@ -230,20 +244,21 @@ export default function App() {
 				category: catMeta.label,
 				amount: finalAmount,
 				type: dockType,
-				icon: matchedPreset ? matchedPreset.icon : catMeta.icon,
+				icon: matchedPreset
+					? matchedPreset.icon
+					: currentDockIcon.icon,
 				note: dockNote.trim() || undefined,
 			});
 
 			setTransactions(txManager.getAll());
-			showToast(
-				`Logged ${dockType === 'income' ? '+' : '-'}$${newTx.amount.toFixed(2)} to ${catMeta.label}`,
-			);
 
 			setTimeout(() => {
 				setIsLoggingAction('idle');
 				setDockAmount('');
 				setSelectedPresetLabel(null);
 				setDockNote('');
+				setDockIconIndex(0);
+				setCustomDockIcon(null);
 				setIsDockExpanded(false);
 			}, 250);
 		}, 250);
@@ -256,7 +271,6 @@ export default function App() {
 					p.id === editingPreset.id ? { ...presetData, id: p.id } : p,
 				),
 			);
-			showToast(`Updated preset "${presetData.label}"`);
 			setEditingPreset(null);
 		} else {
 			const newPreset: PresetItem = {
@@ -264,7 +278,6 @@ export default function App() {
 				id: `preset-${Date.now()}`,
 			};
 			setPresets((prev) => [...prev, newPreset]);
-			showToast(`Saved preset "${newPreset.label}"`);
 		}
 	};
 
@@ -278,9 +291,6 @@ export default function App() {
 			icon: preset.icon,
 		});
 		setTransactions(txManager.getAll());
-		showToast(
-			`Logged ${txType === 'income' ? '+' : '-'}$${newTx.amount.toFixed(2)} to ${preset.label}`,
-		);
 	};
 
 	const tabTitle =
@@ -294,73 +304,14 @@ export default function App() {
 
 	return (
 		<div className="bg-surface font-body-md text-on-surface min-h-screen flex flex-col antialiased">
-			{/* Top App Header - Icon stays constant (toll), profile icon has no function */}
-			<header className="fixed top-0 inset-x-0 z-60 bg-surface/85 backdrop-blur-xl">
-				<div className="h-16 px-margin max-w-120 mx-auto flex items-center justify-between">
-					<div className="flex items-center gap-space-sm">
-						<span className="material-symbols-outlined text-primary text-[22px]">
-							toll
-						</span>
-						<h1 className="font-headline-sm text-headline-sm text-on-surface tracking-tight font-bold">
-							{tabTitle}
-						</h1>
-					</div>
-
-					<div className="flex items-center gap-space-xs">
-						<button
-							type="button"
-							aria-label="Toggle Search"
-							onClick={() => setIsSearchOpen((prev) => !prev)}
-							className="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
-						>
-							<span className="material-symbols-outlined text-[20px]">
-								{isSearchOpen ? 'close' : 'search'}
-							</span>
-						</button>
-						{/* Non-functional profile avatar */}
-						<div
-							aria-hidden="true"
-							className="w-8 h-8 rounded-full bg-primary flex items-center justify-center ml-space-xs pointer-events-none select-none"
-						>
-							<span className="material-symbols-outlined text-on-primary text-[18px]">
-								person
-							</span>
-						</div>
-					</div>
-				</div>
-
-				{/* Optional Collapsible Search Bar */}
-				{isSearchOpen && (
-					<div className="px-margin pb-3 max-w-120 mx-auto">
-						<div className="flex items-center gap-2 bg-surface-container-lowest border border-surface-container-high rounded-xl px-3 py-2 shadow-xs">
-							<span className="material-symbols-outlined text-outline text-[18px]">
-								search
-							</span>
-							<input
-								type="text"
-								value={searchQuery}
-								onChange={(e) => setSearchQuery(e.target.value)}
-								placeholder="Search transactions or categories..."
-								aria-label="Search transactions"
-								autoFocus
-								className="w-full bg-transparent text-[14px] text-on-surface placeholder:text-outline focus:outline-none"
-							/>
-							{searchQuery && (
-								<button
-									type="button"
-									aria-label="Clear search"
-									onClick={() => setSearchQuery('')}
-									className="text-outline hover:text-on-surface cursor-pointer"
-								>
-									<span className="material-symbols-outlined text-[16px]">
-										cancel
-									</span>
-								</button>
-							)}
-						</div>
-					</div>
-				)}
-			</header>
+			{/* Top App Header */}
+			<TopBar
+				title={tabTitle}
+				isSearchOpen={isSearchOpen}
+				onToggleSearch={() => setIsSearchOpen((prev) => !prev)}
+				searchQuery={searchQuery}
+				onSearchQueryChange={setSearchQuery}
+			/>
 
 			{/* Main Content Container */}
 			<main
@@ -473,9 +424,6 @@ export default function App() {
 													);
 													setTransactions(
 														txManager.getAll(),
-													);
-													showToast(
-														'Transaction deleted',
 													);
 												}}
 											/>
@@ -683,6 +631,8 @@ export default function App() {
 													? 'income'
 													: 'expense';
 											setDockType(nextType);
+											setDockIconIndex(0);
+											setCustomDockIcon(null);
 											const targetCats =
 												nextType === 'income'
 													? INCOME_CATEGORIES
@@ -805,101 +755,80 @@ export default function App() {
 									ease: 'easeInOut',
 								}}
 							>
-								{/* Category Selector Carousel */}
-								<div className="mt-2 mb-3">
-									<div className="flex items-center justify-between mb-2 px-1">
-										<span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider block">
-											Category
-										</span>
-										<span
-											className={`text-[11px] font-semibold tracking-wide uppercase ${
-												dockType === 'income'
-													? 'text-emerald-600'
-													: 'text-gray-400'
-											}`}
-										>
-											{dockType === 'income'
-												? 'Income Source'
-												: 'Expense Type'}
-										</span>
-									</div>
-									<div
-										className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1"
-										id="category-pills"
+								{/* Transaction Identity Input Bar (Matches Preset Creation Dock) */}
+								<div className="mt-2 mb-4 bg-surface-container-low/70 rounded-xl px-3 py-2 flex items-center gap-3">
+									<button
+										type="button"
+										onClick={() => {
+											if (customDockIcon) {
+												const matchIdx =
+													iconList.findIndex(
+														(item) =>
+															item.icon ===
+															customDockIcon.icon,
+													);
+												setDockIconIndex(
+													(matchIdx >= 0
+														? matchIdx
+														: 0) + 1,
+												);
+												setCustomDockIcon(null);
+											} else {
+												setDockIconIndex(
+													(i) => i + 1,
+												);
+											}
+										}}
+										aria-label="Cycle transaction icon"
+										className={`relative w-10 h-10 rounded-full ${currentDockIcon.bgColor} flex items-center justify-center shrink-0 active:scale-95 transition-transform`}
 									>
-										<AnimatePresence mode="wait">
-											<motion.div
-												key={dockType}
-												initial={{
-													opacity: 0,
-													y: 6,
-												}}
-												animate={{
-													opacity: 1,
-													y: 0,
-												}}
-												exit={{
-													opacity: 0,
-													y: -6,
-												}}
-												transition={{
-													duration: 0.2,
-												}}
-												className="flex items-center gap-2 w-full"
-											>
-												{currentCategories.map(
-													(cat) => {
-														const isSelected =
-															selectedCategory.toLowerCase() ===
-															cat.id.toLowerCase();
-														return (
-															<button
-																key={cat.id}
-																type="button"
-																onClick={() =>
-																	setSelectedCategory(
-																		cat.id,
-																	)
-																}
-																className={`category-pill flex items-center gap-1.5 rounded-full font-label-md text-label-md transition-all active:scale-95 shrink-0 whitespace-nowrap cursor-pointer ${
-																	isSelected
-																		? 'px-4 py-2 bg-primary text-on-primary shadow-sm'
-																		: 'px-3.5 py-2 bg-surface-container text-on-surface'
-																}`}
-															>
-																<span className="text-sm">
-																	{cat.emoji}
-																</span>
-																<span>
-																	{cat.label}
-																</span>
-															</button>
-														);
-													},
-												)}
-											</motion.div>
-										</AnimatePresence>
-									</div>
-								</div>
-
-								{/* Optional Note Container */}
-								<div className="mb-4">
-									<div className="flex items-center gap-2.5 px-3 py-2 bg-surface-container-low rounded-xl">
-										<span className="material-symbols-outlined text-outline text-[18px] translate-y-px select-none">
-											edit_note
+										<span
+											className="material-symbols-outlined text-[20px]"
+											style={{
+												color: currentDockIcon.iconColor,
+											}}
+										>
+											{currentDockIcon.icon}
 										</span>
+										<div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-primary text-on-primary rounded-full flex items-center justify-center shadow-xs overflow-hidden">
+											<span className="material-symbols-outlined text-[10px] leading-none scale-75">
+												edit
+											</span>
+										</div>
+									</button>
+									<div className="flex-1 min-w-0 flex items-center">
 										<input
-											aria-label="What was this for? (optional)"
-											className="w-full bg-transparent font-body-md text-body-md text-on-surface placeholder:text-outline focus:outline-none"
-											maxLength={40}
-											placeholder="What was this for? (optional)"
+											aria-label="What was this for?"
+											className="w-full bg-transparent p-0 m-0 border-none outline-none font-headline-sm text-headline-sm font-semibold text-on-surface placeholder:text-gray-400 focus:outline-none focus:ring-0"
 											type="text"
+											maxLength={40}
+											placeholder={
+												dockType === 'income'
+													? 'e.g. Paycheck'
+													: 'e.g. Grocery Store'
+											}
 											value={dockNote}
 											onChange={(e) =>
 												setDockNote(e.target.value)
 											}
 										/>
 									</div>
+									<button
+										aria-label="Edit Note"
+										onClick={() => {
+											const el =
+												document.querySelector<HTMLInputElement>(
+													'input[aria-label="What was this for?"]',
+												);
+											el?.focus();
+										}}
+										className="w-7 h-7 flex items-center justify-center text-outline hover:text-on-surface cursor-pointer"
+										type="button"
+									>
+										<span className="material-symbols-outlined text-[18px]">
+											edit_note
+										</span>
+									</button>
 								</div>
 
 								{/* Custom iOS Numeric Keypad */}
@@ -1008,6 +937,12 @@ export default function App() {
 							setEditingPreset(preset);
 							setActiveModal('preset');
 						}}
+						onPrefillPresetToDock={(preset) => {
+							handlePresetClick(preset);
+						}}
+						onReorderPresets={(newOrder) => {
+							setPresets(newOrder);
+						}}
 						onDeletePreset={(id) =>
 							setPresets((prev) =>
 								prev.filter((p) => p.id !== id),
@@ -1032,7 +967,6 @@ export default function App() {
 							onUpdateSettings={setIncomeSettings}
 							summary={summary}
 							transactions={transactions}
-							showToast={showToast}
 							onOpenSheet={(sheet) => {
 								if (sheet === 'log') {
 									setActiveTab('dashboard');
@@ -1170,12 +1104,10 @@ export default function App() {
 				onSave={(updated) => {
 					txManager.updateTransaction(updated.id, updated);
 					setTransactions(txManager.getAll());
-					showToast(`Updated "${updated.title}"`);
 				}}
 				onDelete={(id) => {
 					txManager.removeTransaction(id);
 					setTransactions(txManager.getAll());
-					showToast('Transaction deleted');
 				}}
 			/>
 		</div>

@@ -6,6 +6,7 @@ import {
 	Transaction,
 } from '../utils/expenseMath';
 import { SetActionFeedbackButton } from './SetActionFeedbackButton';
+import { SubpageHeader } from './SubpageHeader';
 
 export type SettingsSubpage =
 	| 'main'
@@ -29,7 +30,6 @@ export interface SettingsViewProps {
 	summary?: BalanceSummary;
 	transactions?: Transaction[];
 	onOpenSheet?: (sheet: 'preset' | 'breakdown' | 'log') => void;
-	showToast?: (message: string) => void;
 	initialSubpage?: SettingsSubpage;
 }
 
@@ -60,7 +60,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 		itemCount: 4,
 	},
 	transactions = [],
-	showToast,
 	initialSubpage = 'main',
 }) => {
 	const [currentSubpage, setCurrentSubpage] =
@@ -176,9 +175,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 			...settings,
 			mileageRate: newRate,
 		});
-		if (showToast) {
-			showToast(`Mileage rate updated to $${newRate.toFixed(2)}/mi`);
-		}
+
 		setTimeout(() => {
 			setVehicleSaved(false);
 		}, 1200);
@@ -287,24 +284,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						transition={{ duration: 0.1, ease: 'easeInOut' }}
 						className="w-full flex flex-col"
 					>
-						<div className="flex items-center justify-between pb-3 mb-2">
-							<button
-								type="button"
-								onClick={() => navigateBack('paycheck')}
-								className="flex items-center gap-1 text-on-surface hover:opacity-75 transition-opacity cursor-pointer -ml-1 py-1"
-							>
-								<span className="material-symbols-outlined text-[18px]">
-									arrow_back_ios
-								</span>
-								<span className="font-medium text-sm text-on-surface">
-									Paycheck
-								</span>
-							</button>
-							<h2 className="text-[17px] font-semibold text-[#111111]">
-								Tax Buffer
-							</h2>
-							<div className="w-16" />
-						</div>
+						<SubpageHeader
+							title="Tax Buffer"
+							backLabel="Paycheck"
+							onBack={() => navigateBack('paycheck')}
+						/>
 
 						<div className="bg-white rounded-2xl p-5 border border-[#F3F4F6] shadow-sm space-y-4">
 							<div>
@@ -406,10 +390,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								type="button"
 								onClick={() => {
 									setTaxBufferRate(tempTaxBuffer);
-									if (showToast)
-										showToast(
-											`Tax buffer set to ${tempTaxBuffer}%`,
-										);
 									navigateBack('paycheck');
 								}}
 								className="w-full h-12.5 bg-primary text-on-primary rounded-xl font-semibold text-sm shadow-md active:scale-[0.98] transition-transform cursor-pointer"
@@ -432,24 +412,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						transition={{ duration: 0.1, ease: 'easeInOut' }}
 						className="w-full flex flex-col"
 					>
-						<div className="flex items-center justify-between pb-3 mb-2">
-							<button
-								type="button"
-								onClick={() => navigateBack('vehicle')}
-								className="flex items-center gap-1 text-on-surface hover:opacity-75 transition-opacity cursor-pointer -ml-1 py-1"
-							>
-								<span className="material-symbols-outlined text-[18px]">
-									arrow_back_ios
-								</span>
-								<span className="font-medium text-sm text-on-surface">
-									Vehicle
-								</span>
-							</button>
-							<h2 className="text-[17px] font-semibold text-[#111111]">
-								Fuel Economy
-							</h2>
-							<div className="w-16" />
-						</div>
+						<SubpageHeader
+							title="Fuel Economy"
+							backLabel="Vehicle"
+							onBack={() => navigateBack('vehicle')}
+						/>
 
 						<div className="bg-white rounded-2xl p-5 border border-[#F3F4F6] shadow-sm space-y-4">
 							<div>
@@ -473,10 +440,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											onClick={() => {
 												setCustomMpg(null);
 												setMpgIdx(idx);
-												if (showToast)
-													showToast(
-														`Fuel economy set to ${mpg} MPG`,
-													);
 											}}
 											className="w-full p-4 rounded-xl border flex items-center justify-between transition-all cursor-pointer text-left"
 											style={{
@@ -548,10 +511,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											if (!isNaN(val) && val > 0) {
 												setCustomMpg(val);
 												setMpgIdx(null);
-												if (showToast)
-													showToast(
-														`Fuel economy set to ${val} MPG`,
-													);
+
 												return true;
 											}
 											return false;
@@ -583,24 +543,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						transition={{ duration: 0.1, ease: 'easeInOut' }}
 						className="w-full flex flex-col"
 					>
-						<div className="flex items-center justify-between pb-3 mb-2">
-							<button
-								type="button"
-								onClick={() => navigateBack('vehicle')}
-								className="flex items-center gap-1 text-on-surface hover:opacity-75 transition-opacity cursor-pointer -ml-1 py-1"
-							>
-								<span className="material-symbols-outlined text-[18px]">
-									arrow_back_ios
-								</span>
-								<span className="font-medium text-sm text-on-surface">
-									Vehicle
-								</span>
-							</button>
-							<h2 className="text-[17px] font-semibold text-[#111111]">
-								Gas Price
-							</h2>
-							<div className="w-16" />
-						</div>
+						<SubpageHeader
+							title="Gas Price"
+							backLabel="Vehicle"
+							onBack={() => navigateBack('vehicle')}
+						/>
 
 						<div className="bg-white rounded-2xl p-5 border border-[#F3F4F6] shadow-sm space-y-4">
 							<div>
@@ -624,10 +571,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											onClick={() => {
 												setCustomGas(null);
 												setGasIdx(idx);
-												if (showToast)
-													showToast(
-														`Gas price set to $${price.toFixed(2)}/gal`,
-													);
 											}}
 											className="w-full p-4 rounded-xl border flex items-center justify-between transition-all cursor-pointer text-left"
 											style={{
@@ -702,10 +645,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											if (!isNaN(val) && val > 0) {
 												setCustomGas(val);
 												setGasIdx(null);
-												if (showToast)
-													showToast(
-														`Gas price set to $${val.toFixed(2)}/gal`,
-													);
+
 												return true;
 											}
 											return false;
@@ -738,24 +678,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						transition={{ duration: 0.1, ease: 'easeInOut' }}
 						className="w-full flex flex-col"
 					>
-						<div className="flex items-center justify-between pb-3 mb-2">
-							<button
-								type="button"
-								onClick={() => navigateBack('vehicle')}
-								className="flex items-center gap-1 text-on-surface hover:opacity-75 transition-opacity cursor-pointer -ml-1 py-1"
-							>
-								<span className="material-symbols-outlined text-[18px]">
-									arrow_back_ios
-								</span>
-								<span className="font-medium text-sm text-on-surface">
-									Vehicle
-								</span>
-							</button>
-							<h2 className="text-[17px] font-semibold text-[#111111]">
-								Tank Capacity
-							</h2>
-							<div className="w-16" />
-						</div>
+						<SubpageHeader
+							title="Tank Capacity"
+							backLabel="Vehicle"
+							onBack={() => navigateBack('vehicle')}
+						/>
 
 						<div className="bg-white rounded-2xl p-5 border border-[#F3F4F6] shadow-sm space-y-4">
 							<div>
@@ -779,10 +706,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											onClick={() => {
 												setCustomCap(null);
 												setCapIdx(idx);
-												if (showToast)
-													showToast(
-														`Tank capacity set to ${cap.toFixed(1)} gal`,
-													);
 											}}
 											className="w-full p-4 rounded-xl border flex items-center justify-between transition-all cursor-pointer text-left"
 											style={{
@@ -854,10 +777,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											if (!isNaN(val) && val > 0) {
 												setCustomCap(val);
 												setCapIdx(null);
-												if (showToast)
-													showToast(
-														`Tank capacity set to ${val.toFixed(1)} gal`,
-													);
+
 												return true;
 											}
 											return false;
@@ -891,24 +811,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						className="flex flex-col w-full -mt-2"
 					>
 						{/* Subpage Header */}
-						<div className="flex items-center justify-between pb-3 mb-2">
-							<button
-								type="button"
-								onClick={() => navigateBack('main')}
-								className="flex items-center gap-1 text-on-surface hover:opacity-75 transition-opacity cursor-pointer -ml-1 py-1"
-							>
-								<span className="material-symbols-outlined text-[18px]">
-									arrow_back_ios
-								</span>
-								<span className="font-medium text-sm text-on-surface">
-									Settings
-								</span>
-							</button>
-							<h2 className="text-[17px] font-semibold text-[#111111]">
-								Paycheck Engine
-							</h2>
-							<div className="w-16" />
-						</div>
+						<SubpageHeader
+							title="Paycheck Engine"
+							backLabel="Settings"
+							onBack={() => navigateBack('main')}
+						/>
 
 						<div className="flex flex-col gap-y-3.5">
 							{/* Active Cycle Card */}
@@ -1149,24 +1056,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						className="flex flex-col w-full -mt-2"
 					>
 						{/* Header */}
-						<div className="flex items-center justify-between pb-3 mb-2">
-							<button
-								type="button"
-								onClick={() => navigateBack('main')}
-								className="flex items-center gap-1 text-on-surface hover:opacity-75 transition-opacity cursor-pointer -ml-1 py-1"
-							>
-								<span className="material-symbols-outlined text-[18px]">
-									arrow_back_ios
-								</span>
-								<span className="font-medium text-sm text-on-surface">
-									Settings
-								</span>
-							</button>
-							<h2 className="text-[17px] font-semibold text-[#111111]">
-								Vehicle &amp; Transit
-							</h2>
-							<div className="w-16" />
-						</div>
+						<SubpageHeader
+							title="Vehicle & Transit"
+							backLabel="Settings"
+							onBack={() => navigateBack('main')}
+						/>
 
 						{/* Hero Stat Card */}
 						<section className="relative overflow-hidden bg-white rounded-xl p-5 mb-4 shadow-sm border border-[#F3F4F6]">
@@ -1455,24 +1349,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						className="flex flex-col w-full -mt-2"
 					>
 						{/* Header */}
-						<div className="flex items-center justify-between pb-3 mb-2">
-							<button
-								type="button"
-								onClick={() => navigateBack('main')}
-								className="flex items-center gap-1 text-on-surface hover:opacity-75 transition-opacity cursor-pointer -ml-1 py-1"
-							>
-								<span className="material-symbols-outlined text-[18px]">
-									arrow_back_ios
-								</span>
-								<span className="font-medium text-sm text-on-surface">
-									Settings
-								</span>
-							</button>
-							<h2 className="text-[17px] font-semibold text-[#111111]">
-								Past Cycles
-							</h2>
-							<div className="w-16" />
-						</div>
+						<SubpageHeader
+							title="Past Cycles"
+							backLabel="Settings"
+							onBack={() => navigateBack('main')}
+						/>
 
 						{/* Lifetime Surplus Hero Card */}
 						<div className="bg-white rounded-xl p-5 shadow-sm border border-[#F3F4F6] mb-4">
@@ -1579,24 +1460,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						className="flex flex-col w-full -mt-2"
 					>
 						{/* Header */}
-						<div className="flex items-center justify-between pb-3 mb-2">
-							<button
-								type="button"
-								onClick={() => navigateBack('main')}
-								className="flex items-center gap-1 text-on-surface hover:opacity-75 transition-opacity cursor-pointer -ml-1 py-1"
-							>
-								<span className="material-symbols-outlined text-[18px]">
-									arrow_back_ios
-								</span>
-								<span className="font-medium text-sm text-on-surface">
-									Settings
-								</span>
-							</button>
-							<h2 className="text-[17px] font-semibold text-[#111111]">
-								Export Data
-							</h2>
-							<div className="w-16" />
-						</div>
+						<SubpageHeader
+							title="Export Data"
+							backLabel="Settings"
+							onBack={() => navigateBack('main')}
+						/>
 
 						{/* Date Range Selection */}
 						<section className="flex flex-col mb-4">

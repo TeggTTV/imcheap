@@ -94,7 +94,7 @@ export const SwipeableTransactionItem: React.FC<
 	return (
 		<motion.div
 			layout
-			initial={{ opacity: 0, y: -24, scale: 0.96 }}
+			initial={{ opacity: 0 }}
 			animate={{
 				opacity: isDismissing ? 0 : 1,
 				y: 0,
@@ -146,7 +146,11 @@ export const SwipeableTransactionItem: React.FC<
 				dragElastic={0.25}
 				onDragEnd={handleDragEnd}
 				animate={isDismissing ? { x: -450 } : undefined}
-				transition={isDismissing ? { duration: 0.28, ease: 'easeIn' } : undefined}
+				transition={
+					isDismissing
+						? { duration: 0.28, ease: 'easeIn' }
+						: undefined
+				}
 				style={{ x }}
 				className={`relative z-10 bg-white p-3.5 flex items-center justify-between cursor-grab active:cursor-grabbing min-h-16 ${
 					!isLast ? 'border-b border-gray-100' : ''

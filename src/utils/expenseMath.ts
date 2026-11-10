@@ -51,18 +51,18 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   {
     id: 'tx-1',
     title: 'Morning Espresso',
-    category: 'Everyday',
+    category: 'Food',
     timestamp: '9:41 AM',
-    amount: 4.5,
+    amount: 14.3,
     type: 'expense',
-    icon: 'coffee',
+    icon: 'local_cafe',
   },
   {
     id: 'tx-2',
     title: 'School → Rowan',
     category: 'Driving',
     timestamp: '8:15 AM',
-    amount: 18.2,
+    amount: 18.7,
     type: 'expense',
     icon: 'directions_car',
   },
@@ -78,11 +78,11 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   {
     id: 'tx-4',
     title: 'Grocery Mart',
-    category: 'Supplies',
+    category: 'Groceries',
     timestamp: 'Yesterday',
-    amount: 34.8,
+    amount: 34.0,
     type: 'expense',
-    icon: 'shopping_bag',
+    icon: 'shopping_cart',
   },
 ];
 
@@ -92,39 +92,104 @@ export const INITIAL_PRESETS: PresetItem[] = [
     label: 'School',
     title: 'School → Rowan',
     category: 'Driving',
-    icon: 'school',
+    icon: 'directions_car',
     bgColor: '#EEF2FF',
-    iconColor: '#3730A3',
+    iconColor: '#4F46E5',
     unit: 'MILES',
-    rawValue: 6.4,
+    rawValue: 12.8,
     isRoundTrip: false,
-    calculatedAmount: 18.2,
+    calculatedAmount: 1.79,
   },
   {
-    id: 'preset-rowan',
-    label: 'Rowan',
-    title: 'Rowan Visit',
-    category: 'Everyday',
-    icon: 'favorite',
-    bgColor: '#FFE4E6',
-    iconColor: '#E11D48',
+    id: 'preset-espresso',
+    label: 'Coffee',
+    title: 'Morning Espresso',
+    category: 'Food',
+    icon: 'local_cafe',
+    bgColor: '#FEF3C7',
+    iconColor: '#D97706',
     unit: 'USD',
-    rawValue: 14.5,
+    rawValue: 4.5,
     isRoundTrip: false,
-    calculatedAmount: 14.5,
+    calculatedAmount: 4.5,
   },
   {
     id: 'preset-sportime',
     label: 'Sportime',
     title: 'Sportime VB',
     category: 'Fitness',
-    icon: 'sports_volleyball',
-    bgColor: '#FEF3C7',
-    iconColor: '#D97706',
+    icon: 'fitness_center',
+    bgColor: '#FFE4E6',
+    iconColor: '#E11D48',
     unit: 'USD',
     rawValue: 25.0,
     isRoundTrip: false,
     calculatedAmount: 25.0,
+  },
+  {
+    id: 'preset-grocery',
+    label: 'Grocery',
+    title: 'Grocery Run',
+    category: 'Food',
+    icon: 'shopping_cart',
+    bgColor: '#ECFDF5',
+    iconColor: '#059669',
+    unit: 'MILES',
+    rawValue: 15.0,
+    isRoundTrip: false,
+    calculatedAmount: 2.1,
+  },
+  {
+    id: 'preset-mealprep',
+    label: 'Meal Prep',
+    title: 'Meal Prep Batch',
+    category: 'Food',
+    icon: 'restaurant',
+    bgColor: '#FEE2E2',
+    iconColor: '#DC2626',
+    unit: 'SERVINGS',
+    rawValue: 4,
+    isRoundTrip: false,
+    calculatedAmount: 12.5,
+  },
+  {
+    id: 'preset-fuel',
+    label: 'Fuel',
+    title: 'Half-Tank Fuel',
+    category: 'Driving',
+    icon: 'local_gas_station',
+    bgColor: '#EEF2FF',
+    iconColor: '#4F46E5',
+    unit: 'USD',
+    rawValue: 28.35,
+    isRoundTrip: false,
+    calculatedAmount: 28.35,
+  },
+  {
+    id: 'preset-gym',
+    label: 'Gym Pass',
+    title: 'Gym Day Pass',
+    category: 'Fitness',
+    icon: 'sports_gymnastics',
+    bgColor: '#FEF3C7',
+    iconColor: '#D97706',
+    unit: 'USD',
+    rawValue: 15.0,
+    isRoundTrip: false,
+    calculatedAmount: 15.0,
+  },
+  {
+    id: 'preset-pizza',
+    label: 'Pizza',
+    title: 'Pizza Friday',
+    category: 'Food',
+    icon: 'local_pizza',
+    bgColor: '#FEE2E2',
+    iconColor: '#DC2626',
+    unit: 'USD',
+    rawValue: 18.0,
+    isRoundTrip: false,
+    calculatedAmount: 18.0,
   },
 ];
 
@@ -236,14 +301,12 @@ export function calculateBalanceSummary(
   settings: IncomeSettings = INITIAL_INCOME_SETTINGS
 ): BalanceSummary {
   const basePaycheck = Number((settings.hourlyWage * settings.hoursPerCycle).toFixed(2));
-  const initialFourSum = 4.5 + 18.2 + 25.0 + 34.8; // 82.50 (plus $9.50 cycle fees = $92.00 in reference)
-  const currentTxSum = transactions.reduce(
+  const loggedExpenses = transactions.reduce(
     (acc, tx) => (tx.type === 'expense' ? acc + tx.amount : acc - tx.amount),
     0
   );
-  const deltaFromInitial = currentTxSum - initialFourSum;
-  const loggedExpenses = Math.max(0, Number((92.0 + deltaFromInitial).toFixed(2)));
-  const availableBalance = Number((basePaycheck - loggedExpenses).toFixed(2));
+  const normalizedLoggedExpenses = Math.max(0, Number(loggedExpenses.toFixed(2)));
+  const availableBalance = Number((basePaycheck - normalizedLoggedExpenses).toFixed(2));
   const percentLeft =
     basePaycheck > 0
       ? Math.max(0, Math.min(100, Math.round((availableBalance / basePaycheck) * 100)))
@@ -255,7 +318,7 @@ export function calculateBalanceSummary(
 
   return {
     basePaycheck,
-    loggedExpenses,
+    loggedExpenses: normalizedLoggedExpenses,
     availableBalance,
     percentLeft,
     unspentWorkHours,
