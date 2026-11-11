@@ -7,6 +7,7 @@ interface SwipeableTransactionItemProps {
 	onEdit: (tx: Transaction) => void;
 	onDelete: (id: string) => void;
 	isLast?: boolean;
+	hourlyWage?: number;
 }
 
 const getCategoryPalette = (category: string, title: string, icon: string) => {
@@ -14,7 +15,7 @@ const getCategoryPalette = (category: string, title: string, icon: string) => {
 	if (
 		normalized.includes('coffee') ||
 		normalized.includes('cafe') ||
-		normalized.includes('everyday')
+		normalized.includes('espresso')
 	) {
 		return {
 			bg: 'bg-[#FEF3C7]',
@@ -26,7 +27,9 @@ const getCategoryPalette = (category: string, title: string, icon: string) => {
 		normalized.includes('commute') ||
 		normalized.includes('car') ||
 		normalized.includes('gas') ||
-		normalized.includes('transit')
+		normalized.includes('transit') ||
+		normalized.includes('school') ||
+		normalized.includes('rowan')
 	) {
 		return {
 			bg: 'bg-[#EEF2FF]',
@@ -37,7 +40,8 @@ const getCategoryPalette = (category: string, title: string, icon: string) => {
 		normalized.includes('fit') ||
 		normalized.includes('sport') ||
 		normalized.includes('gym') ||
-		normalized.includes('volley')
+		normalized.includes('volley') ||
+		normalized.includes('vb')
 	) {
 		return {
 			bg: 'bg-[#FFE4E6]',
@@ -48,8 +52,7 @@ const getCategoryPalette = (category: string, title: string, icon: string) => {
 		normalized.includes('groc') ||
 		normalized.includes('food') ||
 		normalized.includes('mart') ||
-		normalized.includes('market') ||
-		normalized.includes('supplies')
+		normalized.includes('cart')
 	) {
 		return {
 			bg: 'bg-[#ECFDF5]',
@@ -57,33 +60,33 @@ const getCategoryPalette = (category: string, title: string, icon: string) => {
 		};
 	}
 	return {
-		bg: 'bg-[#EEF2FF]',
-		iconColor: 'text-[#4F46E5]',
+		bg: 'bg-surface-container-high',
+		iconColor: 'text-on-surface',
 	};
 };
 
 export const SwipeableTransactionItem: React.FC<
 	SwipeableTransactionItemProps
-> = ({ tx, onEdit, onDelete, isLast = false }) => {
-	const x = useMotionValue(0);
-	const [isDismissing, setIsDismissing] = useState(false);
+> = ({ tx, onEdit, onDelete, isLast, hourlyWage = 17 }) => {
 	const palette = getCategoryPalette(tx.category, tx.title, tx.icon);
+	const [isDismissing, setIsDismissing] = useState(false);
 
-	// When sliding right (x > 0), green area on the left reveals with "Editing transaction"
-	const editOpacity = useTransform(x, [10, 70], [0, 1]);
-	// When sliding left (x < 0), red area on the right reveals with "Deleting transaction"
-	const deleteOpacity = useTransform(x, [-10, -70], [0, 1]);
+	const x = useMotionValue(0);
+	const editOpacity = useTransform(x, [20, 80], [0, 1]);
+	const deleteOpacity = useTransform(x, [-80, -20], [1, 0]);
 
-	const handleDragEnd = (
-		_: MouseEvent | TouchEvent | PointerEvent,
-		info: PanInfo,
-	) => {
-		const threshold = 75;
-		if (info.offset.x > threshold) {
-			// Swiped right -> Edit
+	// Calculate labor time in minutes/hours
+	const wage = hourlyWage || 17;
+	const laborHours = tx.amount / wage;
+	const laborText =
+		laborHours < 1
+			? `${Math.round(laborHours * 60)}m labor`
+			: `${laborHours.toFixed(1)}h labor`;
+
+	const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+		if (info.offset.x > 80) {
 			onEdit(tx);
-		} else if (info.offset.x < -threshold) {
-			// Swiped left -> Delete: animate sliding completely off-screen first
+		} else if (info.offset.x < -80) {
 			setIsDismissing(true);
 			setTimeout(() => {
 				onDelete(tx.id);
@@ -152,39 +155,47 @@ export const SwipeableTransactionItem: React.FC<
 						: undefined
 				}
 				style={{ x }}
-				className={`relative z-10 bg-white p-3.5 flex items-center justify-between cursor-grab active:cursor-grabbing min-h-16 ${
+				className={`relative z-10 bg-white p-3.5 flex items-center justify-between cursor-grab active:cursor-grabbing min-h-[70px] ${
 					!isLast ? 'border-b border-gray-100' : ''
 				}`}
 			>
-				<div className="flex items-center gap-3 pointer-events-none">
+				<div className="flex items-center gap-3.5 pointer-events-none">
 					<div
-						className={`w-10 h-10 rounded-full ${palette.bg} ${palette.iconColor} flex items-center justify-center shrink-0`}
+						className={`w-11 h-11 rounded-full ${palette.bg} ${palette.iconColor} flex items-center justify-center shrink-0`}
 					>
-						<span className="material-symbols-outlined text-[20px]">
+						<span className="material-symbols-outlined text-[22px]">
 							{tx.icon}
 						</span>
 					</div>
 					<div className="flex flex-col">
-						<span className="font-bold text-[14px] text-on-surface leading-tight">
+						<span className="font-bold text-[15px] text-[#111111] leading-tight">
 							{tx.title}
 						</span>
-						<span className="text-[12px] text-on-surface-variant">
+						<span className="text-[12.5px] text-[#6B7280] mt-0.5">
 							{tx.category} • {tx.timestamp}
 						</span>
 					</div>
 				</div>
 
-				<div className="flex items-center gap-2 pointer-events-none">
+				<div className="flex flex-col items-end gap-1 pointer-events-none">
 					<span
 						className={`font-bold text-[15px] tracking-tight tabular-nums ${
 							tx.type === 'income'
-								? 'text-secondary'
-								: 'text-error'
+								? 'text-[#059669]'
+								: 'text-[#111111]'
 						}`}
 					>
 						{tx.type === 'income' ? '+' : '-'}$
 						{tx.amount.toFixed(2)}
 					</span>
+
+					{/* Labor pill badge */}
+					<div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#ECFDF5] text-[#059669] text-[11px] font-semibold tracking-tight tabular-nums">
+						<span className="material-symbols-outlined text-[12px] leading-none">
+							schedule
+						</span>
+						<span>{laborText}</span>
+					</div>
 				</div>
 			</motion.div>
 		</motion.div>

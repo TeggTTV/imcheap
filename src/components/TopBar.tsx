@@ -8,6 +8,7 @@ export interface TopBarProps {
 	onSearchQueryChange: (query: string) => void;
 	onOpenShouldIBuy?: () => void;
 	onOpenOnboarding?: () => void;
+	onOpenProfile?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -18,27 +19,23 @@ export const TopBar: React.FC<TopBarProps> = ({
 	onSearchQueryChange,
 	onOpenShouldIBuy,
 	onOpenOnboarding,
+	onOpenProfile,
 }) => {
 	return (
 		<header className="fixed top-0 inset-x-0 z-40 bg-surface/85 backdrop-blur-xl">
-			<div className="h-16 px-margin max-w-120 mx-auto flex items-center justify-between">
-				<div className="flex items-center gap-space-sm">
-					<button
-						type="button"
-						onClick={onOpenOnboarding}
-						title="Replay intro tour"
-						className="flex items-center gap-space-sm group cursor-pointer focus:outline-none"
-					>
-						<span className="material-symbols-outlined text-primary text-[22px] group-hover:rotate-45 transition-transform">
-							toll
-						</span>
-						<h1 className="font-headline-sm text-headline-sm text-on-surface tracking-tight font-bold">
-							{title}
-						</h1>
-					</button>
-				</div>
+			<div className="h-16 px-4 max-w-120 mx-auto flex items-center justify-between">
+				<button
+					type="button"
+					onClick={onOpenOnboarding}
+					title="Replay intro tour"
+					className="focus:outline-none cursor-pointer flex items-center"
+				>
+					<h1 className="text-[28px] leading-none text-on-surface tracking-tight font-extrabold font-sans">
+						{title === 'Dashboard' ? 'ImCheap' : title}
+					</h1>
+				</button>
 
-				<div className="flex items-center gap-1.5">
+				<div className="flex items-center gap-2">
 					{/* Pause / Regret friction button */}
 					{onOpenShouldIBuy && (
 						<button
@@ -60,10 +57,21 @@ export const TopBar: React.FC<TopBarProps> = ({
 						type="button"
 						aria-label="Toggle Search"
 						onClick={onToggleSearch}
-						className="w-10 h-10 flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+						className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-black/5 text-[#111111] transition-colors cursor-pointer"
+					>
+						<span className="material-symbols-outlined text-[24px]">
+							{isSearchOpen ? 'close' : 'search'}
+						</span>
+					</button>
+
+					<button
+						type="button"
+						aria-label="Open Settings / Profile"
+						onClick={onOpenProfile}
+						className="w-9 h-9 flex items-center justify-center rounded-full bg-[#111111] text-white hover:bg-neutral-800 transition-colors cursor-pointer shadow-sm"
 					>
 						<span className="material-symbols-outlined text-[20px]">
-							{isSearchOpen ? 'close' : 'search'}
+							person
 						</span>
 					</button>
 				</div>
@@ -71,7 +79,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 
 			{/* Collapsible Search Bar */}
 			{isSearchOpen && (
-				<div className="px-margin pb-3 max-w-120 mx-auto">
+				<div className="px-4 pb-3 max-w-120 mx-auto">
 					<div className="flex items-center gap-2 bg-surface-container-lowest border border-surface-container-high rounded-xl px-3 py-2 shadow-xs">
 						<span className="material-symbols-outlined text-outline text-[18px]">
 							search

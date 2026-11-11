@@ -204,10 +204,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 			<div
 				onTouchStart={handleTouchStart}
 				onTouchEnd={handleTouchEnd}
-				className="relative w-full sm:max-w-[420px] h-[100dvh] sm:h-[860px] bg-white sm:rounded-[36px] overflow-hidden flex flex-col shadow-2xl select-none"
+				className="relative w-full sm:max-w-105 h-dvh sm:h-215 bg-white sm:rounded-[36px] overflow-hidden flex flex-col shadow-2xl select-none"
 			>
 				{/* 1. Upper Hero Photo Container (Dominant 60–62% height) */}
-				<div className="relative w-full h-[60vh] sm:h-[510px] bg-black shrink-0 overflow-visible">
+				<div className="relative w-full h-[60vh] sm:h-127.5 bg-black shrink-0 overflow-visible">
 					{/* Full-bleed photography with page sliding */}
 					<div className="absolute inset-0 w-full h-full overflow-hidden">
 						<AnimatePresence initial={false} custom={direction}>
@@ -244,7 +244,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 					</div>
 
 					{/* Top Vignette Gradient for header legibility */}
-					<div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/75 via-black/25 to-transparent pointer-events-none z-10" />
+					<div className="absolute inset-x-0 top-0 h-28 bg-linear-to-b from-black/75 via-black/25 to-transparent pointer-events-none z-10" />
 
 					{/* Navigation Bar Overlay */}
 					<div className="relative z-20 flex items-center justify-between px-6 pt-6">
@@ -261,7 +261,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 					</div>
 
 					{/* 2. Floating Micro-Receipt Pill (Anchored across the image/sheet boundary) */}
-					<div className="absolute -bottom-6 inset-x-6 z-20 h-[68px] bg-white rounded-2xl p-3.5 shadow-xl border border-slate-100 overflow-hidden">
+					<div className="absolute -bottom-6 inset-x-6 z-20 h-17 bg-white rounded-2xl p-3.5 shadow-xl border border-slate-100 overflow-hidden">
 						<AnimatePresence initial={false} custom={direction}>
 							<motion.div
 								key={currentStep.id + '_receipt'}
@@ -306,7 +306,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 								</div>
 
 								{/* Right Group: Emerald labor conversion pill */}
-								<div className="bg-[#ECFDF5] text-[#059669] px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap flex items-center gap-1.5 shrink-0">
+								<div className="bg-[#ECFDF5] text-secondary px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap flex items-center gap-1.5 shrink-0">
 									<span
 										className="material-symbols-outlined text-[15px]"
 										style={{
@@ -325,9 +325,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 				</div>
 
 				{/* 3. Compact White Bottom Sheet (Fills the remaining screen, clears the floating pill, and avoids vertical dead space) */}
-				<section className="relative z-10 -mt-6 flex-1 w-full bg-white rounded-t-[32px] px-6 pt-18 pb-6 sm:pb-8 pb-safe flex flex-col shadow-2xl gap-24">
+				<section className="relative z-10 -mt-6 flex-1 w-full bg-white rounded-t-4xl px-6 pt-18 pb-6 sm:pb-8 pb-safe flex flex-col shadow-2xl gap-24">
 					{/* Text Block */}
-					<div className="relative overflow-hidden min-h-[130px]">
+					<div className="relative overflow-hidden min-h-32.5">
 						<AnimatePresence initial={false} custom={direction}>
 							<motion.div
 								key={currentStep.id + '_text'}
@@ -388,7 +388,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 								<button
 									type="button"
 									onClick={prevStep}
-									className="h-[52px] px-5 bg-neutral-100 hover:bg-neutral-200 active:scale-[0.98] text-neutral-800 font-semibold text-[15px] rounded-2xl flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer"
+									className="h-13 px-5 bg-neutral-100 hover:bg-neutral-200 active:scale-[0.98] text-neutral-800 font-semibold text-[15px] rounded-2xl flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer"
 								>
 									<svg
 										className="w-4 h-4 stroke-[2.5]"
@@ -410,7 +410,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 							<button
 								type="button"
 								onClick={nextStep}
-								className="flex-1 h-[52px] bg-[#111111] hover:bg-neutral-900 active:scale-[0.98] text-white font-bold text-[16px] rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+								className="flex-1 h-13 bg-[#111111] hover:bg-neutral-900 active:scale-[0.98] text-white font-bold text-[16px] rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
 							>
 								<span>
 									{currentIndex ===
