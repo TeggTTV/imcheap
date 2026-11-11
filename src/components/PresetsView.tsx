@@ -76,78 +76,94 @@ export const PresetsView: React.FC<PresetsViewProps> = ({
 					</span>
 				</div>
 
-				<Reorder.Group
-					axis="y"
-					values={pinnedPresets}
-					onReorder={handlePinnedReorder}
-					className="flex flex-col divide-y divide-[#F3F4F6] list-none p-0 m-0"
-				>
-					{pinnedPresets.map((preset, idx) => {
-						const logState = logStates[preset.id] || 'idle';
-						return (
-							<Reorder.Item
-								key={preset.id}
-								value={preset}
-								onClick={() => onEditPreset(preset)}
-								className="flex items-center justify-between py-3 cursor-pointer hover:bg-slate-50/60 rounded-xl px-1 transition-colors bg-white select-none"
-							>
-								<div className="flex items-center gap-3 min-w-0">
-									<div className="w-5 h-5 rounded-full bg-[#111111] text-white flex items-center justify-center text-[11px] font-bold shrink-0">
-										{idx + 1}
-									</div>
-									<div
-										className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-										style={{
-											backgroundColor: preset.bgColor,
-											color: preset.iconColor,
-										}}
-									>
-										<span className="material-symbols-outlined text-[20px]">
-											{preset.icon}
-										</span>
-									</div>
-									<div className="flex flex-col min-w-0">
-										<div className="flex items-baseline gap-1.5">
-											<span className="text-[14px] font-bold text-[#111111] truncate">
-												{preset.title}
-											</span>
-											<span className="text-[12px] text-[#6B7280] font-normal truncate tabular-nums">
-												{formatPresetDetail(preset)}
+				{pinnedPresets.length === 0 ? (
+					<div className="py-8 text-center text-on-surface-variant flex flex-col items-center justify-center gap-1.5">
+						<div className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant mb-1">
+							<span className="material-symbols-outlined text-[20px]">
+								bookmark_border
+							</span>
+						</div>
+						<span className="text-[14px] font-semibold text-[#111111]">
+							No presets created yet.
+						</span>
+						<span className="text-[12px] text-[#6B7280]">
+							Add shortcuts for frequent commutes, meals, or recurring expenses.
+						</span>
+					</div>
+				) : (
+					<Reorder.Group
+						axis="y"
+						values={pinnedPresets}
+						onReorder={handlePinnedReorder}
+						className="flex flex-col divide-y divide-[#F3F4F6] list-none p-0 m-0"
+					>
+						{pinnedPresets.map((preset, idx) => {
+							const logState = logStates[preset.id] || 'idle';
+							return (
+								<Reorder.Item
+									key={preset.id}
+									value={preset}
+									onClick={() => onEditPreset(preset)}
+									className="flex items-center justify-between py-3 cursor-pointer hover:bg-slate-50/60 rounded-xl px-1 transition-colors bg-white select-none"
+								>
+									<div className="flex items-center gap-3 min-w-0">
+										<div className="w-5 h-5 rounded-full bg-[#111111] text-white flex items-center justify-center text-[11px] font-bold shrink-0">
+											{idx + 1}
+										</div>
+										<div
+											className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+											style={{
+												backgroundColor: preset.bgColor,
+												color: preset.iconColor,
+											}}
+										>
+											<span className="material-symbols-outlined text-[20px]">
+												{preset.icon}
 											</span>
 										</div>
-										<span className="text-[13px] font-bold text-[#111111] tabular-nums">
-											${preset.calculatedAmount.toFixed(2)}
+										<div className="flex flex-col min-w-0">
+											<div className="flex items-baseline gap-1.5">
+												<span className="text-[14px] font-bold text-[#111111] truncate">
+													{preset.title}
+												</span>
+												<span className="text-[12px] text-[#6B7280] font-normal truncate tabular-nums">
+													{formatPresetDetail(preset)}
+												</span>
+											</div>
+											<span className="text-[13px] font-bold text-[#111111] tabular-nums">
+												${preset.calculatedAmount.toFixed(2)}
+											</span>
+										</div>
+									</div>
+									<div className="flex items-center gap-2 shrink-0">
+										<button
+											type="button"
+											onClick={(e) => {
+												e.stopPropagation();
+												handleLogClick(preset);
+											}}
+											aria-label={`Log ${preset.title}`}
+											className="min-w-14 px-2.5 py-1 bg-primary text-on-primary text-[11px] font-semibold rounded-lg active:scale-95 transition-transform flex items-center justify-center cursor-pointer h-7"
+										>
+											{logState === 'spinning' && (
+												<span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+											)}
+											{logState === 'success' && (
+												<span className="material-symbols-outlined text-[15px] text-secondary-fixed">
+													check
+												</span>
+											)}
+											{logState === 'idle' && <span>Log</span>}
+										</button>
+										<span className="material-symbols-outlined text-[#9CA3AF] text-[20px] select-none cursor-grab active:cursor-grabbing p-1">
+											drag_handle
 										</span>
 									</div>
-								</div>
-								<div className="flex items-center gap-2 shrink-0">
-									<button
-										type="button"
-										onClick={(e) => {
-											e.stopPropagation();
-											handleLogClick(preset);
-										}}
-										aria-label={`Log ${preset.title}`}
-										className="min-w-14 px-2.5 py-1 bg-primary text-on-primary text-[11px] font-semibold rounded-lg active:scale-95 transition-transform flex items-center justify-center cursor-pointer h-7"
-									>
-										{logState === 'spinning' && (
-											<span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-										)}
-										{logState === 'success' && (
-											<span className="material-symbols-outlined text-[15px] text-secondary-fixed">
-												check
-											</span>
-										)}
-										{logState === 'idle' && <span>Log</span>}
-									</button>
-									<span className="material-symbols-outlined text-[#9CA3AF] text-[20px] select-none cursor-grab active:cursor-grabbing p-1">
-										drag_handle
-									</span>
-								</div>
-							</Reorder.Item>
-						);
-					})}
-				</Reorder.Group>
+								</Reorder.Item>
+							);
+						})}
+					</Reorder.Group>
+				)}
 
 				{/* Dashed Add Button */}
 				<button
@@ -169,40 +185,46 @@ export const PresetsView: React.FC<PresetsViewProps> = ({
 				</div>
 
 				<div className="flex flex-col divide-y divide-[#F3F4F6]">
-					{presets.map((preset, idx) => {
-						const isPinned = idx < 5;
-						return (
-							<div
-								key={preset.id}
-								onClick={() => onEditPreset(preset)}
-								className="flex items-center justify-between py-3 cursor-pointer hover:bg-slate-50/60 rounded-xl px-1 transition-colors"
-							>
-								<div className="flex flex-col min-w-0 pr-2">
-									<span className="text-[14px] font-bold text-[#111111] truncate">
-										{preset.title}
-									</span>
-									<span className="text-[12px] text-[#6B7280] truncate tabular-nums">
-										{preset.category} • {formatPresetDetail(preset)}
-									</span>
-								</div>
-
-								{isPinned ? (
-									<span className="bg-[#ECFDF5] text-[#059669] px-2.5 py-0.5 rounded-full text-[11px] font-semibold flex items-center gap-1 shrink-0">
-										Pinned ★
-									</span>
-								) : (
-									<div className="flex items-center gap-2 shrink-0">
-										<span className="text-[14px] font-bold text-[#111111] tabular-nums">
-											${preset.calculatedAmount.toFixed(2)}
+					{presets.length === 0 ? (
+						<div className="py-6 text-center text-xs text-on-surface-variant">
+							No presets yet. Tap &quot;Add New Preset&quot; above to create one.
+						</div>
+					) : (
+						presets.map((preset, idx) => {
+							const isPinned = idx < 5;
+							return (
+								<div
+									key={preset.id}
+									onClick={() => onEditPreset(preset)}
+									className="flex items-center justify-between py-3 cursor-pointer hover:bg-slate-50/60 rounded-xl px-1 transition-colors"
+								>
+									<div className="flex flex-col min-w-0 pr-2">
+										<span className="text-[14px] font-bold text-[#111111] truncate">
+											{preset.title}
 										</span>
-										<span className="material-symbols-outlined text-[#9CA3AF] text-[18px]">
-											chevron_right
+										<span className="text-[12px] text-[#6B7280] truncate tabular-nums">
+											{preset.category} • {formatPresetDetail(preset)}
 										</span>
 									</div>
-								)}
-							</div>
-						);
-					})}
+
+									{isPinned ? (
+										<span className="bg-[#ECFDF5] text-[#059669] px-2.5 py-0.5 rounded-full text-[11px] font-semibold flex items-center gap-1 shrink-0">
+											Pinned ★
+										</span>
+									) : (
+										<div className="flex items-center gap-2 shrink-0">
+											<span className="text-[14px] font-bold text-[#111111] tabular-nums">
+												${preset.calculatedAmount.toFixed(2)}
+											</span>
+											<span className="material-symbols-outlined text-[#9CA3AF] text-[18px]">
+												chevron_right
+											</span>
+										</div>
+									)}
+								</div>
+							);
+						})
+					)}
 				</div>
 			</div>
 		</div>

@@ -40,14 +40,14 @@ test('calculatePresetEquivalence matches Screen 2 reference math for 6.4 miles a
   assert.equal(roundTrip.minutesWork, 5);
 });
 
-test('calculateBalanceSummary matches Screen 1 & Screen 3 reference values and updates when logging expense', () => {
-  const initial = calculateBalanceSummary(INITIAL_TRANSACTIONS, INITIAL_INCOME_SETTINGS);
+test('calculateBalanceSummary correctly reflects fresh state and updates when logging expense', () => {
+  const initial = calculateBalanceSummary([], INITIAL_INCOME_SETTINGS);
   assert.equal(initial.basePaycheck, 238.0);
-  assert.equal(initial.loggedExpenses, 92.0);
-  assert.equal(initial.availableBalance, 146.0);
-  assert.equal(initial.percentLeft, 61);
-  assert.equal(initial.unspentWorkHours, '8.6');
-  assert.equal(initial.itemCount, 4);
+  assert.equal(initial.loggedExpenses, 0);
+  assert.equal(initial.availableBalance, 238.0);
+  assert.equal(initial.percentLeft, 100);
+  assert.equal(initial.unspentWorkHours, '14.0');
+  assert.equal(initial.itemCount, 0);
 
   const afterLog = calculateBalanceSummary(
     [
@@ -60,13 +60,12 @@ test('calculateBalanceSummary matches Screen 1 & Screen 3 reference values and u
         type: 'expense',
         icon: 'fitness_center',
       },
-      ...INITIAL_TRANSACTIONS,
     ],
     INITIAL_INCOME_SETTINGS
   );
-  assert.equal(afterLog.loggedExpenses, 110.59);
-  assert.equal(afterLog.availableBalance, 127.41);
-  assert.equal(afterLog.itemCount, 5);
+  assert.equal(afterLog.loggedExpenses, 18.59);
+  assert.equal(afterLog.availableBalance, 219.41);
+  assert.equal(afterLog.itemCount, 1);
 
   const afterIncome = calculateBalanceSummary(
     [
@@ -79,12 +78,11 @@ test('calculateBalanceSummary matches Screen 1 & Screen 3 reference values and u
         type: 'income',
         icon: 'payments',
       },
-      ...INITIAL_TRANSACTIONS,
     ],
     INITIAL_INCOME_SETTINGS
   );
   assert.equal(afterIncome.totalIncome, 50.0);
-  assert.equal(afterIncome.loggedExpenses, 92.0);
-  assert.equal(afterIncome.availableBalance, 196.0); // 238 + 50 - 92 = 196
-  assert.equal(afterIncome.itemCount, 5);
+  assert.equal(afterIncome.loggedExpenses, 0);
+  assert.equal(afterIncome.availableBalance, 288.0); // 238 + 50 - 0 = 288
+  assert.equal(afterIncome.itemCount, 1);
 });

@@ -54,13 +54,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	settings,
 	onUpdateSettings,
 	summary = {
-		basePaycheck: 238.0,
-		loggedExpenses: 92.0,
+		basePaycheck: 0.0,
+		loggedExpenses: 0.0,
 		totalIncome: 0.0,
-		availableBalance: 146.0,
-		percentLeft: 61,
-		unspentWorkHours: '8.6',
-		itemCount: 4,
+		availableBalance: 0.0,
+		percentLeft: 100,
+		unspentWorkHours: '0.0',
+		itemCount: 0,
 	},
 	transactions = [],
 	initialSubpage = 'main',
@@ -99,14 +99,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	};
 
 	// Paycheck Engine State
-	const [shifts, setShifts] = useState<ShiftItem[]>([
-		{ id: '1', hours: 10 },
-		{ id: '2', hours: 8.5 },
-		{ id: '3', hours: 14 },
-		{ id: '4', hours: 12 },
-		{ id: '5', hours: 18 },
-		{ id: '6', hours: 20 },
-	]);
+	const [shifts, setShifts] = useState<ShiftItem[]>([]);
 	const [currentShiftInput, setCurrentShiftInput] = useState<number>(8.5);
 	const [taxBufferRate, setTaxBufferRate] = useState<number>(12); // percent
 	const [tempTaxBuffer, setTempTaxBuffer] = useState<number>(12);
@@ -199,41 +192,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 		}, 1200);
 	};
 
-	// Past cycles mock data
-	const pastCycles = [
-		{
-			id: 'oct-2026',
-			label: 'Oct 2026',
-			spent: 184.0,
-			check: 238,
-			surplus: 54.0,
-			isDeficit: false,
-		},
-		{
-			id: 'sep-2026',
-			label: 'Sep 2026',
-			spent: 207.5,
-			check: 300,
-			surplus: 92.5,
-			isDeficit: false,
-		},
-		{
-			id: 'aug-2026',
-			label: 'Aug 2026',
-			spent: 253.0,
-			check: 238,
-			surplus: -15.0,
-			isDeficit: true,
-		},
-		{
-			id: 'jul-2026',
-			label: 'Jul 2026',
-			spent: 119.0,
-			check: 400,
-			surplus: 281.0,
-			isDeficit: false,
-		},
-	];
+	// Past cycles history
+	interface PastCycleItem {
+		id: string;
+		label: string;
+		spent: number;
+		check: number;
+		surplus: number;
+		isDeficit: boolean;
+	}
+	const pastCycles: PastCycleItem[] = [];
+	const lifetimeSurplus = pastCycles.reduce((sum, c) => sum + c.surplus, 0);
 
 	const handleExecuteExport = () => {
 		setExportingStatus('GENERATING FILE...');
@@ -1389,7 +1358,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</span>
 							</div>
 							<div className="text-[32px] font-bold text-secondary tracking-tight mt-1 flex items-baseline gap-1 tabular-nums">
-								+$412.50
+								{lifetimeSurplus >= 0 ? `+$${lifetimeSurplus.toFixed(2)}` : `-$${Math.abs(lifetimeSurplus).toFixed(2)}`}
 							</div>
 							<p className="text-xs text-on-surface-variant mt-1">
 								Total cash preserved from completed cycles
@@ -1404,43 +1373,49 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</span>
 							</div>
 							<div className="bg-white rounded-[18px] border border-[#F3F4F6] shadow-sm overflow-hidden divide-y divide-[#F3F4F6]">
-								{pastCycles.map((cycle) => (
-									<div
-										key={cycle.id}
-										className="w-full p-4 flex items-center justify-between"
-									>
-										<div className="flex items-center gap-3.5 min-w-0">
-											<div className="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center shrink-0">
-												<span className="material-symbols-outlined text-on-surface text-[20px]">
-													calendar_today
+								{pastCycles.length === 0 ? (
+									<div className="p-6 text-center text-xs text-on-surface-variant">
+										No completed cycles yet. Completed pay periods will appear here.
+									</div>
+								) : (
+									pastCycles.map((cycle) => (
+										<div
+											key={cycle.id}
+											className="w-full p-4 flex items-center justify-between"
+										>
+											<div className="flex items-center gap-3.5 min-w-0">
+												<div className="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center shrink-0">
+													<span className="material-symbols-outlined text-on-surface text-[20px]">
+														calendar_today
+													</span>
+												</div>
+												<div className="min-w-0">
+													<h4 className="font-semibold text-sm text-primary truncate">
+														{cycle.label}
+													</h4>
+													<p className="text-xs text-on-surface-variant truncate mt-0.5">
+														${cycle.spent.toFixed(2)}{' '}
+														spent of ${cycle.check}{' '}
+														check
+													</p>
+												</div>
+											</div>
+											<div className="flex items-center gap-1 shrink-0 ml-2">
+												<span
+													className={`font-semibold text-xs px-2.5 py-1 rounded-full tabular-nums ${
+														cycle.isDeficit
+															? 'bg-error-container text-on-error-container'
+															: 'bg-secondary-container text-on-secondary-container'
+													}`}
+												>
+													{cycle.surplus >= 0
+														? `+$${cycle.surplus.toFixed(2)}`
+														: `-$${Math.abs(cycle.surplus).toFixed(2)}`}
 												</span>
 											</div>
-											<div className="min-w-0">
-												<h4 className="font-semibold text-sm text-primary truncate">
-													{cycle.label}
-												</h4>
-												<p className="text-xs text-on-surface-variant truncate mt-0.5">
-													${cycle.spent.toFixed(2)}{' '}
-													spent of ${cycle.check}{' '}
-													check
-												</p>
-											</div>
 										</div>
-										<div className="flex items-center gap-1 shrink-0 ml-2">
-											<span
-												className={`font-semibold text-xs px-2.5 py-1 rounded-full tabular-nums ${
-													cycle.isDeficit
-														? 'bg-error-container text-on-error-container'
-														: 'bg-secondary-container text-on-secondary-container'
-												}`}
-											>
-												{cycle.surplus >= 0
-													? `+$${cycle.surplus.toFixed(2)}`
-													: `-$${Math.abs(cycle.surplus).toFixed(2)}`}
-											</span>
-										</div>
-									</div>
-								))}
+									))
+								)}
 							</div>
 						</div>
 

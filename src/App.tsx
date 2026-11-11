@@ -521,8 +521,20 @@ export default function App() {
 									data-testid="transactions-list"
 								>
 									{filteredTransactions.length === 0 ? (
-										<div className="p-6 text-center text-on-surface-variant text-[14px]">
-											No matching transactions found.
+										<div className="p-8 text-center text-on-surface-variant flex flex-col items-center justify-center gap-2">
+											<div className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant">
+												<span className="material-symbols-outlined text-[20px]">
+													receipt_long
+												</span>
+											</div>
+											<span className="text-[14px] font-semibold text-[#111111]">
+												{searchQuery ? 'No matching transactions found.' : 'No transactions recorded yet.'}
+											</span>
+											{!searchQuery && (
+												<span className="text-[12px] text-[#6B7280]">
+													Tap the dock below or pick a preset to log your first expense.
+												</span>
+											)}
 										</div>
 									) : (
 										<div className="divide-y divide-gray-100">

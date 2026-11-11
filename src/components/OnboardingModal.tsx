@@ -206,8 +206,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 				onTouchEnd={handleTouchEnd}
 				className="relative w-full sm:max-w-105 h-dvh sm:h-215 bg-white sm:rounded-[36px] overflow-hidden flex flex-col shadow-2xl select-none"
 			>
-				{/* 1. Upper Hero Photo Container (Dominant 60–62% height) */}
-				<div className="relative w-full h-[60vh] sm:h-127.5 bg-black shrink-0 overflow-visible">
+				{/* 1. Upper Hero Photo Container (Dominant photo area on desktop, flexible on mobile) */}
+				<div className="relative w-full h-[60vh] min-h-55  sm:h-127.5 bg-black shrink-0 overflow-visible">
 					{/* Full-bleed photography with page sliding */}
 					<div className="absolute inset-0 w-full h-full overflow-hidden">
 						<AnimatePresence initial={false} custom={direction}>
@@ -324,10 +324,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 					</div>
 				</div>
 
-				{/* 3. Compact White Bottom Sheet (Fills the remaining screen, clears the floating pill, and avoids vertical dead space) */}
-				<section className="relative z-10 -mt-6 flex-1 w-full bg-white rounded-t-4xl px-6 pt-18 pb-6 sm:pb-8 pb-safe flex flex-col shadow-2xl gap-24">
+				{/* 3. Compact White Bottom Sheet (Fills remaining height, responsive padding and spacing for mobile viewports) */}
+				<section className="relative max-h-87.5 z-10 -mt-6 flex-1 w-full bg-white rounded-t-4xl px-6 pt-16 sm:pt-16 pb-6 sm:pb-8 pb-safe flex flex-col justify-between min-h-0">
 					{/* Text Block */}
-					<div className="relative overflow-hidden min-h-32.5">
+					<div className="relative overflow-hidden min-h-24 sm:min-h-32.5 flex flex-col justify-center">
 						<AnimatePresence initial={false} custom={direction}>
 							<motion.div
 								key={currentStep.id + '_text'}
@@ -344,12 +344,12 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 									},
 									opacity: { duration: 0.2 },
 								}}
-								className="absolute inset-0 flex flex-col gap-2 w-full"
+								className="flex flex-col gap-1.5 sm:gap-2 w-full"
 							>
-								<h1 className="text-[25px] sm:text-[27px] font-extrabold text-[#111111] leading-[1.2] tracking-tight">
+								<h1 className="text-[22px] sm:text-[27px] font-extrabold text-[#111111] leading-[1.2] tracking-tight">
 									{currentStep.headline}
 								</h1>
-								<p className="text-[14px] text-[#6B7280] leading-relaxed font-normal">
+								<p className="text-[13px] sm:text-[14px] text-[#6B7280] leading-relaxed font-normal">
 									{currentStep.body}
 								</p>
 							</motion.div>
@@ -357,7 +357,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 					</div>
 
 					{/* Navigation Controls: Centered Dots + Action Buttons */}
-					<div className="flex flex-col gap-3.5 w-full pt-2">
+					<div className="flex flex-col gap-3 w-full pt-3 shrink-0">
 						{/* Centered Pagination Indicator Pills */}
 						<div className="flex items-center justify-center gap-1.5 py-1 w-full">
 							{ONBOARDING_SCREENS.map((screen, idx) => {
