@@ -1,6 +1,17 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, {
+	useState,
+	useEffect,
+	useCallback,
+	useRef,
+	useMemo,
+} from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PresetItem } from '../utils/expenseMath';
+import {
+	WheelPicker,
+	WheelPickerWrapper,
+	WheelPickerOption,
+} from '@/components/ui/wheel-picker';
 
 export interface OnboardingScreenConfig {
 	wage: number;
@@ -10,16 +21,18 @@ export interface OnboardingScreenConfig {
 		tankSize: number;
 	};
 	habitCost: number;
+	netpay: number;
 }
 
 export const ONBOARDING_CONFIG_DEFAULTS: OnboardingScreenConfig = {
 	wage: 17.0,
 	vehicle: {
 		mpg: 29,
-		gasPrice: 4.05,
+		gasPrice: 3.9,
 		tankSize: 14.0,
 	},
-	habitCost: 4.5,
+	habitCost: 0,
+	netpay: 0,
 };
 
 interface OnboardingModalProps {
@@ -41,6 +54,52 @@ function formatLaborTime(hours: number): string {
 	const hrs = (totalMinutes / 60).toFixed(1);
 	return `≈ ${hrs}h of labor`;
 }
+
+// Generate options for wheel pickers
+const wageOptions: WheelPickerOption<string>[] = Array.from(
+	{ length: 86 }, // $10 to $95
+	(_, i) => {
+		const val = 10 + i;
+		return { label: `$${val}/hr`, value: String(val) };
+	},
+);
+
+const mpgOptions: WheelPickerOption<string>[] = Array.from(
+	{ length: 46 }, // 15 to 60 MPG
+	(_, i) => {
+		const val = 15 + i;
+		return { label: `${val} MPG`, value: String(val) };
+	},
+);
+
+const gasPriceOptions: WheelPickerOption<string>[] = Array.from(
+	{ length: 36 }, // $2.50 to $6.00 in $0.10 increments
+	(_, i) => {
+		const val = (2.5 + i * 0.1).toFixed(2);
+		return { label: `$${val}/gal`, value: val };
+	},
+);
+
+const tankSizeOptions: WheelPickerOption<string>[] = Array.from(
+	{ length: 23 }, // 8 to 30 gal
+	(_, i) => {
+		const val = 8 + i;
+		return { label: `${val} Gal`, value: String(val) };
+	},
+);
+
+const habitOptions: WheelPickerOption<string>[] = [
+	{ label: 'None', value: '0.00' },
+	{ label: '$2.50 (Drip Coffee)', value: '2.50' },
+	{ label: '$3.50 (Americano)', value: '3.50' },
+	{ label: '$4.50 (Morning Espresso)', value: '4.50' },
+	{ label: '$5.50 (Artisan Latte)', value: '5.50' },
+	{ label: '$6.50 (Cold Brew / Matcha)', value: '6.50' },
+	{ label: '$7.50 (Cafe Specialty)', value: '7.50' },
+	{ label: '$9.00 (Breakfast Combo)', value: '9.00' },
+	{ label: '$12.00 (Lunch Daily)', value: '12.00' },
+	{ label: '$15.00 (Daily Takeout)', value: '15.00' },
+];
 
 const slideVariants = {
 	enter: (direction: number) => ({
@@ -68,7 +127,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
 	// User-configurable parameters
 	const [wage, setWage] = useState<number>(ONBOARDING_CONFIG_DEFAULTS.wage);
-	const [mpg, setMpg] = useState<number>(ONBOARDING_CONFIG_DEFAULTS.vehicle.mpg);
+	const [mpg, setMpg] = useState<number>(
+		ONBOARDING_CONFIG_DEFAULTS.vehicle.mpg,
+	);
 	const [gasPrice, setGasPrice] = useState<number>(
 		ONBOARDING_CONFIG_DEFAULTS.vehicle.gasPrice,
 	);
@@ -117,7 +178,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 					labor: mealLaborLabel,
 				},
 				headline: 'Everything costs hours of your life.',
-				body: 'Set your hourly wage to visualize the physical minutes behind every meal, latte, and takeout order before you tap to pay.',
+				body: 'Scroll to set your hourly wage. Watch how lunch translates into exact working shift minutes in real time.',
 				ctaText: 'Continue',
 			},
 			{
@@ -136,7 +197,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 					labor: commuteLaborLabel,
 				},
 				headline: 'Stop counting dollars. Start counting miles.',
-				body: "Sync your vehicle's fuel economy, gas price, and tank capacity to reveal the true cost of every errand and road trip in working shift minutes.",
+				body: "Spin to match your car's fuel economy, gas price, and tank capacity. ImCheap recalculates every commute in shift labor.",
 				ctaText: 'Continue',
 			},
 			{
@@ -155,7 +216,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 					labor: habitLaborLabel,
 				},
 				headline: 'Small routines silently drain your paycheck.',
-				body: 'Track your everyday coffee runs, takeout meals, and subscriptions in real time. Know the exact minutes of your shift behind every purchase.',
+				body: 'Select your everyday routine price to create your initial 1-tap quick log button with automatic work-hour conversions.',
 				ctaText: 'Get Started',
 			},
 		];
@@ -174,36 +235,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
 	const handleFinish = useCallback(() => {
 		const vehicle = { mpg, gasPrice, tankSize };
-		const presets: PresetItem[] = [
-			{
-				id: 'preset-coffee-espresso',
-				label: 'Espresso',
-				title: 'Morning Espresso',
-				category: 'Food',
-				type: 'expense',
-				icon: 'local_cafe',
-				bgColor: '#FEF3C7',
-				iconColor: '#D97706',
-				unit: 'USD',
-				rawValue: habitCost,
-				isRoundTrip: false,
-				calculatedAmount: habitCost,
-			},
-			{
-				id: 'preset-daily-commute',
-				label: 'Commute',
-				title: 'Daily Commute',
-				category: 'Driving',
-				type: 'expense',
-				icon: 'directions_car',
-				bgColor: '#EEF2FF',
-				iconColor: '#4F46E5',
-				unit: 'MILES',
-				rawValue: commuteDistance,
-				isRoundTrip: false,
-				calculatedAmount: commuteCost,
-			},
-		];
+		const presets: PresetItem[] = [];
 
 		try {
 			localStorage.setItem('imcheap_wage', String(wage));
@@ -211,14 +243,27 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 			localStorage.setItem('imcheap_presets', JSON.stringify(presets));
 			localStorage.setItem('imcheap_onboarding_completed', 'true');
 		} catch (err) {
-			console.warn('Failed to persist onboarding settings to localStorage', err);
+			console.warn(
+				'Failed to persist onboarding settings to localStorage',
+				err,
+			);
 		}
 
 		if (onComplete) {
 			onComplete({ wage, vehicle, presets });
 		}
 		onClose();
-	}, [wage, mpg, gasPrice, tankSize, habitCost, commuteDistance, commuteCost, onComplete, onClose]);
+	}, [
+		wage,
+		mpg,
+		gasPrice,
+		tankSize,
+		habitCost,
+		commuteDistance,
+		commuteCost,
+		onComplete,
+		onClose,
+	]);
 
 	const handleSkip = useCallback(() => {
 		try {
@@ -278,8 +323,14 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 		return () => window.removeEventListener('keydown', handleKeyDown);
 	}, [isOpen, nextStep, prevStep, handleSkip]);
 
-	// Touch swipe gesture handlers
+	// Touch swipe gesture handlers (disabled on interactive wheel areas)
 	const handleTouchStart = (e: React.TouchEvent) => {
+		// If touch originates inside a wheel picker, don't trigger slide change
+		if ((e.target as HTMLElement).closest('[data-rwp-wrapper]')) {
+			touchStartX.current = null;
+			touchStartY.current = null;
+			return;
+		}
 		touchStartX.current = e.touches[0].clientX;
 		touchStartY.current = e.touches[0].clientY;
 	};
@@ -317,11 +368,15 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 				onTouchEnd={handleTouchEnd}
 				className="relative w-full sm:max-w-[420px] h-[100dvh] sm:h-[860px] bg-white sm:rounded-[36px] overflow-hidden flex flex-col shadow-2xl select-none"
 			>
-				{/* 1. Upper Hero Photo Container (60%-62% height) */}
-				<div className="relative w-full h-[52vh] sm:h-[460px] bg-black shrink-0 overflow-visible">
+				{/* 1. Upper Hero Photo Container */}
+				<div className="relative w-full h-[46vh] sm:h-[400px] bg-black shrink-0 overflow-visible">
 					{/* Full-bleed edge-to-edge photography with page sliding */}
 					<div className="absolute inset-0 w-full h-full overflow-hidden">
-						<AnimatePresence initial={false} custom={direction}>
+						<AnimatePresence
+							initial={false}
+							custom={direction}
+							mode="popLayout"
+						>
 							<motion.div
 								key={currentStep.id}
 								custom={direction}
@@ -337,7 +392,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 									},
 									opacity: { duration: 0.2 },
 								}}
-								className="absolute inset-0 w-full h-full"
+								className="w-full h-full"
 							>
 								<img
 									src={imageSrc}
@@ -373,8 +428,12 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
 					{/* Pinned Floating Micro-Receipt Card across the image/sheet seam */}
 					<div className="absolute -bottom-6 inset-x-6 z-20 h-[68px] bg-white rounded-2xl px-3.5 shadow-xl border border-slate-100 flex items-center overflow-hidden">
-						<div className="relative w-full h-full flex items-center">
-							<AnimatePresence initial={false} custom={direction}>
+						<div className="relative w-full h-full">
+							<AnimatePresence
+								initial={false}
+								custom={direction}
+								mode="popLayout"
+							>
 								<motion.div
 									key={currentStep.id + '_receipt'}
 									custom={direction}
@@ -390,7 +449,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 										},
 										opacity: { duration: 0.2 },
 									}}
-									className="absolute inset-0 flex items-center justify-between min-w-0"
+									className="w-full h-full flex items-center justify-between min-w-0"
 								>
 									{/* Left side: Category circular badge + title and subtext */}
 									<div className="flex items-center gap-3 min-w-0 pr-2">
@@ -438,13 +497,17 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 					</div>
 				</div>
 
-				{/* 2. Compact White Bottom Sheet (Lower Screen Area) */}
-				<section className="bg-white rounded-t-[32px] px-6 pt-10 pb-6 sm:pb-8 pb-safe flex flex-col justify-between shadow-2xl relative z-10 -mt-6 flex-1 min-h-0 overflow-y-auto no-scrollbar">
-					{/* Text Block & Interactive Config Inputs */}
-					<div className="relative overflow-hidden flex flex-col justify-center my-auto min-h-0">
-						<AnimatePresence initial={false} custom={direction}>
+				{/* 2. Compact White Bottom Sheet */}
+				<section className="bg-white rounded-t-[32px] px-6 pt-10 pb-6 sm:pb-8 pb-safe flex flex-col justify-between shadow-2xl relative z-10 -mt-6 flex-1 min-h-0">
+					{/* Text Block & Wheel Picker Container with mode="popLayout" to eliminate displacement */}
+					<div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
+						<AnimatePresence
+							initial={false}
+							custom={direction}
+							mode="popLayout"
+						>
 							<motion.div
-								key={currentStep.id + '_text'}
+								key={currentStep.id + '_sheet_content'}
 								custom={direction}
 								variants={slideVariants}
 								initial="enter"
@@ -458,238 +521,217 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 									},
 									opacity: { duration: 0.2 },
 								}}
-								className="flex flex-col gap-2 w-full"
+								className="w-full h-full flex flex-col justify-between"
 							>
-								<h1 className="text-[23px] sm:text-[25px] font-extrabold text-[#111111] leading-[1.2] tracking-tight">
-									{currentStep.headline}
-								</h1>
-								<p className="text-[13.5px] text-[#6B7280] leading-relaxed font-normal">
-									{currentStep.body}
-								</p>
+								{/* Text Block */}
+								<div className="flex flex-col gap-1.5 shrink-0 pt-8">
+									<h1 className="text-[22px] sm:text-[24px] font-extrabold text-[#111111] leading-[1.2] tracking-tight">
+										{currentStep.headline}
+									</h1>
+									<p className="text-[13px] text-[#6B7280] leading-relaxed font-normal">
+										{currentStep.body}
+									</p>
+								</div>
 
-								{/* SCREEN 1: HOURLY WAGE CONFIG */}
+								{/* SCREEN 1: HOURLY WAGE OPTION WHEEL */}
 								{currentIndex === 0 && (
-									<div className="mt-2 bg-[#F9FAFB] border border-gray-100 rounded-2xl p-3.5 flex flex-col gap-2">
-										<div className="flex items-center justify-between">
-											<span className="text-[12px] font-bold text-gray-700 uppercase tracking-wider">
-												Base Hourly Wage
-											</span>
-											<span className="text-[15px] font-extrabold text-[#111111] tabular-nums">
-												${wage.toFixed(2)}/hr
-											</span>
-										</div>
-
-										{/* Quick Wage Preset Chips */}
-										<div className="flex items-center gap-1.5 flex-wrap">
-											{[15, 17, 20, 25, 30].map((rate) => (
-												<button
-													key={rate}
-													type="button"
-													onClick={() => setWage(rate)}
-													className={`px-3 py-1 text-[12px] font-bold rounded-xl transition-all cursor-pointer ${
-														wage === rate
-															? 'bg-[#111111] text-white shadow-xs'
-															: 'bg-white text-gray-600 border border-gray-200 hover:border-gray-400'
-													}`}
-												>
-													${rate}/hr
-												</button>
-											))}
-										</div>
-
-										{/* Stepper + Input */}
-										<div className="flex items-center gap-2 mt-1">
-											<button
-												type="button"
-												onClick={() =>
-													setWage((w) =>
-														Math.max(1, Number((w - 0.5).toFixed(2))),
-													)
-												}
-												className="w-9 h-9 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 flex items-center justify-center text-gray-700 font-bold active:scale-95 transition-transform"
-											>
-												-
-											</button>
-											<div className="flex-1 flex items-center justify-center bg-white border border-gray-200 rounded-xl h-9 px-3">
-												<span className="text-gray-400 text-[13px] mr-1">$</span>
-												<input
-													type="number"
-													step="0.5"
-													min="1"
-													max="999"
-													value={wage}
-													onChange={(e) => {
-														const val = parseFloat(e.target.value);
-														if (!isNaN(val) && val > 0) setWage(val);
-													}}
-													className="w-full text-center font-bold text-[14px] text-gray-900 bg-transparent focus:outline-none tabular-nums"
-												/>
-												<span className="text-gray-400 text-[12px] ml-1">/hr</span>
+									<div className="my-auto py-2 flex flex-col items-center">
+										<div className="w-full rounded-2xl p-3 shadow-inner flex flex-col items-center">
+											<div className="flex items-center justify-between w-full px-2 mb-1.5">
+												<span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+													How much do you make?
+												</span>
 											</div>
-											<button
-												type="button"
-												onClick={() =>
-													setWage((w) => Number((w + 0.5).toFixed(2)))
-												}
-												className="w-9 h-9 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 flex items-center justify-center text-gray-700 font-bold active:scale-95 transition-transform"
-											>
-												+
-											</button>
+
+											{/* Native @ncdai/react-wheel-picker */}
+											<div className="w-full h-[100px] flex items-center justify-center">
+												<WheelPickerWrapper className="w-full h-[100px] bg-white rounded-xl  shadow-xs">
+													<WheelPicker
+														options={wageOptions}
+														value={String(
+															Math.round(wage),
+														)}
+														onValueChange={(
+															val: string,
+														) => {
+															const num =
+																parseFloat(val);
+															if (!isNaN(num))
+																setWage(num);
+														}}
+														optionItemHeight={32}
+														visibleCount={12}
+														classNames={{
+															optionItem:
+																'text-[13px] text-gray-400 font-medium tabular-nums select-none',
+															highlightWrapper:
+																'bg-gray-100/70 border-y border-gray-300 font-bold text-[15px] text-gray-900',
+														}}
+													/>
+												</WheelPickerWrapper>
+											</div>
 										</div>
 									</div>
 								)}
 
-								{/* SCREEN 2: VEHICLE EFFICIENCY, GAS PRICE & TANK CAPACITY CONFIG */}
+								{/* SCREEN 2: VEHICLE TRANSIT MULTI-WHEEL (MPG, Gas Price, Tank) */}
 								{currentIndex === 1 && (
-									<div className="mt-2 bg-[#F9FAFB] border border-gray-100 rounded-2xl p-3 flex flex-col gap-2.5">
-										{/* Row 1: MPG */}
-										<div className="flex items-center justify-between">
-											<span className="text-[12px] font-bold text-gray-700">
-												Fuel Economy
-											</span>
-											<div className="flex items-center gap-1">
-												{[22, 29, 35, 42].map((val) => (
-													<button
-														key={val}
-														type="button"
-														onClick={() => setMpg(val)}
-														className={`px-2 py-0.5 text-[11px] font-bold rounded-lg transition-all ${
-															mpg === val
-																? 'bg-[#111111] text-white'
-																: 'bg-white text-gray-600 border border-gray-200'
-														}`}
-													>
-														{val} MPG
-													</button>
-												))}
-											</div>
-										</div>
-
-										{/* Row 2: Gas Price & Tank Size */}
-										<div className="grid grid-cols-2 gap-2">
-											<div className="bg-white border border-gray-200 rounded-xl p-2 flex flex-col">
-												<span className="text-[11px] text-gray-500 font-medium">
-													Gas Price
+									<div className="my-auto py-1 flex flex-col items-center">
+										<div className="w-full rounded-2xl p-y2.5 shadow-inner flex flex-col items-center">
+											<div className="flex items-center justify-between w-full px-1 mb-1">
+												<span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+													What does a commute look
+													like?
 												</span>
-												<div className="flex items-center justify-between mt-1">
-													<span className="text-[13px] font-bold text-gray-900 tabular-nums">
-														${gasPrice.toFixed(2)}/gal
-													</span>
-													<div className="flex items-center gap-1">
-														<button
-															type="button"
-															onClick={() =>
-																setGasPrice((g) =>
-																	Math.max(1, Number((g - 0.1).toFixed(2))),
-																)
-															}
-															className="w-5 h-5 rounded-md bg-gray-100 hover:bg-gray-200 text-[11px] font-bold flex items-center justify-center"
-														>
-															-
-														</button>
-														<button
-															type="button"
-															onClick={() =>
-																setGasPrice((g) =>
-																	Number((g + 0.1).toFixed(2)),
-																)
-															}
-															className="w-5 h-5 rounded-md bg-gray-100 hover:bg-gray-200 text-[11px] font-bold flex items-center justify-center"
-														>
-															+
-														</button>
-													</div>
-												</div>
 											</div>
 
-											<div className="bg-white border border-gray-200 rounded-xl p-2 flex flex-col">
-												<span className="text-[11px] text-gray-500 font-medium">
-													Tank Capacity
-												</span>
-												<div className="flex items-center justify-between mt-1">
-													<span className="text-[13px] font-bold text-gray-900 tabular-nums">
-														{tankSize.toFixed(1)} Gal
-													</span>
-													<div className="flex items-center gap-1">
-														<button
-															type="button"
-															onClick={() =>
-																setTankSize((t) =>
-																	Math.max(5, Number((t - 1).toFixed(1))),
-																)
+											{/* Multi Wheel Row: MPG + Gas Price + Tank Capacity */}
+											<div className="w-full h-[100px]">
+												<WheelPickerWrapper className="w-full h-[100px] bg-white rounded-xl shadow-xs flex items-stretch">
+													{/* Wheel 1: MPG */}
+													<div className="flex-1 flex flex-col">
+														<WheelPicker
+															options={mpgOptions}
+															value={String(
+																Math.round(mpg),
+															)}
+															onValueChange={(
+																val: string,
+															) => {
+																const num =
+																	parseFloat(
+																		val,
+																	);
+																if (!isNaN(num))
+																	setMpg(num);
+															}}
+															optionItemHeight={
+																32
 															}
-															className="w-5 h-5 rounded-md bg-gray-100 hover:bg-gray-200 text-[11px] font-bold flex items-center justify-center"
-														>
-															-
-														</button>
-														<button
-															type="button"
-															onClick={() =>
-																setTankSize((t) =>
-																	Number((t + 1).toFixed(1)),
-																)
-															}
-															className="w-5 h-5 rounded-md bg-gray-100 hover:bg-gray-200 text-[11px] font-bold flex items-center justify-center"
-														>
-															+
-														</button>
+															visibleCount={12}
+															classNames={{
+																optionItem:
+																	'text-[12px] text-gray-400 font-medium tabular-nums',
+																highlightWrapper:
+																	'bg-gray-100/70 border-y border-gray-300 font-bold text-[13px] text-gray-900',
+															}}
+														/>
 													</div>
-												</div>
-											</div>
-										</div>
 
-										{/* Computed Subtext */}
-										<div className="flex items-center justify-between text-[11.5px] text-gray-500 px-0.5">
-											<span>
-												Running cost:{' '}
-												<strong className="text-gray-900 tabular-nums">
-													${costPerMile.toFixed(2)}/mi
-												</strong>
-											</span>
-											<span>
-												Full tank:{' '}
-												<strong className="text-gray-900 tabular-nums">
-													${(gasPrice * tankSize).toFixed(2)}
-												</strong>
-											</span>
+													{/* Wheel 2: Gas Price */}
+													<div className="flex-1 flex flex-col border-r border-gray-100">
+														<WheelPicker
+															options={
+																gasPriceOptions
+															}
+															value={gasPrice.toFixed(
+																2,
+															)}
+															onValueChange={(
+																val: string,
+															) => {
+																const num =
+																	parseFloat(
+																		val,
+																	);
+																if (!isNaN(num))
+																	setGasPrice(
+																		num,
+																	);
+															}}
+															optionItemHeight={
+																32
+															}
+															visibleCount={12}
+															classNames={{
+																optionItem:
+																	'text-[12px] text-gray-400 font-medium tabular-nums',
+																highlightWrapper:
+																	'bg-gray-100/70 border-y border-gray-300 font-bold text-[13px] text-gray-900',
+															}}
+														/>
+													</div>
+
+													{/* Wheel 3: Tank Size */}
+													<div className="flex-1 flex flex-col">
+														<WheelPicker
+															options={
+																tankSizeOptions
+															}
+															value={String(
+																Math.round(
+																	tankSize,
+																),
+															)}
+															onValueChange={(
+																val: string,
+															) => {
+																const num =
+																	parseFloat(
+																		val,
+																	);
+																if (!isNaN(num))
+																	setTankSize(
+																		num,
+																	);
+															}}
+															optionItemHeight={
+																32
+															}
+															visibleCount={12}
+															classNames={{
+																optionItem:
+																	'text-[12px] text-gray-400 font-medium tabular-nums',
+																highlightWrapper:
+																	'bg-gray-100/70 border-y border-gray-300 font-bold text-[13px] text-gray-900',
+															}}
+														/>
+													</div>
+												</WheelPickerWrapper>
+											</div>
 										</div>
 									</div>
 								)}
 
-								{/* SCREEN 3: EVERYDAY ROUTINE / HABIT COST CONFIG */}
+								{/* SCREEN 3: ROUTINE EXPENSE WHEEL */}
 								{currentIndex === 2 && (
-									<div className="mt-2 bg-[#F9FAFB] border border-gray-100 rounded-2xl p-3.5 flex flex-col gap-2">
-										<div className="flex items-center justify-between">
-											<span className="text-[12px] font-bold text-gray-700 uppercase tracking-wider">
-												Morning Coffee / Habit Cost
-											</span>
-											<span className="text-[15px] font-extrabold text-[#111111] tabular-nums">
-												${habitCost.toFixed(2)}
-											</span>
-										</div>
+									<div className="my-auto py-2 flex flex-col items-center">
+										<div className="w-full rounded-2xl py-3 shadow-inner flex flex-col items-center">
+											<div className="flex items-center justify-between w-full px-2 mb-1.5">
+												<span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+													Choose Daily Habit
+												</span>
+											</div>
 
-										{/* Quick Habit Chips */}
-										<div className="flex items-center gap-1.5 flex-wrap">
-											{[3.5, 4.5, 5.75, 7.0, 9.5].map((cost) => (
-												<button
-													key={cost}
-													type="button"
-													onClick={() => setHabitCost(cost)}
-													className={`px-3 py-1 text-[12px] font-bold rounded-xl transition-all cursor-pointer ${
-														habitCost === cost
-															? 'bg-[#111111] text-white shadow-xs'
-															: 'bg-white text-gray-600 border border-gray-200 hover:border-gray-400'
-													}`}
-												>
-													${cost.toFixed(2)}
-												</button>
-											))}
-										</div>
-
-										<div className="flex items-center justify-between text-[11.5px] text-gray-500 pt-0.5">
-											<span>
-												Seeds initial quick-tap preset: <strong>Morning Espresso</strong>
-											</span>
+											{/* Habit Wheel */}
+											<div className="w-full h-[100px] flex items-center justify-center">
+												<WheelPickerWrapper className="w-full h-[100px] bg-white rounded-xl shadow-xs">
+													<WheelPicker
+														options={habitOptions}
+														value={habitCost.toFixed(
+															2,
+														)}
+														onValueChange={(
+															val: string,
+														) => {
+															const num =
+																parseFloat(val);
+															if (!isNaN(num))
+																setHabitCost(
+																	num,
+																);
+														}}
+														optionItemHeight={32}
+														visibleCount={12}
+														classNames={{
+															optionItem:
+																'text-[12.5px] text-gray-400 font-medium select-none truncate px-2',
+															highlightWrapper:
+																'bg-gray-100/70 border-y border-gray-300 font-bold text-[13.5px] text-gray-900',
+														}}
+													/>
+												</WheelPickerWrapper>
+											</div>
 										</div>
 									</div>
 								)}
@@ -698,7 +740,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 					</div>
 
 					{/* 3. Centered Stepper & Thumb-Zone Controls */}
-					<div className="flex flex-col gap-3 w-full pt-3 shrink-0">
+					<div className="flex flex-col gap-3 w-full pt-2 shrink-0">
 						{/* 3-dot pagination pills centered horizontally */}
 						<div className="flex items-center justify-center gap-1.5 py-1 w-full">
 							{screens.map((screen, idx) => {

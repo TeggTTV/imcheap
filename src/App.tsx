@@ -137,7 +137,10 @@ export default function App() {
 					}
 				}
 			} catch (e) {
-				console.warn('Failed to parse saved presets from localStorage', e);
+				console.warn(
+					'Failed to parse saved presets from localStorage',
+					e,
+				);
 			}
 		}
 		return INITIAL_PRESETS;
@@ -157,12 +160,17 @@ export default function App() {
 				if (savedVehicle) {
 					const vehicle = JSON.parse(savedVehicle);
 					if (vehicle?.mpg && vehicle?.gasPrice) {
-						const rate = Number((vehicle.gasPrice / vehicle.mpg).toFixed(2));
+						const rate = Number(
+							(vehicle.gasPrice / vehicle.mpg).toFixed(2),
+						);
 						initial.mileageRate = rate;
 					}
 				}
 			} catch (e) {
-				console.warn('Failed to load income settings from localStorage', e);
+				console.warn(
+					'Failed to load income settings from localStorage',
+					e,
+				);
 			}
 		}
 		return initial;
@@ -195,7 +203,9 @@ export default function App() {
 	const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(() => {
 		if (typeof window !== 'undefined') {
 			try {
-				const completed = localStorage.getItem('imcheap_onboarding_completed');
+				const completed = localStorage.getItem(
+					'imcheap_onboarding_completed',
+				);
 				if (!completed) {
 					return true;
 				}
@@ -400,19 +410,19 @@ export default function App() {
 									{/* Header row: CURRENT RUNWAY and Badge */}
 									<div className="flex items-center justify-between">
 										<span className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">
-											CURRENT RUNWAY
+											This Month
 										</span>
 										<div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ECFDF5] text-secondary text-[12px] font-bold tracking-tight">
 											<span>★</span>
 											<span>
-												On Track (+$$
+												On Track (+$
 												{summary.availableBalance > 0
 													? (
 															summary.availableBalance *
 															0.37
 														).toFixed(0)
 													: '0'}{' '}
-												buffer)
+												)
 											</span>
 										</div>
 									</div>
@@ -484,11 +494,11 @@ export default function App() {
 							<section className="w-full flex flex-col gap-2.5">
 								<div className="flex items-center justify-between px-1">
 									<span className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">
-										QUICK LOG
+										Presets
 									</span>
-									<span className="text-[12px] text-[#6B7280] font-normal">
+									{/* <span className="text-[12px] text-[#6B7280] font-normal">
 										Tap to record
-									</span>
+									</span> */}
 								</div>
 
 								{/* Presets Horizontal Scroll / Grid */}
@@ -552,16 +562,16 @@ export default function App() {
 							<section className="w-full flex flex-col gap-2.5">
 								<div className="flex items-center justify-between px-1">
 									<span className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">
-										RECENT ACTIVITY
+										RECENTS
 									</span>
-									<button
+									{/* <button
 										type="button"
 										onClick={() => setIsDockExpanded(true)}
 										className="text-[13px] text-[#4B5563] font-semibold hover:text-[#111111] flex items-center gap-0.5 cursor-pointer"
 									>
 										<span>See All</span>
 										<span className="text-[14px]">→</span>
-									</button>
+									</button> */}
 								</div>
 
 								{/* White Card Containing Transactions List */}
@@ -577,11 +587,15 @@ export default function App() {
 												</span>
 											</div>
 											<span className="text-[14px] font-semibold text-[#111111]">
-												{searchQuery ? 'No matching transactions found.' : 'No transactions recorded yet.'}
+												{searchQuery
+													? 'No matching transactions found.'
+													: 'No transactions recorded yet.'}
 											</span>
 											{!searchQuery && (
 												<span className="text-[12px] text-[#6B7280]">
-													Tap the dock below or pick a preset to log your first expense.
+													Tap the dock below or pick a
+													preset to log your first
+													expense.
 												</span>
 											)}
 										</div>
@@ -1231,7 +1245,11 @@ export default function App() {
 				<OnboardingModal
 					isOpen={isOnboardingOpen}
 					onClose={() => setIsOnboardingOpen(false)}
-					onComplete={({ wage, vehicle, presets: initialPresets }) => {
+					onComplete={({
+						wage,
+						vehicle,
+						presets: initialPresets,
+					}) => {
 						const mileageRate = Number(
 							(vehicle.gasPrice / vehicle.mpg).toFixed(2),
 						);

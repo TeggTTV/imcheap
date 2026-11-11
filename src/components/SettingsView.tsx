@@ -83,7 +83,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
 	// Preferences toggles
 	const [showTimeWorked, setShowTimeWorked] = useState(true);
-	const [internalAnimations, setInternalAnimations] = useState(animationsEnabled);
+	const [internalAnimations, setInternalAnimations] =
+		useState(animationsEnabled);
 
 	const isAnimationsActive = onToggleAnimations
 		? animationsEnabled
@@ -179,18 +180,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	const tankCost = currentGas * currentCap;
 	const tankHours = wageRate > 0 ? (tankCost / wageRate).toFixed(1) : '0';
 
-	const handleSaveVehicleChanges = () => {
-		setVehicleSaved(true);
-		const newRate = Number(vehicleCostPerMile.toFixed(2));
-		onUpdateSettings({
-			...settings,
-			mileageRate: newRate,
-		});
+	// const handleSaveVehicleChanges = () => {
+	// 	setVehicleSaved(true);
+	// 	const newRate = Number(vehicleCostPerMile.toFixed(2));
+	// 	onUpdateSettings({
+	// 		...settings,
+	// 		mileageRate: newRate,
+	// 	});
 
-		setTimeout(() => {
-			setVehicleSaved(false);
-		}, 1200);
-	};
+	// 	setTimeout(() => {
+	// 		setVehicleSaved(false);
+	// 	}, 1200);
+	// };
 
 	// Past cycles history
 	interface PastCycleItem {
@@ -257,7 +258,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	};
 
 	return (
-		<div className="relative w-full overflow-hidden pb-24">
+		<div className="relative w-full overflow-hidden">
 			<AnimatePresence initial={false} custom={direction} mode="wait">
 				{/* SUBPAGE: TAX BUFFER */}
 				{currentSubpage === 'tax_buffer' && (
@@ -1277,29 +1278,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 									</div>
 								</div>
 							</div>
-
-							<div className="mt-3 p-3.5 rounded-xl bg-surface-container-low flex items-start gap-2.5">
-								<span className="material-symbols-outlined text-secondary text-[20px] mt-0.5 select-none">
-									tips_and_updates
-								</span>
-								<p className="text-xs text-on-surface-variant leading-relaxed">
-									Biking or skipping that quick 2-mile
-									convenience errand keeps{' '}
-									<span className="font-semibold text-on-surface">
-										${(vehicleCostPerMile * 2).toFixed(2)}
-									</span>{' '}
-									in your pocket and gives you{' '}
-									{(
-										(vehicleCostPerMile * 2) /
-										(wageRate / 60)
-									).toFixed(1)}{' '}
-									minutes of freedom back.
-								</p>
-							</div>
 						</section>
 
 						{/* Save CTA */}
-						<div className="pt-2">
+						{/* <div className="pt-2">
 							<button
 								type="button"
 								onClick={handleSaveVehicleChanges}
@@ -1319,7 +1301,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							<p className="text-center text-xs text-outline mt-2.5">
 								Values update your transit calculator instantly
 							</p>
-						</div>
+						</div> */}
 					</motion.div>
 				)}
 
@@ -1358,7 +1340,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</span>
 							</div>
 							<div className="text-[32px] font-bold text-secondary tracking-tight mt-1 flex items-baseline gap-1 tabular-nums">
-								{lifetimeSurplus >= 0 ? `+$${lifetimeSurplus.toFixed(2)}` : `-$${Math.abs(lifetimeSurplus).toFixed(2)}`}
+								{lifetimeSurplus >= 0
+									? `+$${lifetimeSurplus.toFixed(2)}`
+									: `-$${Math.abs(lifetimeSurplus).toFixed(2)}`}
 							</div>
 							<p className="text-xs text-on-surface-variant mt-1">
 								Total cash preserved from completed cycles
@@ -1375,7 +1359,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							<div className="bg-white rounded-[18px] border border-[#F3F4F6] shadow-sm overflow-hidden divide-y divide-[#F3F4F6]">
 								{pastCycles.length === 0 ? (
 									<div className="p-6 text-center text-xs text-on-surface-variant">
-										No completed cycles yet. Completed pay periods will appear here.
+										No completed cycles yet. Completed pay
+										periods will appear here.
 									</div>
 								) : (
 									pastCycles.map((cycle) => (
@@ -1394,7 +1379,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 														{cycle.label}
 													</h4>
 													<p className="text-xs text-on-surface-variant truncate mt-0.5">
-														${cycle.spent.toFixed(2)}{' '}
+														$
+														{cycle.spent.toFixed(2)}{' '}
 														spent of ${cycle.check}{' '}
 														check
 													</p>
