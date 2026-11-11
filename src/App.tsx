@@ -126,10 +126,47 @@ export default function App() {
 	const [transactions, setTransactions] = useState<Transaction[]>(() =>
 		txManager.getAll(),
 	);
-	const [presets, setPresets] = useState<PresetItem[]>(INITIAL_PRESETS);
-	const [incomeSettings, setIncomeSettings] = useState<IncomeSettings>(
-		INITIAL_INCOME_SETTINGS,
-	);
+	const [presets, setPresets] = useState<PresetItem[]>(() => {
+		if (typeof window !== 'undefined') {
+			try {
+				const savedPresets = localStorage.getItem('imcheap_presets');
+				if (savedPresets) {
+					const parsed = JSON.parse(savedPresets);
+					if (Array.isArray(parsed) && parsed.length > 0) {
+						return parsed;
+					}
+				}
+			} catch (e) {
+				console.warn('Failed to parse saved presets from localStorage', e);
+			}
+		}
+		return INITIAL_PRESETS;
+	});
+	const [incomeSettings, setIncomeSettings] = useState<IncomeSettings>(() => {
+		let initial = { ...INITIAL_INCOME_SETTINGS };
+		if (typeof window !== 'undefined') {
+			try {
+				const savedWage = localStorage.getItem('imcheap_wage');
+				if (savedWage) {
+					const wageVal = parseFloat(savedWage);
+					if (!isNaN(wageVal) && wageVal > 0) {
+						initial.hourlyWage = wageVal;
+					}
+				}
+				const savedVehicle = localStorage.getItem('imcheap_vehicle');
+				if (savedVehicle) {
+					const vehicle = JSON.parse(savedVehicle);
+					if (vehicle?.mpg && vehicle?.gasPrice) {
+						const rate = Number((vehicle.gasPrice / vehicle.mpg).toFixed(2));
+						initial.mileageRate = rate;
+					}
+				}
+			} catch (e) {
+				console.warn('Failed to load income settings from localStorage', e);
+			}
+		}
+		return initial;
+	});
 
 	const [initialSettingsSubpage, setInitialSettingsSubpage] =
 		useState<SettingsSubpage>('main');
@@ -155,7 +192,19 @@ export default function App() {
 	const [searchQuery, setSearchQuery] = useState<string>('');
 
 	// Onboarding state
-	const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(false);
+	const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(() => {
+		if (typeof window !== 'undefined') {
+			try {
+				const completed = localStorage.getItem('imcheap_onboarding_completed');
+				if (!completed) {
+					return true;
+				}
+			} catch (e) {
+				console.warn('Failed to check onboarding completed flag', e);
+			}
+		}
+		return false;
+	});
 
 	const summary = useMemo(
 		() => calculateBalanceSummary(transactions, incomeSettings),
@@ -1182,6 +1231,17 @@ export default function App() {
 				<OnboardingModal
 					isOpen={isOnboardingOpen}
 					onClose={() => setIsOnboardingOpen(false)}
+					onComplete={({ wage, vehicle, presets: initialPresets }) => {
+						const mileageRate = Number(
+							(vehicle.gasPrice / vehicle.mpg).toFixed(2),
+						);
+						setIncomeSettings((prev) => ({
+							...prev,
+							hourlyWage: wage,
+							mileageRate,
+						}));
+						setPresets(initialPresets);
+					}}
 				/>
 			</div>
 		</MotionConfig>

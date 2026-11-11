@@ -1,94 +1,45 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { PresetItem } from '../utils/expenseMath';
 
-export interface OnboardingReceipt {
-	icon: string;
-	iconEmoji: string;
-	iconBg: string;
-	iconColor: string;
-	title: string;
-	subtitle: string;
-	cost: string;
-	labor: string;
+export interface OnboardingScreenConfig {
+	wage: number;
+	vehicle: {
+		mpg: number;
+		gasPrice: number;
+		tankSize: number;
+	};
+	habitCost: number;
 }
 
-export interface OnboardingScreenData {
-	id: string;
-	image: string;
-	fallbackImage?: string;
-	receipt: OnboardingReceipt;
-	headline: string;
-	body: string;
-	ctaText: string;
-	isFinal: boolean;
-}
-
-export const ONBOARDING_SCREENS: OnboardingScreenData[] = [
-	{
-		id: 'step_food',
-		image: '/screen burger.png',
-		fallbackImage:
-			'https://lh3.googleusercontent.com/aida/ALJJyrDofg9q5e9eLGgthQ0sL1Xk-CeCF6uFybE_Dwuhx9tl9PkIlLetlwxHFv_vpijFq1FEwPJxeIoYbGNY44X3n4ZI0sYfroAs5e5UhoadIyRm2tIhnijLicTf4XxxueYEu0DJ5NU7dXBIzlNPue0Wyre5zSfiojk34H9bK6lMeWlusdqxSh6yXSUCa1qoYVNZLqJTl7Cv-mloCT5a2eFG49aqRusFc7CmlLbWfljm8bnP',
-		receipt: {
-			icon: 'lunch_dining',
-			iconEmoji: '🍔',
-			iconBg: 'rgba(252, 231, 243, 0.6)',
-			iconColor: 'rgb(190, 24, 93)',
-			title: 'Lunch Combo',
-			subtitle: '$14.50 • Dine-in (1 meal)',
-			cost: '$14.50',
-			labor: '≈ 51m of labor',
-		},
-		headline: 'Everything costs hours of your life.',
-		body: 'Connect your hourly wage to visualize the physical minutes behind every meal, latte, and takeout order before you tap to pay.',
-		ctaText: 'Continue',
-		isFinal: false,
+export const ONBOARDING_CONFIG_DEFAULTS: OnboardingScreenConfig = {
+	wage: 17.0,
+	vehicle: {
+		mpg: 29,
+		gasPrice: 4.05,
+		tankSize: 14.0,
 	},
-	{
-		id: 'step_driving',
-		image: '/screen driving.png',
-		fallbackImage:
-			'https://lh3.googleusercontent.com/aida/ALJJyrCD2ywDVkW6Nfv0hG6gH0hhawWjqRn-_TKkleErEYe-orU8c_T90jv1s4V4kJQhj0PjMG_3fE8uS1RqoGNYr080jTprLVwQkh54uXUFTOWyhdIkX3iM-MVwpq5FCy0_3X_9hAEWJLuJNdEgUUKInq0PvxfYnpBNhjpGgdo0XwlrwndHNyXqIc-txCn3pmUNMiQoLWMMvPea2z7gocC2e7BQw8CHGvaSsNBGrscaWNU',
-		receipt: {
-			icon: 'directions_car',
-			iconEmoji: '🚗',
-			iconBg: '#EEF2FF',
-			iconColor: '#4F46E5',
-			title: 'Daily Commute',
-			subtitle: '$1.79 • Campus Route (12.8 mi)',
-			cost: '$1.79',
-			labor: '≈ 6.3m of labor',
-		},
-		headline: 'Stop counting dollars. Start counting miles.',
-		body: "ImCheap syncs with your vehicle's fuel economy and local gas rates to reveal the true cost of every errand and road trip in working shift minutes.",
-		ctaText: 'Continue',
-		isFinal: false,
-	},
-	{
-		id: 'step_habits',
-		image: '/screen coffee.png',
-		fallbackImage:
-			'https://lh3.googleusercontent.com/aida-public/AB6AXuDM41rRi-r0iiJGLDYrIj6RZ8K7PbwkdujO7EnKHKRY1WKmYfppUNLUlGGM_fX3Zsfabj1ViYdzK7rTPpjHWFJPL-MNlS-sK5nFgtF0ttuIYVEz04GErE-ZKi7TgIzNXGnyNs7D3sZr3jXxzBf9g67ulRyg9Cu-3vagjr34dzSqcdwqrFYIv5V81Z_rkoMIi2Z-DZLwTqa105ABuvbMSMr3V8iuCee3KUnOyGVlaUE',
-		receipt: {
-			icon: 'local_cafe',
-			iconEmoji: '☕',
-			iconBg: '#FEF3C7',
-			iconColor: '#D97706',
-			title: 'Morning Espresso',
-			subtitle: '$4.50 • Flat expense (Daily)',
-			cost: '$4.50',
-			labor: '≈ 15.9m of labor',
-		},
-		headline: 'Small routines silently drain your paycheck.',
-		body: 'Track your everyday coffee runs, takeout meals, and subscriptions in real time. Know the exact minutes of your shift behind every purchase.',
-		ctaText: 'Get Started',
-		isFinal: true,
-	},
-];
+	habitCost: 4.5,
+};
 
 interface OnboardingModalProps {
 	isOpen: boolean;
 	onClose: () => void;
+	onComplete?: (config: {
+		wage: number;
+		vehicle: { mpg: number; gasPrice: number; tankSize: number };
+		presets: PresetItem[];
+	}) => void;
+}
+
+function formatLaborTime(hours: number): string {
+	if (hours <= 0 || isNaN(hours)) return '0m';
+	const totalMinutes = Math.round(hours * 60);
+	if (totalMinutes < 60) {
+		return `≈ ${totalMinutes}m of labor`;
+	}
+	const hrs = (totalMinutes / 60).toFixed(1);
+	return `≈ ${hrs}h of labor`;
 }
 
 const slideVariants = {
@@ -109,23 +60,183 @@ const slideVariants = {
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 	isOpen,
 	onClose,
+	onComplete,
 }) => {
 	const [currentIndex, setCurrentIndex] = useState(0);
 	const [direction, setDirection] = useState<number>(1);
 	const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+
+	// User-configurable parameters
+	const [wage, setWage] = useState<number>(ONBOARDING_CONFIG_DEFAULTS.wage);
+	const [mpg, setMpg] = useState<number>(ONBOARDING_CONFIG_DEFAULTS.vehicle.mpg);
+	const [gasPrice, setGasPrice] = useState<number>(
+		ONBOARDING_CONFIG_DEFAULTS.vehicle.gasPrice,
+	);
+	const [tankSize, setTankSize] = useState<number>(
+		ONBOARDING_CONFIG_DEFAULTS.vehicle.tankSize,
+	);
+	const [habitCost, setHabitCost] = useState<number>(
+		ONBOARDING_CONFIG_DEFAULTS.habitCost,
+	);
+
 	const touchStartX = useRef<number | null>(null);
 	const touchStartY = useRef<number | null>(null);
 
-	const currentStep = ONBOARDING_SCREENS[currentIndex];
+	// Calculated live costs & labor
+	// Screen 1: Meal = $14.50
+	const mealCost = 14.5;
+	const mealLaborHours = wage > 0 ? mealCost / wage : 0;
+	const mealLaborLabel = formatLaborTime(mealLaborHours);
+
+	// Screen 2: Commute 12.8 miles @ gasPrice / mpg
+	const costPerMile = mpg > 0 ? gasPrice / mpg : 0.14;
+	const commuteDistance = 12.8;
+	const commuteCost = Number((commuteDistance * costPerMile).toFixed(2));
+	const commuteLaborHours = wage > 0 ? commuteCost / wage : 0;
+	const commuteLaborLabel = formatLaborTime(commuteLaborHours);
+
+	// Screen 3: Morning habit = habitCost
+	const habitLaborHours = wage > 0 ? habitCost / wage : 0;
+	const habitLaborLabel = formatLaborTime(habitLaborHours);
+
+	const screens = useMemo(() => {
+		return [
+			{
+				id: 'step_food',
+				image: '/screen burger.png',
+				fallbackImage:
+					'https://lh3.googleusercontent.com/aida/ALJJyrDofg9q5e9eLGgthQ0sL1Xk-CeCF6uFybE_Dwuhx9tl9PkIlLetlwxHFv_vpijFq1FEwPJxeIoYbGNY44X3n4ZI0sYfroAs5e5UhoadIyRm2tIhnijLicTf4XxxueYEu0DJ5NU7dXBIzlNPue0Wyre5zSfiojk34H9bK6lMeWlusdqxSh6yXSUCa1qoYVNZLqJTl7Cv-mloCT5a2eFG49aqRusFc7CmlLbWfljm8bnP',
+				receipt: {
+					icon: 'lunch_dining',
+					iconEmoji: '🍔',
+					iconBg: 'rgba(252, 231, 243, 0.6)',
+					iconColor: 'rgb(190, 24, 93)',
+					title: 'Lunch Combo',
+					subtitle: `$${mealCost.toFixed(2)} • Dine-in (1 meal)`,
+					cost: `$${mealCost.toFixed(2)}`,
+					labor: mealLaborLabel,
+				},
+				headline: 'Everything costs hours of your life.',
+				body: 'Set your hourly wage to visualize the physical minutes behind every meal, latte, and takeout order before you tap to pay.',
+				ctaText: 'Continue',
+			},
+			{
+				id: 'step_driving',
+				image: '/screen driving.png',
+				fallbackImage:
+					'https://lh3.googleusercontent.com/aida/ALJJyrCD2ywDVkW6Nfv0hG6gH0hhawWjqRn-_TKkleErEYe-orU8c_T90jv1s4V4kJQhj0PjMG_3fE8uS1RqoGNYr080jTprLVwQkh54uXUFTOWyhdIkX3iM-MVwpq5FCy0_3X_9hAEWJLuJNdEgUUKInq0PvxfYnpBNhjpGgdo0XwlrwndHNyXqIc-txCn3pmUNMiQoLWMMvPea2z7gocC2e7BQw8CHGvaSsNBGrscaWNU',
+				receipt: {
+					icon: 'directions_car',
+					iconEmoji: '🚗',
+					iconBg: '#EEF2FF',
+					iconColor: '#4F46E5',
+					title: 'Daily Commute',
+					subtitle: `$${commuteCost.toFixed(2)} • Campus Route (${commuteDistance} mi)`,
+					cost: `$${commuteCost.toFixed(2)}`,
+					labor: commuteLaborLabel,
+				},
+				headline: 'Stop counting dollars. Start counting miles.',
+				body: "Sync your vehicle's fuel economy, gas price, and tank capacity to reveal the true cost of every errand and road trip in working shift minutes.",
+				ctaText: 'Continue',
+			},
+			{
+				id: 'step_habits',
+				image: '/screen coffee.png',
+				fallbackImage:
+					'https://lh3.googleusercontent.com/aida-public/AB6AXuDM41rRi-r0iiJGLDYrIj6RZ8K7PbwkdujO7EnKHKRY1WKmYfppUNLUlGGM_fX3Zsfabj1ViYdzK7rTPpjHWFJPL-MNlS-sK5nFgtF0ttuIYVEz04GErE-ZKi7TgIzNXGnyNs7D3sZr3jXxzBf9g67ulRyg9Cu-3vagjr34dzSqcdwqrFYIv5V81Z_rkoMIi2Z-DZLwTqa105ABuvbMSMr3V8iuCee3KUnOyGVlaUE',
+				receipt: {
+					icon: 'local_cafe',
+					iconEmoji: '☕',
+					iconBg: '#FEF3C7',
+					iconColor: '#D97706',
+					title: 'Morning Espresso',
+					subtitle: `$${habitCost.toFixed(2)} • Flat expense (Daily)`,
+					cost: `$${habitCost.toFixed(2)}`,
+					labor: habitLaborLabel,
+				},
+				headline: 'Small routines silently drain your paycheck.',
+				body: 'Track your everyday coffee runs, takeout meals, and subscriptions in real time. Know the exact minutes of your shift behind every purchase.',
+				ctaText: 'Get Started',
+			},
+		];
+	}, [
+		wage,
+		mealCost,
+		mealLaborLabel,
+		commuteCost,
+		commuteDistance,
+		commuteLaborLabel,
+		habitCost,
+		habitLaborLabel,
+	]);
+
+	const currentStep = screens[currentIndex];
+
+	const handleFinish = useCallback(() => {
+		const vehicle = { mpg, gasPrice, tankSize };
+		const presets: PresetItem[] = [
+			{
+				id: 'preset-coffee-espresso',
+				label: 'Espresso',
+				title: 'Morning Espresso',
+				category: 'Food',
+				type: 'expense',
+				icon: 'local_cafe',
+				bgColor: '#FEF3C7',
+				iconColor: '#D97706',
+				unit: 'USD',
+				rawValue: habitCost,
+				isRoundTrip: false,
+				calculatedAmount: habitCost,
+			},
+			{
+				id: 'preset-daily-commute',
+				label: 'Commute',
+				title: 'Daily Commute',
+				category: 'Driving',
+				type: 'expense',
+				icon: 'directions_car',
+				bgColor: '#EEF2FF',
+				iconColor: '#4F46E5',
+				unit: 'MILES',
+				rawValue: commuteDistance,
+				isRoundTrip: false,
+				calculatedAmount: commuteCost,
+			},
+		];
+
+		try {
+			localStorage.setItem('imcheap_wage', String(wage));
+			localStorage.setItem('imcheap_vehicle', JSON.stringify(vehicle));
+			localStorage.setItem('imcheap_presets', JSON.stringify(presets));
+			localStorage.setItem('imcheap_onboarding_completed', 'true');
+		} catch (err) {
+			console.warn('Failed to persist onboarding settings to localStorage', err);
+		}
+
+		if (onComplete) {
+			onComplete({ wage, vehicle, presets });
+		}
+		onClose();
+	}, [wage, mpg, gasPrice, tankSize, habitCost, commuteDistance, commuteCost, onComplete, onClose]);
+
+	const handleSkip = useCallback(() => {
+		try {
+			localStorage.setItem('imcheap_onboarding_completed', 'true');
+		} catch (err) {
+			console.warn('Failed to persist onboarding completed flag', err);
+		}
+		onClose();
+	}, [onClose]);
 
 	const nextStep = useCallback(() => {
-		if (currentIndex < ONBOARDING_SCREENS.length - 1) {
+		if (currentIndex < screens.length - 1) {
 			setDirection(1);
 			setCurrentIndex((prev) => prev + 1);
 		} else {
-			onClose();
+			handleFinish();
 		}
-	}, [currentIndex, onClose]);
+	}, [currentIndex, screens.length, handleFinish]);
 
 	const prevStep = useCallback(() => {
 		if (currentIndex > 0) {
@@ -159,15 +270,15 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 				prevStep();
 			} else if (e.key === 'Escape') {
 				e.preventDefault();
-				onClose();
+				handleSkip();
 			}
 		};
 
 		window.addEventListener('keydown', handleKeyDown);
 		return () => window.removeEventListener('keydown', handleKeyDown);
-	}, [isOpen, nextStep, prevStep, onClose]);
+	}, [isOpen, nextStep, prevStep, handleSkip]);
 
-	// Swipe gesture handlers
+	// Touch swipe gesture handlers
 	const handleTouchStart = (e: React.TouchEvent) => {
 		touchStartX.current = e.touches[0].clientX;
 		touchStartY.current = e.touches[0].clientY;
@@ -204,11 +315,11 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 			<div
 				onTouchStart={handleTouchStart}
 				onTouchEnd={handleTouchEnd}
-				className="relative w-full sm:max-w-105 h-dvh sm:h-215 bg-white sm:rounded-[36px] overflow-hidden flex flex-col shadow-2xl select-none"
+				className="relative w-full sm:max-w-[420px] h-[100dvh] sm:h-[860px] bg-white sm:rounded-[36px] overflow-hidden flex flex-col shadow-2xl select-none"
 			>
-				{/* 1. Upper Hero Photo Container (Dominant photo area on desktop, flexible on mobile) */}
-				<div className="relative w-full h-[60vh] min-h-55  sm:h-127.5 bg-black shrink-0 overflow-visible">
-					{/* Full-bleed photography with page sliding */}
+				{/* 1. Upper Hero Photo Container (60%-62% height) */}
+				<div className="relative w-full h-[52vh] sm:h-[460px] bg-black shrink-0 overflow-visible">
+					{/* Full-bleed edge-to-edge photography with page sliding */}
 					<div className="absolute inset-0 w-full h-full overflow-hidden">
 						<AnimatePresence initial={false} custom={direction}>
 							<motion.div
@@ -243,91 +354,94 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 						</AnimatePresence>
 					</div>
 
-					{/* Top Vignette Gradient for header legibility */}
-					<div className="absolute inset-x-0 top-0 h-28 bg-linear-to-b from-black/75 via-black/25 to-transparent pointer-events-none z-10" />
+					{/* Subtle top-down vignette gradient for header legibility */}
+					<div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/75 via-black/25 to-transparent pointer-events-none z-10" />
 
-					{/* Navigation Bar Overlay */}
+					{/* Minimalist pinned top bar: Left ImCheap wordmark in crisp white, right Skip button */}
 					<div className="relative z-20 flex items-center justify-between px-6 pt-6">
 						<span className="text-[18px] font-extrabold tracking-tight text-white font-sans drop-shadow-sm">
 							ImCheap
 						</span>
 						<button
 							type="button"
-							onClick={onClose}
-							className="text-[15px] text-white opacity-80 hover:opacity-100 transition-opacity cursor-pointer font-medium drop-shadow-sm"
+							onClick={handleSkip}
+							className="text-[15px] text-white opacity-85 hover:opacity-100 transition-opacity cursor-pointer font-medium drop-shadow-sm"
 						>
 							Skip
 						</button>
 					</div>
 
-					{/* 2. Floating Micro-Receipt Pill (Anchored across the image/sheet boundary) */}
-					<div className="absolute -bottom-6 inset-x-6 z-20 h-17 bg-white rounded-2xl p-3.5 shadow-xl border border-slate-100 overflow-hidden">
-						<AnimatePresence initial={false} custom={direction}>
-							<motion.div
-								key={currentStep.id + '_receipt'}
-								custom={direction}
-								variants={slideVariants}
-								initial="enter"
-								animate="center"
-								exit="exit"
-								transition={{
-									x: {
-										type: 'spring',
-										stiffness: 300,
-										damping: 30,
-									},
-									opacity: { duration: 0.2 },
-								}}
-								className="absolute inset-0 px-3.5 flex items-center justify-between"
-							>
-								{/* Left Group: Icon + Name & Subtext */}
-								<div className="flex items-center gap-3 min-w-0 pr-2">
-									<div
-										className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-lg shadow-xs"
-										style={{
-											backgroundColor:
-												currentStep.receipt.iconBg,
-											color: currentStep.receipt
-												.iconColor,
-										}}
-									>
-										<span className="material-symbols-outlined text-[20px]">
-											{currentStep.receipt.icon}
-										</span>
+					{/* Pinned Floating Micro-Receipt Card across the image/sheet seam */}
+					<div className="absolute -bottom-6 inset-x-6 z-20 h-[68px] bg-white rounded-2xl px-3.5 shadow-xl border border-slate-100 flex items-center overflow-hidden">
+						<div className="relative w-full h-full flex items-center">
+							<AnimatePresence initial={false} custom={direction}>
+								<motion.div
+									key={currentStep.id + '_receipt'}
+									custom={direction}
+									variants={slideVariants}
+									initial="enter"
+									animate="center"
+									exit="exit"
+									transition={{
+										x: {
+											type: 'spring',
+											stiffness: 300,
+											damping: 30,
+										},
+										opacity: { duration: 0.2 },
+									}}
+									className="absolute inset-0 flex items-center justify-between min-w-0"
+								>
+									{/* Left side: Category circular badge + title and subtext */}
+									<div className="flex items-center gap-3 min-w-0 pr-2">
+										<div
+											className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-lg shadow-xs"
+											style={{
+												backgroundColor:
+													currentStep.receipt.iconBg,
+												color: currentStep.receipt
+													.iconColor,
+											}}
+										>
+											<span className="material-symbols-outlined text-[20px]">
+												{currentStep.receipt.icon}
+											</span>
+										</div>
+										<div className="flex flex-col min-w-0">
+											<span className="font-semibold text-slate-900 text-[14px] leading-tight truncate">
+												{currentStep.receipt.title}
+											</span>
+											<span className="text-[12px] text-slate-500 font-medium leading-normal mt-0.5 truncate tabular-nums">
+												{currentStep.receipt.subtitle}
+											</span>
+										</div>
 									</div>
-									<div className="flex flex-col min-w-0">
-										<span className="font-semibold text-slate-900 text-[14px] leading-tight truncate">
-											{currentStep.receipt.title}
-										</span>
-										<span className="text-[12px] text-slate-500 font-medium leading-normal mt-0.5 truncate">
-											{currentStep.receipt.subtitle}
-										</span>
-									</div>
-								</div>
 
-								{/* Right Group: Emerald labor conversion pill */}
-								<div className="bg-[#ECFDF5] text-secondary px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap flex items-center gap-1.5 shrink-0">
-									<span
-										className="material-symbols-outlined text-[15px]"
-										style={{
-											fontVariationSettings: "'FILL' 1",
-										}}
-									>
-										schedule
-									</span>
-									<span className="tabular-nums">
-										{currentStep.receipt.labor}
-									</span>
-								</div>
-							</motion.div>
-						</AnimatePresence>
+									{/* Right side: Emerald pill badge displaying clock icon and shift labor time */}
+									<div className="bg-[#ECFDF5] text-[#059669] px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap flex items-center gap-1.5 shrink-0">
+										<span
+											className="material-symbols-outlined text-[15px]"
+											style={{
+												fontVariationSettings:
+													"'FILL' 1",
+											}}
+										>
+											schedule
+										</span>
+										<span className="tabular-nums">
+											{currentStep.receipt.labor}
+										</span>
+									</div>
+								</motion.div>
+							</AnimatePresence>
+						</div>
 					</div>
 				</div>
 
-				{/* 3. Compact White Bottom Sheet (Fills remaining height, responsive padding and spacing for mobile viewports) */}
-				<section className="relative max-h-87.5 z-10 -mt-6 flex-1 w-full bg-white rounded-t-4xl px-6 pt-16 sm:pt-16 pb-6 sm:pb-8 pb-safe flex flex-col justify-between min-h-0">
-					{/* Text Block */}
-					<div className="relative overflow-hidden min-h-24 sm:min-h-32.5 flex flex-col justify-center">
+				{/* 2. Compact White Bottom Sheet (Lower Screen Area) */}
+				<section className="bg-white rounded-t-[32px] px-6 pt-10 pb-6 sm:pb-8 pb-safe flex flex-col justify-between shadow-2xl relative z-10 -mt-6 flex-1 min-h-0 overflow-y-auto no-scrollbar">
+					{/* Text Block & Interactive Config Inputs */}
+					<div className="relative overflow-hidden flex flex-col justify-center my-auto min-h-0">
 						<AnimatePresence initial={false} custom={direction}>
 							<motion.div
 								key={currentStep.id + '_text'}
@@ -344,23 +458,250 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 									},
 									opacity: { duration: 0.2 },
 								}}
-								className="flex flex-col gap-1.5 sm:gap-2 w-full"
+								className="flex flex-col gap-2 w-full"
 							>
-								<h1 className="text-[22px] sm:text-[27px] font-extrabold text-[#111111] leading-[1.2] tracking-tight">
+								<h1 className="text-[23px] sm:text-[25px] font-extrabold text-[#111111] leading-[1.2] tracking-tight">
 									{currentStep.headline}
 								</h1>
-								<p className="text-[13px] sm:text-[14px] text-[#6B7280] leading-relaxed font-normal">
+								<p className="text-[13.5px] text-[#6B7280] leading-relaxed font-normal">
 									{currentStep.body}
 								</p>
+
+								{/* SCREEN 1: HOURLY WAGE CONFIG */}
+								{currentIndex === 0 && (
+									<div className="mt-2 bg-[#F9FAFB] border border-gray-100 rounded-2xl p-3.5 flex flex-col gap-2">
+										<div className="flex items-center justify-between">
+											<span className="text-[12px] font-bold text-gray-700 uppercase tracking-wider">
+												Base Hourly Wage
+											</span>
+											<span className="text-[15px] font-extrabold text-[#111111] tabular-nums">
+												${wage.toFixed(2)}/hr
+											</span>
+										</div>
+
+										{/* Quick Wage Preset Chips */}
+										<div className="flex items-center gap-1.5 flex-wrap">
+											{[15, 17, 20, 25, 30].map((rate) => (
+												<button
+													key={rate}
+													type="button"
+													onClick={() => setWage(rate)}
+													className={`px-3 py-1 text-[12px] font-bold rounded-xl transition-all cursor-pointer ${
+														wage === rate
+															? 'bg-[#111111] text-white shadow-xs'
+															: 'bg-white text-gray-600 border border-gray-200 hover:border-gray-400'
+													}`}
+												>
+													${rate}/hr
+												</button>
+											))}
+										</div>
+
+										{/* Stepper + Input */}
+										<div className="flex items-center gap-2 mt-1">
+											<button
+												type="button"
+												onClick={() =>
+													setWage((w) =>
+														Math.max(1, Number((w - 0.5).toFixed(2))),
+													)
+												}
+												className="w-9 h-9 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 flex items-center justify-center text-gray-700 font-bold active:scale-95 transition-transform"
+											>
+												-
+											</button>
+											<div className="flex-1 flex items-center justify-center bg-white border border-gray-200 rounded-xl h-9 px-3">
+												<span className="text-gray-400 text-[13px] mr-1">$</span>
+												<input
+													type="number"
+													step="0.5"
+													min="1"
+													max="999"
+													value={wage}
+													onChange={(e) => {
+														const val = parseFloat(e.target.value);
+														if (!isNaN(val) && val > 0) setWage(val);
+													}}
+													className="w-full text-center font-bold text-[14px] text-gray-900 bg-transparent focus:outline-none tabular-nums"
+												/>
+												<span className="text-gray-400 text-[12px] ml-1">/hr</span>
+											</div>
+											<button
+												type="button"
+												onClick={() =>
+													setWage((w) => Number((w + 0.5).toFixed(2)))
+												}
+												className="w-9 h-9 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 flex items-center justify-center text-gray-700 font-bold active:scale-95 transition-transform"
+											>
+												+
+											</button>
+										</div>
+									</div>
+								)}
+
+								{/* SCREEN 2: VEHICLE EFFICIENCY, GAS PRICE & TANK CAPACITY CONFIG */}
+								{currentIndex === 1 && (
+									<div className="mt-2 bg-[#F9FAFB] border border-gray-100 rounded-2xl p-3 flex flex-col gap-2.5">
+										{/* Row 1: MPG */}
+										<div className="flex items-center justify-between">
+											<span className="text-[12px] font-bold text-gray-700">
+												Fuel Economy
+											</span>
+											<div className="flex items-center gap-1">
+												{[22, 29, 35, 42].map((val) => (
+													<button
+														key={val}
+														type="button"
+														onClick={() => setMpg(val)}
+														className={`px-2 py-0.5 text-[11px] font-bold rounded-lg transition-all ${
+															mpg === val
+																? 'bg-[#111111] text-white'
+																: 'bg-white text-gray-600 border border-gray-200'
+														}`}
+													>
+														{val} MPG
+													</button>
+												))}
+											</div>
+										</div>
+
+										{/* Row 2: Gas Price & Tank Size */}
+										<div className="grid grid-cols-2 gap-2">
+											<div className="bg-white border border-gray-200 rounded-xl p-2 flex flex-col">
+												<span className="text-[11px] text-gray-500 font-medium">
+													Gas Price
+												</span>
+												<div className="flex items-center justify-between mt-1">
+													<span className="text-[13px] font-bold text-gray-900 tabular-nums">
+														${gasPrice.toFixed(2)}/gal
+													</span>
+													<div className="flex items-center gap-1">
+														<button
+															type="button"
+															onClick={() =>
+																setGasPrice((g) =>
+																	Math.max(1, Number((g - 0.1).toFixed(2))),
+																)
+															}
+															className="w-5 h-5 rounded-md bg-gray-100 hover:bg-gray-200 text-[11px] font-bold flex items-center justify-center"
+														>
+															-
+														</button>
+														<button
+															type="button"
+															onClick={() =>
+																setGasPrice((g) =>
+																	Number((g + 0.1).toFixed(2)),
+																)
+															}
+															className="w-5 h-5 rounded-md bg-gray-100 hover:bg-gray-200 text-[11px] font-bold flex items-center justify-center"
+														>
+															+
+														</button>
+													</div>
+												</div>
+											</div>
+
+											<div className="bg-white border border-gray-200 rounded-xl p-2 flex flex-col">
+												<span className="text-[11px] text-gray-500 font-medium">
+													Tank Capacity
+												</span>
+												<div className="flex items-center justify-between mt-1">
+													<span className="text-[13px] font-bold text-gray-900 tabular-nums">
+														{tankSize.toFixed(1)} Gal
+													</span>
+													<div className="flex items-center gap-1">
+														<button
+															type="button"
+															onClick={() =>
+																setTankSize((t) =>
+																	Math.max(5, Number((t - 1).toFixed(1))),
+																)
+															}
+															className="w-5 h-5 rounded-md bg-gray-100 hover:bg-gray-200 text-[11px] font-bold flex items-center justify-center"
+														>
+															-
+														</button>
+														<button
+															type="button"
+															onClick={() =>
+																setTankSize((t) =>
+																	Number((t + 1).toFixed(1)),
+																)
+															}
+															className="w-5 h-5 rounded-md bg-gray-100 hover:bg-gray-200 text-[11px] font-bold flex items-center justify-center"
+														>
+															+
+														</button>
+													</div>
+												</div>
+											</div>
+										</div>
+
+										{/* Computed Subtext */}
+										<div className="flex items-center justify-between text-[11.5px] text-gray-500 px-0.5">
+											<span>
+												Running cost:{' '}
+												<strong className="text-gray-900 tabular-nums">
+													${costPerMile.toFixed(2)}/mi
+												</strong>
+											</span>
+											<span>
+												Full tank:{' '}
+												<strong className="text-gray-900 tabular-nums">
+													${(gasPrice * tankSize).toFixed(2)}
+												</strong>
+											</span>
+										</div>
+									</div>
+								)}
+
+								{/* SCREEN 3: EVERYDAY ROUTINE / HABIT COST CONFIG */}
+								{currentIndex === 2 && (
+									<div className="mt-2 bg-[#F9FAFB] border border-gray-100 rounded-2xl p-3.5 flex flex-col gap-2">
+										<div className="flex items-center justify-between">
+											<span className="text-[12px] font-bold text-gray-700 uppercase tracking-wider">
+												Morning Coffee / Habit Cost
+											</span>
+											<span className="text-[15px] font-extrabold text-[#111111] tabular-nums">
+												${habitCost.toFixed(2)}
+											</span>
+										</div>
+
+										{/* Quick Habit Chips */}
+										<div className="flex items-center gap-1.5 flex-wrap">
+											{[3.5, 4.5, 5.75, 7.0, 9.5].map((cost) => (
+												<button
+													key={cost}
+													type="button"
+													onClick={() => setHabitCost(cost)}
+													className={`px-3 py-1 text-[12px] font-bold rounded-xl transition-all cursor-pointer ${
+														habitCost === cost
+															? 'bg-[#111111] text-white shadow-xs'
+															: 'bg-white text-gray-600 border border-gray-200 hover:border-gray-400'
+													}`}
+												>
+													${cost.toFixed(2)}
+												</button>
+											))}
+										</div>
+
+										<div className="flex items-center justify-between text-[11.5px] text-gray-500 pt-0.5">
+											<span>
+												Seeds initial quick-tap preset: <strong>Morning Espresso</strong>
+											</span>
+										</div>
+									</div>
+								)}
 							</motion.div>
 						</AnimatePresence>
 					</div>
 
-					{/* Navigation Controls: Centered Dots + Action Buttons */}
+					{/* 3. Centered Stepper & Thumb-Zone Controls */}
 					<div className="flex flex-col gap-3 w-full pt-3 shrink-0">
-						{/* Centered Pagination Indicator Pills */}
+						{/* 3-dot pagination pills centered horizontally */}
 						<div className="flex items-center justify-center gap-1.5 py-1 w-full">
-							{ONBOARDING_SCREENS.map((screen, idx) => {
+							{screens.map((screen, idx) => {
 								const isActive = idx === currentIndex;
 								return (
 									<button
@@ -381,14 +722,14 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 							})}
 						</div>
 
-						{/* Balanced Action Button Row */}
+						{/* Bottom Action Row */}
 						<div className="flex items-center gap-3 w-full">
-							{/* Back Button (shown when stepIndex > 0) */}
+							{/* Screens 2 & 3: Muted Back button */}
 							{currentIndex > 0 && (
 								<button
 									type="button"
 									onClick={prevStep}
-									className="h-13 px-5 bg-neutral-100 hover:bg-neutral-200 active:scale-[0.98] text-neutral-800 font-semibold text-[15px] rounded-2xl flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer"
+									className="h-[52px] px-5 bg-neutral-100 hover:bg-neutral-200 active:scale-[0.98] text-neutral-800 font-semibold text-[15px] rounded-2xl flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer"
 								>
 									<svg
 										className="w-4 h-4 stroke-[2.5]"
@@ -406,15 +747,16 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 								</button>
 							)}
 
-							{/* Primary CTA Button */}
+							{/* Primary CTA button */}
 							<button
 								type="button"
 								onClick={nextStep}
-								className="flex-1 h-13 bg-[#111111] hover:bg-neutral-900 active:scale-[0.98] text-white font-bold text-[16px] rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+								className={`${
+									currentIndex === 0 ? 'w-full' : 'flex-1'
+								} h-[52px] bg-[#111111] hover:bg-neutral-900 active:scale-[0.98] text-white font-bold text-[16px] rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer`}
 							>
 								<span>
-									{currentIndex ===
-									ONBOARDING_SCREENS.length - 1
+									{currentIndex === screens.length - 1
 										? 'Get Started'
 										: 'Continue'}
 								</span>
