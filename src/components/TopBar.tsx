@@ -16,7 +16,7 @@ export const TopBar: React.FC<TopBarProps> = ({
 	onSearchQueryChange,
 }) => {
 	return (
-		<header className="fixed top-0 inset-x-0 z-60 bg-surface/85 backdrop-blur-xl">
+		<header className="fixed top-0 inset-x-0 z-40 bg-surface/85 backdrop-blur-xl">
 			<div className="h-16 px-margin max-w-120 mx-auto flex items-center justify-between">
 				<div className="flex items-center gap-space-sm">
 					<span className="material-symbols-outlined text-primary text-[22px]">
