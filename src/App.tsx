@@ -75,7 +75,7 @@ export default function App() {
 		}
 		return false;
 	});
-	const [, setSelectedCategory] = useState<string>('Fitness');
+	const [selectedCategory, setSelectedCategory] = useState<string>('Fitness');
 	const [dockNote, setDockNote] = useState<string>('');
 	const [dockIconIndex, setDockIconIndex] = useState<number>(0);
 	const [customDockIcon, setCustomDockIcon] = useState<{
@@ -216,6 +216,10 @@ export default function App() {
 		const matchedPreset = presets.find(
 			(p) => p.label === selectedPresetLabel,
 		);
+		const catMeta =
+			currentCategories.find(
+				(c) => c.id.toLowerCase() === selectedCategory.toLowerCase(),
+			) || currentCategories[0];
 
 		// If dock is collapsed and user has no amount or preset, expand it upward
 		if (
@@ -232,8 +236,21 @@ export default function App() {
 				? parsedVal
 				: matchedPreset?.calculatedAmount || 18.59;
 
+		setIsLoggingAction('spinning');
+
 		setTimeout(() => {
 			setIsLoggingAction('success');
+
+			txManager.createTransaction({
+				title:
+					dockNote.trim() ||
+					(matchedPreset ? matchedPreset.title : catMeta.label),
+				category: catMeta.label,
+				amount: finalAmount,
+				type: dockType,
+				icon: matchedPreset ? matchedPreset.icon : currentDockIcon.icon,
+				note: dockNote.trim() || undefined,
+			});
 
 			setTransactions(txManager.getAll());
 
@@ -358,8 +375,14 @@ export default function App() {
 											data-testid="hero-balance"
 										>
 											<AnimatedNumber
-												value={summary.availableBalance}
+												value={
+													parseFloat(
+														summary.unspentWorkHours,
+													) || 0
+												}
 												enabled={animationsEnabled}
+												decimals={1}
+												prefix=""
 											/>{' '}
 											hrs
 										</span>
@@ -1155,9 +1178,13 @@ export default function App() {
 function AnimatedNumber({
 	value,
 	enabled = true,
+	decimals = 2,
+	prefix = '$',
 }: {
 	value: number;
 	enabled?: boolean;
+	decimals?: number;
+	prefix?: string;
 }) {
 	const [displayVal, setDisplayVal] = useState(value);
 
@@ -1174,5 +1201,10 @@ function AnimatedNumber({
 		return () => controls.stop();
 	}, [value, enabled]);
 
-	return <>${enabled ? displayVal : value}</>;
+	return (
+		<>
+			{prefix}
+			{(enabled ? displayVal : value).toFixed(decimals)}
+		</>
+	);
 }
