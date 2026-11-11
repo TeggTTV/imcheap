@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Transaction } from '../utils/expenseMath';
+import { formatTransactionTimestamp } from '../utils/dateUtils';
 
 interface TransactionDetailModalProps {
   transaction: Transaction | null;
@@ -94,7 +95,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                 Edit Transaction
               </h2>
               <span className="text-[12px] text-on-surface-variant">
-                {transaction.category} • {transaction.timestamp}
+                {transaction.category} • {formatTransactionTimestamp(transaction.timestamp)}
               </span>
             </div>
 

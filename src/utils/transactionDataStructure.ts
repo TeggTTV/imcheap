@@ -1,4 +1,5 @@
 import { Transaction } from './expenseMath';
+import { createTimestamp } from './dateUtils';
 
 /**
  * Node for Doubly Linked List representing a Transaction
@@ -197,7 +198,7 @@ export class TransactionManager {
       id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       title: params.title?.trim() || 'Expense',
       category: params.category || 'General',
-      timestamp: params.timestamp || 'Just now',
+      timestamp: params.timestamp || createTimestamp(),
       amount: finalAmount,
       type: params.type || 'expense',
       icon: params.icon || 'receipt_long',

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'motion/react';
 import { Transaction } from '../utils/expenseMath';
+import { formatTransactionTimestamp } from '../utils/dateUtils';
 
 interface SwipeableTransactionItemProps {
 	tx: Transaction;
@@ -172,7 +173,7 @@ export const SwipeableTransactionItem: React.FC<
 							{tx.title}
 						</span>
 						<span className="text-[12.5px] text-[#6B7280] mt-0.5">
-							{tx.category} • {tx.timestamp}
+							{tx.category} • {formatTransactionTimestamp(tx.timestamp)}
 						</span>
 					</div>
 				</div>
