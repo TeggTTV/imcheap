@@ -34,6 +34,7 @@ export interface IncomeSettings {
 export interface BalanceSummary {
   basePaycheck: number;
   loggedExpenses: number;
+  totalIncome: number;
   availableBalance: number;
   percentLeft: number;
   unspentWorkHours: string;
@@ -301,15 +302,20 @@ export function calculateBalanceSummary(
   settings: IncomeSettings = INITIAL_INCOME_SETTINGS
 ): BalanceSummary {
   const basePaycheck = Number((settings.hourlyWage * settings.hoursPerCycle).toFixed(2));
-  const loggedExpenses = transactions.reduce(
-    (acc, tx) => (tx.type === 'expense' ? acc + tx.amount : acc - tx.amount),
-    0
-  );
-  const normalizedLoggedExpenses = Math.max(0, Number(loggedExpenses.toFixed(2)));
-  const availableBalance = Number((basePaycheck - normalizedLoggedExpenses).toFixed(2));
+  const totalExpenses = transactions
+    .filter((tx) => tx.type === 'expense')
+    .reduce((acc, tx) => acc + tx.amount, 0);
+  const totalIncome = transactions
+    .filter((tx) => tx.type === 'income')
+    .reduce((acc, tx) => acc + tx.amount, 0);
+
+  const normalizedExpenses = Number(totalExpenses.toFixed(2));
+  const normalizedIncome = Number(totalIncome.toFixed(2));
+  const availableBalance = Number((basePaycheck + normalizedIncome - normalizedExpenses).toFixed(2));
+  const totalBudget = Number((basePaycheck + normalizedIncome).toFixed(2));
   const percentLeft =
-    basePaycheck > 0
-      ? Math.max(0, Math.min(100, Math.round((availableBalance / basePaycheck) * 100)))
+    totalBudget > 0
+      ? Math.max(0, Math.min(100, Math.round((availableBalance / totalBudget) * 100)))
       : 0;
   const unspentWorkHours =
     settings.hourlyWage > 0
@@ -318,7 +324,8 @@ export function calculateBalanceSummary(
 
   return {
     basePaycheck,
-    loggedExpenses: normalizedLoggedExpenses,
+    loggedExpenses: normalizedExpenses,
+    totalIncome: normalizedIncome,
     availableBalance,
     percentLeft,
     unspentWorkHours,

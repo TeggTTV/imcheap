@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
 	motion,
 	AnimatePresence,
+	MotionConfig,
 	useMotionValue,
 	useTransform,
 	animate,
@@ -28,6 +29,7 @@ import { BalanceBreakdownModal } from './components/BalanceBreakdownModal';
 import { TransactionDetailModal } from './components/TransactionDetailModal';
 import { SwipeableTransactionItem } from './components/SwipeableTransactionItem';
 import { TopBar } from './components/TopBar';
+import { OnboardingModal } from './components/OnboardingModal';
 import {
 	AnalyticsView,
 	PresetsView,
@@ -54,19 +56,29 @@ const INCOME_CATEGORIES = [
 	{ id: 'Refund', label: 'Refund', emoji: '🔄', icon: 'replay' },
 ];
 
-function AnimatedNumber({ value }: { value: number }) {
+function AnimatedNumber({
+	value,
+	enabled = true,
+}: {
+	value: number;
+	enabled?: boolean;
+}) {
 	const [displayVal, setDisplayVal] = useState(value);
 
 	useEffect(() => {
+		if (!enabled) {
+			setDisplayVal(value);
+			return;
+		}
 		const controls = animate(displayVal, value, {
 			duration: 0.8,
 			ease: [0.16, 1, 0.3, 1],
 			onUpdate: (latest) => setDisplayVal(latest),
 		});
 		return () => controls.stop();
-	}, [value]);
+	}, [value, enabled]);
 
-	return <>${displayVal.toFixed(2)}</>;
+	return <>${(enabled ? displayVal : value).toFixed(2)}</>;
 }
 
 export default function App() {
@@ -97,6 +109,23 @@ export default function App() {
 		bgColor: string;
 		iconColor: string;
 	} | null>(null);
+
+	const [animationsEnabled, setAnimationsEnabled] = useState<boolean>(() => {
+		if (typeof window !== 'undefined') {
+			const saved = localStorage.getItem('imcheap_animations');
+			if (saved !== null) {
+				return saved !== 'false';
+			}
+		}
+		return true;
+	});
+
+	const handleToggleAnimations = (enabled: boolean) => {
+		setAnimationsEnabled(enabled);
+		if (typeof window !== 'undefined') {
+			localStorage.setItem('imcheap_animations', String(enabled));
+		}
+	};
 
 	// Continuous motion values for smooth live dragging
 	const dockY = useMotionValue(COLLAPSED_DOCK_Y);
@@ -152,6 +181,9 @@ export default function App() {
 	// Search state
 	const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
 	const [searchQuery, setSearchQuery] = useState<string>('');
+
+	// Onboarding state
+	const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(false);
 
 	const summary = useMemo(
 		() => calculateBalanceSummary(transactions, incomeSettings),
@@ -303,7 +335,8 @@ export default function App() {
 					: 'Settings';
 
 	return (
-		<div className="bg-surface font-body-md text-on-surface min-h-screen flex flex-col antialiased">
+		<MotionConfig reducedMotion={animationsEnabled ? 'never' : 'always'}>
+			<div className="bg-surface font-body-md text-on-surface min-h-screen flex flex-col antialiased">
 			{/* Top App Header */}
 			<TopBar
 				title={tabTitle}
@@ -311,6 +344,7 @@ export default function App() {
 				onToggleSearch={() => setIsSearchOpen((prev) => !prev)}
 				searchQuery={searchQuery}
 				onSearchQueryChange={setSearchQuery}
+				onOpenOnboarding={() => setIsOnboardingOpen(true)}
 			/>
 
 			{/* Main Content Container */}
@@ -351,12 +385,16 @@ export default function App() {
 										>
 											<AnimatedNumber
 												value={summary.availableBalance}
+												enabled={animationsEnabled}
 											/>
 										</span>
 										<span className="text-[13px] text-[#6B7280] font-medium tracking-tight tabular-nums select-none mt-1">
 											remaining of $
-											{summary.basePaycheck.toFixed(2)}{' '}
-											base check
+											{(
+												summary.basePaycheck +
+												(summary.totalIncome || 0)
+											).toFixed(2)}{' '}
+											total budget
 										</span>
 									</div>
 									<div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#ECFDF5] text-secondary text-[12px] font-semibold tracking-tight shadow-sm shrink-0">
@@ -967,6 +1005,8 @@ export default function App() {
 							onUpdateSettings={setIncomeSettings}
 							summary={summary}
 							transactions={transactions}
+							animationsEnabled={animationsEnabled}
+							onToggleAnimations={handleToggleAnimations}
 							onOpenSheet={(sheet) => {
 								if (sheet === 'log') {
 									setActiveTab('dashboard');
@@ -1110,6 +1150,13 @@ export default function App() {
 					setTransactions(txManager.getAll());
 				}}
 			/>
+
+			{/* Interactive Multi-Screen Onboarding Walkthrough */}
+			<OnboardingModal
+				isOpen={isOnboardingOpen}
+				onClose={() => setIsOnboardingOpen(false)}
+			/>
 		</div>
+		</MotionConfig>
 	);
 }

@@ -31,6 +31,8 @@ export interface SettingsViewProps {
 	transactions?: Transaction[];
 	onOpenSheet?: (sheet: 'preset' | 'breakdown' | 'log') => void;
 	initialSubpage?: SettingsSubpage;
+	animationsEnabled?: boolean;
+	onToggleAnimations?: (enabled: boolean) => void;
 }
 
 const slideVariants = {
@@ -54,6 +56,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	summary = {
 		basePaycheck: 238.0,
 		loggedExpenses: 92.0,
+		totalIncome: 0.0,
 		availableBalance: 146.0,
 		percentLeft: 61,
 		unspentWorkHours: '8.6',
@@ -61,6 +64,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	},
 	transactions = [],
 	initialSubpage = 'main',
+	animationsEnabled = true,
+	onToggleAnimations,
 }) => {
 	const [currentSubpage, setCurrentSubpage] =
 		useState<SettingsSubpage>(initialSubpage);
@@ -78,7 +83,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
 	// Preferences toggles
 	const [showTimeWorked, setShowTimeWorked] = useState(true);
-	const [hapticFeedback, setHapticFeedback] = useState(true);
+	const [internalAnimations, setInternalAnimations] = useState(animationsEnabled);
+
+	const isAnimationsActive = onToggleAnimations
+		? animationsEnabled
+		: internalAnimations;
+
+	const handleToggleAnimations = () => {
+		const next = !isAnimationsActive;
+		if (onToggleAnimations) {
+			onToggleAnimations(next);
+		} else {
+			setInternalAnimations(next);
+		}
+	};
 
 	// Paycheck Engine State
 	const [shifts, setShifts] = useState<ShiftItem[]>([
@@ -1889,25 +1907,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								<div className="flex items-center justify-between p-4">
 									<div className="flex flex-col pr-3">
 										<span className="text-[15px] font-semibold text-[#111111]">
-											Haptic Feedback
+											Animations
 										</span>
 									</div>
 									<button
 										type="button"
 										role="switch"
-										aria-checked={hapticFeedback}
-										onClick={() =>
-											setHapticFeedback(!hapticFeedback)
-										}
+										aria-checked={isAnimationsActive}
+										onClick={handleToggleAnimations}
 										className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
-											hapticFeedback
+											isAnimationsActive
 												? 'bg-[#10B981]'
 												: 'bg-[#E5E7EB]'
 										}`}
 									>
 										<span
 											className={`pointer-events-none inline-block h-[24px] w-[24px] transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-												hapticFeedback
+												isAnimationsActive
 													? 'translate-x-5'
 													: 'translate-x-0'
 											}`}
@@ -1962,13 +1978,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</button>
 							</div>
 						</section>
-
-						{/* FOOTER */}
-						<div className="py-6 text-center">
-							<span className="text-[12px] font-medium text-[#9CA3AF] tracking-wider uppercase">
-								IMCHEAP ENGINE • v2.4
-							</span>
-						</div>
 					</motion.div>
 				)}
 			</AnimatePresence>

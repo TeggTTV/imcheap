@@ -67,4 +67,24 @@ test('calculateBalanceSummary matches Screen 1 & Screen 3 reference values and u
   assert.equal(afterLog.loggedExpenses, 110.59);
   assert.equal(afterLog.availableBalance, 127.41);
   assert.equal(afterLog.itemCount, 5);
+
+  const afterIncome = calculateBalanceSummary(
+    [
+      {
+        id: 'tx-inc-1',
+        title: 'Side gig',
+        category: 'Side Gig',
+        timestamp: 'Just now',
+        amount: 50.0,
+        type: 'income',
+        icon: 'payments',
+      },
+      ...INITIAL_TRANSACTIONS,
+    ],
+    INITIAL_INCOME_SETTINGS
+  );
+  assert.equal(afterIncome.totalIncome, 50.0);
+  assert.equal(afterIncome.loggedExpenses, 92.0);
+  assert.equal(afterIncome.availableBalance, 196.0); // 238 + 50 - 92 = 196
+  assert.equal(afterIncome.itemCount, 5);
 });
