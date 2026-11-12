@@ -97,7 +97,7 @@ export const IntroStep: React.FC<IntroStepProps> = ({
 				<div className="relative z-10 w-20 h-20 rounded-full bg-white/90 backdrop-blur-md shadow-xl flex flex-col items-center justify-center transform active:scale-95 transition-transform duration-300">
 					<div className="w-24 h-24 rounded-full bg-[#85f8c4]/30 flex items-center justify-center">
 						<span
-							className="material-symbols-outlined text-[#006948] text-[28px]"
+							className="material-symbols-outlined text-secondary text-[28px]"
 							style={{
 								fontVariationSettings: "'FILL' 1, 'wght' 600",
 							}}
@@ -124,29 +124,12 @@ export const IntroStep: React.FC<IntroStepProps> = ({
 				))}
 			</div>
 
-			{/* Interactive Value-Conversion Strip Pill */}
-			{/* <div className="relative z-10 w-full mb-3 shrink-0">
-            <div className="bg-white/80 backdrop-blur-md rounded-2xl p-2.5 shadow-xs border border-white/60 flex items-center justify-between">
-                <div className="flex items-center space-x-2 pl-2">
-                    <span className="material-symbols-outlined text-[#006948] text-base">
-                        auto_awesome
-                    </span>
-                    <span className="text-[12px] font-semibold text-[#1c1b1b]">
-                        Hourly Wage Equivalence
-                    </span>
-                </div>
-                <div className="bg-[#85f8c4]/30 text-[#005137] px-3 py-1 rounded-full text-[12px] font-bold tabular-nums">
-                    $24.00 / hr
-                </div>
-            </div>
-        </div> */}
-
 			{/* Centered Brand & Typography Hierarchy */}
 			<div className="relative z-10 text-center flex flex-col items-center shrink-0 mb-3">
 				<h1 className="text-[26px] sm:text-[30px] text-[#1c1b1b] font-extrabold tracking-tight leading-tight">
 					Every Dollar Costs
 				</h1>
-				<h2 className="text-[26px] sm:text-[30px] font-extrabold tracking-tight text-[#006948] leading-tight">
+				<h2 className="text-[26px] sm:text-[30px] font-extrabold tracking-tight text-secondary leading-tight">
 					Hours of Life
 				</h2>
 				<p className="text-[13px] text-[#6d7a72] mt-1.5 max-w-72.5 leading-relaxed">
@@ -193,14 +176,14 @@ export const IntroStep: React.FC<IntroStepProps> = ({
 				</button>
 
 				{/* Security Lock Note */}
-				<div className="flex items-center justify-center space-x-1.5 text-center -mt-1">
+				{/* <div className="flex items-center justify-center space-x-1.5 text-center -mt-1">
 					<span className="material-symbols-outlined text-[#6d7a72] text-[13px]">
 						lock
 					</span>
 					<span className="text-[11px] text-[#6d7a72] font-medium">
 						Private by default. No bank logins needed.
 					</span>
-				</div>
+				</div> */}
 			</div>
 		</div>
 	);
