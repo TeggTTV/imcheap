@@ -4,7 +4,7 @@ import React, {
 	useCallback,
 	useRef,
 } from 'react';
-import { motion, AnimatePresence, Transition } from 'motion/react';
+import { motion, AnimatePresence, Transition, PanInfo } from 'motion/react';
 import { PresetItem } from '../utils/expenseMath';
 import {
 	IntroStep,
@@ -90,6 +90,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 	const [currentIndex, setCurrentIndex] = useState(0);
 	const [direction, setDirection] = useState<number>(1);
 	const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+	const [isWheelTouching, setIsWheelTouching] = useState<boolean>(false);
 
 	// User-configurable parameters
 	const [wage, setWage] = useState<number>(ONBOARDING_CONFIG_DEFAULTS.wage);
@@ -112,9 +113,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 	const [netpayInput, setNetpayInput] = useState<string>(
 		ONBOARDING_CONFIG_DEFAULTS.netpay.toFixed(2),
 	);
-
-	const touchStartX = useRef<number | null>(null);
-	const touchStartY = useRef<number | null>(null);
 
 	// Modular step configurations
 	const introDefinition = {
@@ -251,34 +249,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 		return () => window.removeEventListener('keydown', handleKeyDown);
 	}, [isOpen, nextStep, prevStep, handleSkip]);
 
-	const handleTouchStart = (e: React.TouchEvent) => {
-		if ((e.target as HTMLElement).closest('[data-rwp-wrapper]')) {
-			touchStartX.current = null;
-			touchStartY.current = null;
-			return;
-		}
-		touchStartX.current = e.touches[0].clientX;
-		touchStartY.current = e.touches[0].clientY;
-	};
-
-	const handleTouchEnd = (e: React.TouchEvent) => {
-		if (touchStartX.current === null || touchStartY.current === null)
-			return;
-		const diffX = touchStartX.current - e.changedTouches[0].clientX;
-		const diffY = touchStartY.current - e.changedTouches[0].clientY;
-
-		if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 40) {
-			if (diffX > 0) {
-				nextStep();
-			} else {
-				prevStep();
-			}
-		}
-
-		touchStartX.current = null;
-		touchStartY.current = null;
-	};
-
 	if (!isOpen) return null;
 
 	const imageSrc =
@@ -289,12 +259,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
 			{/* Device container matching mobile frame */}
-			<div
-				onTouchStart={handleTouchStart}
-				onTouchEnd={handleTouchEnd}
-				className="relative w-full sm:max-w-105 h-dvh sm:h-215 bg-neutral-950 sm:rounded-[36px] overflow-hidden flex flex-col shadow-2xl select-none"
-			>
-				{/* Full Native iOS Navigation Stack with Parallax Push on all steps */}
+			<div className="relative w-full sm:max-w-105 h-dvh sm:h-215 bg-neutral-950 sm:rounded-[36px] overflow-hidden flex flex-col shadow-2xl select-none">
+				{/* Full Native iOS Navigation Stack with 1:1 Interactive Drag & Parallax Push */}
 				<AnimatePresence
 					initial={false}
 					custom={direction}
@@ -308,7 +274,44 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 						animate="center"
 						exit="exit"
 						transition={IOS_PUSH_TRANSITION}
-						className="w-full h-full flex flex-col bg-white transform-gpu will-change-transform"
+						drag={isWheelTouching ? false : 'x'}
+						dragDirectionLock
+						dragConstraints={{ left: 0, right: 0 }}
+						dragElastic={{
+							left:
+								currentIndex < screens.length - 1
+									? 0.7
+									: 0.15,
+							right: currentIndex > 0 ? 0.7 : 0.15,
+						}}
+						onPointerDownCapture={(e) => {
+							const target = e.target as HTMLElement;
+							if (target?.closest?.('[data-rwp-wrapper]')) {
+								setIsWheelTouching(true);
+							} else {
+								setIsWheelTouching(false);
+							}
+						}}
+						onDragEnd={(_e, info: PanInfo) => {
+							const threshold = 60;
+							const velocityThreshold = 300;
+							if (
+								info.offset.x < -threshold ||
+								info.velocity.x < -velocityThreshold
+							) {
+								if (currentIndex < screens.length - 1) {
+									nextStep();
+								}
+							} else if (
+								info.offset.x > threshold ||
+								info.velocity.x > velocityThreshold
+							) {
+								if (currentIndex > 0) {
+									prevStep();
+								}
+							}
+						}}
+						className="w-full h-full flex flex-col bg-white transform-gpu will-change-transform cursor-grab active:cursor-grabbing touch-pan-y"
 					>
 						{currentIndex === 0 ? (
 							<IntroStep
