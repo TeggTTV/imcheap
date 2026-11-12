@@ -25,7 +25,6 @@ import {
 	INCOME_ICONS,
 } from './components/PresetSheetModal';
 import { BalanceBreakdownModal } from './components/BalanceBreakdownModal';
-import { TransactionDetailModal } from './components/TransactionDetailModal';
 import { SwipeableTransactionItem } from './components/SwipeableTransactionItem';
 import { TopBar } from './components/TopBar';
 import { OnboardingModal } from './components/OnboardingModal';
@@ -248,8 +247,10 @@ export default function App() {
 
 	// Editing state for presets and transactions
 	const [editingPreset, setEditingPreset] = useState<PresetItem | null>(null);
-	const [selectedTxForDetail, setSelectedTxForDetail] =
-		useState<Transaction | null>(null);
+	const [editingTransactionId, setEditingTransactionId] = useState<
+		string | null
+	>(null);
+	const [isKeypadPristine, setIsKeypadPristine] = useState<boolean>(false);
 
 	// Search state
 	const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
@@ -308,7 +309,55 @@ export default function App() {
 		setIsDockExpanded(true);
 	};
 
+	const handleStartEditTransaction = (tx: Transaction) => {
+		setEditingTransactionId(tx.id);
+		setDockAmount(tx.amount.toFixed(2));
+		setDockType(tx.type);
+		setDockNote(tx.note || tx.title || '');
+		setIsKeypadPristine(true);
+
+		const cats =
+			tx.type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+		const foundCat = cats.find(
+			(c) =>
+				c.label.toLowerCase() === tx.category.toLowerCase() ||
+				c.id.toLowerCase() === tx.category.toLowerCase(),
+		);
+		if (foundCat) {
+			setSelectedCategory(foundCat.id);
+		}
+
+		const icons = tx.type === 'income' ? INCOME_ICONS : EXPENSE_ICONS;
+		const iconMatchIdx = icons.findIndex((i) => i.icon === tx.icon);
+		if (iconMatchIdx >= 0) {
+			setDockIconIndex(iconMatchIdx);
+			setCustomDockIcon(null);
+		} else {
+			const isIncome = tx.type === 'income';
+			setCustomDockIcon({
+				icon: tx.icon,
+				bgColor: isIncome ? '#ECFDF5' : '#F3F4F6',
+				iconColor: isIncome ? '#059669' : '#111111',
+			});
+		}
+
+		if (activeTab !== 'dashboard') {
+			setActiveTab('dashboard');
+		}
+		setIsDockExpanded(true);
+	};
+
 	const handleKeypadClick = (val: string) => {
+		if (isKeypadPristine) {
+			setIsKeypadPristine(false);
+			if (val === 'back') {
+				setDockAmount('');
+				return;
+			}
+			setDockAmount(val === '.' ? '0.' : val);
+			return;
+		}
+
 		setDockAmount((prev) => {
 			const initial = prev || '';
 			return applyKeypadKey(initial, val, {
@@ -324,10 +373,46 @@ export default function App() {
 	const currentDockIcon =
 		customDockIcon || iconList[dockIconIndex % iconList.length];
 
+	const parsedDockAmount = parseFloat(dockAmount);
+	const isEditAmountZeroOrEmpty =
+		editingTransactionId !== null &&
+		(isNaN(parsedDockAmount) || parsedDockAmount <= 0);
+
+	const handleCloseDock = () => {
+		setIsDockExpanded(false);
+		if (editingTransactionId) {
+			setEditingTransactionId(null);
+			setIsKeypadPristine(false);
+			setDockAmount('');
+			setDockNote('');
+			setCustomDockIcon(null);
+		}
+	};
+
 	const handleCommitDockExpense = () => {
 		if (isLoggingAction !== 'idle') return;
 
-		const parsedVal = parseFloat(dockAmount);
+		// When editing and the amount is zero or cleared, delete the transaction
+		if (editingTransactionId && isEditAmountZeroOrEmpty) {
+			setIsLoggingAction('spinning');
+			setTimeout(() => {
+				setIsLoggingAction('success');
+				txManager.removeTransaction(editingTransactionId);
+				setTransactions(txManager.getAll());
+				setToastMessage('Transaction deleted');
+				setTimeout(() => {
+					setToastMessage(null);
+				}, 2000);
+
+				setTimeout(() => {
+					setIsLoggingAction('idle');
+					handleCloseDock();
+				}, 250);
+			}, 250);
+			return;
+		}
+
+		const parsedVal = parsedDockAmount;
 		const matchedPreset = presets.find(
 			(p) => p.label === selectedPresetLabel,
 		);
@@ -356,21 +441,36 @@ export default function App() {
 		setTimeout(() => {
 			setIsLoggingAction('success');
 
-			txManager.createTransaction({
-				title:
-					dockNote.trim() ||
-					(matchedPreset ? matchedPreset.title : catMeta.label),
-				category: catMeta.label,
-				amount: finalAmount,
-				type: dockType,
-				icon: matchedPreset ? matchedPreset.icon : currentDockIcon.icon,
-				note: dockNote.trim() || undefined,
-			});
+			if (editingTransactionId) {
+				txManager.updateTransaction(editingTransactionId, {
+					title:
+						dockNote.trim() ||
+						(matchedPreset ? matchedPreset.title : catMeta.label),
+					category: catMeta.label,
+					amount: finalAmount,
+					type: dockType,
+					icon: currentDockIcon.icon,
+					note: dockNote.trim() || undefined,
+				});
+			} else {
+				txManager.createTransaction({
+					title:
+						dockNote.trim() ||
+						(matchedPreset ? matchedPreset.title : catMeta.label),
+					category: catMeta.label,
+					amount: finalAmount,
+					type: dockType,
+					icon: matchedPreset ? matchedPreset.icon : currentDockIcon.icon,
+					note: dockNote.trim() || undefined,
+				});
+			}
 
 			setTransactions(txManager.getAll());
 
 			setTimeout(() => {
 				setIsLoggingAction('idle');
+				setEditingTransactionId(null);
+				setIsKeypadPristine(false);
 				setDockAmount('');
 				setSelectedPresetLabel(null);
 				setDockNote('');
@@ -677,7 +777,7 @@ export default function App() {
 														onEdit={(
 															transactionToEdit,
 														) =>
-															setSelectedTxForDetail(
+															handleStartEditTransaction(
 																transactionToEdit,
 															)
 														}
@@ -723,7 +823,7 @@ export default function App() {
 										? 'auto'
 										: 'none',
 								}}
-								onClick={() => setIsDockExpanded(false)}
+								onClick={handleCloseDock}
 								className="fixed inset-0 bg-primary/40 backdrop-blur-[2px] z-45 cursor-pointer"
 								aria-label="Close expanded action dock"
 							/>
@@ -744,7 +844,7 @@ export default function App() {
 											info.velocity.y > 150 ||
 											currentY > 100
 										) {
-											setIsDockExpanded(false);
+											handleCloseDock();
 										} else {
 											animate(dockY, 0, {
 												type: 'spring',
@@ -773,9 +873,13 @@ export default function App() {
 							>
 								{/* Grab Bar Handle */}
 								<div
-									onClick={() =>
-										setIsDockExpanded((prev) => !prev)
-									}
+									onClick={() => {
+										if (isDockExpanded) {
+											handleCloseDock();
+										} else {
+											setIsDockExpanded(true);
+										}
+									}}
 									className="w-full pt-3 pb-1.5 flex justify-center cursor-grab active:cursor-grabbing focus:outline-none"
 									role="button"
 									tabIndex={0}
@@ -1067,7 +1171,9 @@ export default function App() {
 										className={`w-full h-13 rounded-xl font-label-lg text-label-lg uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-primary/10 active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap ${
 											isLoggingAction === 'success'
 												? 'bg-emerald-600 text-white'
-												: 'bg-primary text-on-primary'
+												: isEditAmountZeroOrEmpty
+													? 'bg-red-600 hover:bg-red-700 text-white'
+													: 'bg-primary text-on-primary'
 										}`}
 									>
 										{isLoggingAction === 'spinning' ? (
@@ -1082,12 +1188,23 @@ export default function App() {
 											>
 												check_circle
 											</motion.span>
+										) : isEditAmountZeroOrEmpty ? (
+											<>
+												<span>Delete Transaction</span>
+												<span className="material-symbols-outlined text-[18px]">
+													delete
+												</span>
+											</>
 										) : (
 											<>
 												<span>
-													{dockType === 'income'
-														? 'Log Income'
-														: 'Log Expense'}
+													{editingTransactionId
+														? dockType === 'income'
+															? 'Update Income'
+															: 'Update Expense'
+														: dockType === 'income'
+															? 'Log Income'
+															: 'Log Expense'}
 												</span>
 												<span className="material-symbols-outlined text-[18px]">
 													arrow_forward
@@ -1284,19 +1401,7 @@ export default function App() {
 					}}
 				/>
 
-				{/* Transaction Detail & Edit Modal */}
-				<TransactionDetailModal
-					transaction={selectedTxForDetail}
-					onClose={() => setSelectedTxForDetail(null)}
-					onSave={(updated) => {
-						txManager.updateTransaction(updated.id, updated);
-						setTransactions(txManager.getAll());
-					}}
-					onDelete={(id) => {
-						txManager.removeTransaction(id);
-						setTransactions(txManager.getAll());
-					}}
-				/>
+
 
 				{/* Interactive Multi-Screen Onboarding Walkthrough */}
 				<OnboardingModal
