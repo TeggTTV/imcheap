@@ -8,6 +8,7 @@ import { motion, useMotionValue, useTransform, animate } from 'motion/react';
 import { PresetItem } from '../utils/expenseMath';
 import {
 	IntroStep,
+	LocationStep,
 	useWageStep,
 	useCommuteStep,
 	useHabitStep,
@@ -122,12 +123,24 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 		setIsEditingNetpay,
 	});
 
+	const locationDefinition = {
+		id: 'step_location',
+		image: '',
+		fallbackImage: '',
+		receipt: null,
+		headline: 'Turn on Location Services',
+		body: 'Detect local deals, store prices, and accurate sales tax automatically to calculate your true working hours spent wherever you shop.',
+		ctaText: 'Turn On Location',
+		renderContent: () => null,
+	};
+
 	const screens = [
 		introDefinition,
 		wageStep,
 		commuteStep,
 		habitStep,
 		paycheckStep,
+		locationDefinition,
 	];
 
 	const currentStep = screens[currentIndex];
@@ -363,6 +376,14 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 										onNext={nextStep}
 										onSkip={handleSkip}
 										onDotClick={handleDotClick}
+									/>
+								) : idx === 5 ? (
+									<LocationStep
+										onNext={handleFinish}
+										onBack={prevStep}
+										onSkip={handleSkip}
+										onDotClick={handleDotClick}
+										totalSteps={screens.length}
 									/>
 								) : (
 									<>
