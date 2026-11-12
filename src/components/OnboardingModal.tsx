@@ -440,7 +440,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
 					{/* Pinned Floating Micro-Receipt Card (only rendered on steps that have a receipt) */}
 					{currentStep.receipt && (
-						<div className="absolute -bottom-6 inset-x-6 z-20 h-[68px] bg-white rounded-2xl px-3.5 shadow-xl border border-slate-100 flex items-center overflow-hidden">
+						<div className="absolute -bottom-6 inset-x-6 z-20 h-17 bg-white rounded-2xl px-3.5 shadow-xl border border-slate-100 flex items-center overflow-hidden">
 							<div className="relative w-full h-full">
 								<AnimatePresence
 									initial={false}
@@ -494,7 +494,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 										</div>
 
 										{/* Right side: Emerald pill badge displaying clock icon and shift labor time */}
-										<div className="bg-[#ECFDF5] text-[#059669] px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap flex items-center gap-1.5 shrink-0">
+										<div className="bg-[#ECFDF5] text-secondary px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap flex items-center gap-1.5 shrink-0">
 											<span
 												className="material-symbols-outlined text-[15px]"
 												style={{
@@ -516,7 +516,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 				</div>
 
 				{/* 2. Compact White Bottom Sheet */}
-				<section className="bg-white rounded-t-[32px] px-6 pt-10 pb-6 sm:pb-8 pb-safe flex flex-col justify-between shadow-2xl relative z-10 -mt-6 flex-1 min-h-0">
+				<section className="bg-white rounded-t-4xl px-6 pt-10 pb-6 sm:pb-8 pb-safe flex flex-col justify-between shadow-2xl relative z-10 -mt-6 flex-1 min-h-0">
 					{/* Text Block & Content Container with mode="popLayout" to eliminate displacement */}
 					<div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
 						<AnimatePresence
@@ -566,8 +566,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 											</div>
 
 											{/* Native @ncdai/react-wheel-picker */}
-											<div className="w-full h-[100px] flex items-center justify-center">
-												<WheelPickerWrapper className="w-full h-[100px] bg-white rounded-xl shadow-xs">
+											<div className="w-full h-25 flex items-center justify-center">
+												<WheelPickerWrapper className="w-full h-25 bg-white rounded-xl shadow-xs">
 													<WheelPicker
 														options={wageOptions}
 														value={String(
@@ -608,8 +608,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 											</div>
 
 											{/* Multi Wheel Row: MPG + Gas Price + Tank Capacity */}
-											<div className="w-full h-[100px]">
-												<WheelPickerWrapper className="w-full h-[100px] bg-white rounded-xl shadow-xs flex items-stretch">
+											<div className="w-full h-25">
+												<WheelPickerWrapper className="w-full h-25 bg-white rounded-xl shadow-xs flex items-stretch">
 													{/* Wheel 1: MPG */}
 													<div className="flex-1 flex flex-col">
 														<WheelPicker
@@ -726,8 +726,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 											</div>
 
 											{/* Habit Wheel */}
-											<div className="w-full h-[100px] flex items-center justify-center">
-												<WheelPickerWrapper className="w-full h-[100px] bg-white rounded-xl shadow-xs">
+											<div className="w-full h-25 flex items-center justify-center">
+												<WheelPickerWrapper className="w-full h-25 bg-white rounded-xl shadow-xs">
 													<WheelPicker
 														options={habitOptions}
 														value={habitCost.toFixed(
@@ -761,7 +761,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 								{/* SCREEN 4: FINAL THING (NET PAY ESTIMATE) */}
 								{currentIndex === 3 && (
 									<div className="my-auto py-2 flex flex-col items-center w-full">
-										<div className="w-full rounded-[24px] bg-[#F9FAFB] border border-[#F3F4F6] p-5 flex flex-col items-center shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+										<div className="w-full rounded-3xl bg-[#F9FAFB] border border-[#F3F4F6] p-5 flex flex-col items-center shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
 											<span className="text-[11px] font-extrabold uppercase tracking-wider text-[#9CA3AF] mb-3">
 												ESTIMATED NET PAY
 											</span>
@@ -860,7 +860,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 											{/* Privacy Badge */}
 											<div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-gray-100 shadow-xs text-[12px] font-medium text-gray-500">
 												<svg
-													className="w-3.5 h-3.5 text-emerald-600 stroke-[2]"
+													className="w-3.5 h-3.5 text-emerald-600 stroke-2"
 													fill="none"
 													stroke="currentColor"
 													viewBox="0 0 24 24"
@@ -914,7 +914,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 								<button
 									type="button"
 									onClick={prevStep}
-									className="h-[52px] px-5 bg-neutral-100 hover:bg-neutral-200 active:scale-[0.98] text-neutral-800 font-semibold text-[15px] rounded-2xl flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer"
+									className="h-13 px-5 bg-neutral-100 hover:bg-neutral-200 active:scale-[0.98] text-neutral-800 font-semibold text-[15px] rounded-2xl flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer"
 								>
 									<svg
 										className="w-4 h-4 stroke-[2.5]"
@@ -938,7 +938,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 								onClick={nextStep}
 								className={`${
 									currentIndex === 0 ? 'w-full' : 'flex-1'
-								} h-[52px] bg-[#111111] hover:bg-neutral-900 active:scale-[0.98] text-white font-bold text-[16px] rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer`}
+								} h-13 bg-[#111111] hover:bg-neutral-900 active:scale-[0.98] text-white font-bold text-[16px] rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer`}
 							>
 								<span>
 									{currentIndex === screens.length - 1
