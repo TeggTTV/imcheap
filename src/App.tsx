@@ -39,7 +39,7 @@ import {
 type ActiveTab = 'dashboard' | 'analytics' | 'presets' | 'settings';
 type ActiveModal = 'none' | 'preset' | 'breakdown';
 
-const COLLAPSED_DOCK_Y = 420;
+const COLLAPSED_DOCK_Y = 396;
 
 const EXPENSE_CATEGORIES = [
 	{ id: 'Driving', label: 'Driving', emoji: '🚗', icon: 'directions_car' },
@@ -175,6 +175,62 @@ export default function App() {
 		}
 		return initial;
 	});
+
+	// Dynamically recalculate mileage presets whenever mileageRate changes
+	useEffect(() => {
+		setPresets((prev) => {
+			let changed = false;
+			const updated = prev.map((preset) => {
+				if (preset.unit === 'MILES') {
+					const multiplier = preset.isRoundTrip ? 2 : 1;
+					const effectiveUnits = preset.rawValue * multiplier;
+					const newAmount = Number(
+						(effectiveUnits * incomeSettings.mileageRate).toFixed(
+							2,
+						),
+					);
+					if (Math.abs(newAmount - preset.calculatedAmount) > 0.001) {
+						changed = true;
+						return { ...preset, calculatedAmount: newAmount };
+					}
+				}
+				return preset;
+			});
+			if (changed) {
+				try {
+					localStorage.setItem(
+						'imcheap_presets',
+						JSON.stringify(updated),
+					);
+				} catch (e) {
+					console.warn('Failed to save presets to localStorage', e);
+				}
+				return updated;
+			}
+			return prev;
+		});
+	}, [incomeSettings.mileageRate]);
+
+	// Persist hourlyWage whenever it changes
+	useEffect(() => {
+		try {
+			localStorage.setItem(
+				'imcheap_wage',
+				String(incomeSettings.hourlyWage),
+			);
+		} catch (e) {
+			console.warn('Failed to save wage to localStorage', e);
+		}
+	}, [incomeSettings.hourlyWage]);
+
+	// Persist presets whenever changed
+	useEffect(() => {
+		try {
+			localStorage.setItem('imcheap_presets', JSON.stringify(presets));
+		} catch (e) {
+			console.warn('Failed to save presets to localStorage', e);
+		}
+	}, [presets]);
 
 	const [initialSettingsSubpage, setInitialSettingsSubpage] =
 		useState<SettingsSubpage>('main');
@@ -383,8 +439,8 @@ export default function App() {
 						isSearchOpen ? 'pt-28' : 'pt-16'
 					} ${
 						activeTab === 'dashboard'
-							? 'h-screen pb-24 overflow-hidden'
-							: 'pb-28 min-h-screen'
+							? 'h-[100dvh] pb-24 overflow-hidden'
+							: 'pb-28 min-h-[100dvh]'
 					} bg-surface`}
 				>
 					{activeTab === 'dashboard' && (
@@ -713,7 +769,7 @@ export default function App() {
 									}
 								}}
 								style={{ y: dockY }}
-								className="fixed bottom-0 inset-x-0 max-w-120 mx-auto bg-white rounded-t-[28px] border-t border-gray-100 shadow-[0_-6px_25px_rgba(0,0,0,0.08)] flex flex-col z-50 overflow-hidden min-h-142.5 cursor-grab active:cursor-grabbing touch-none select-none"
+								className="fixed bottom-0 inset-x-0 max-w-120 mx-auto bg-white rounded-t-[28px] border-t border-gray-100 shadow-[0_-6px_25px_rgba(0,0,0,0.08)] flex flex-col z-50 overflow-hidden min-h-142.5 cursor-grab active:cursor-grabbing touch-none select-none pb-[env(safe-area-inset-bottom)]"
 							>
 								{/* Grab Bar Handle */}
 								<div
@@ -1114,7 +1170,7 @@ export default function App() {
 				<motion.nav
 					aria-label="Primary Bottom Navigation"
 					style={{ y: navY }}
-					className="fixed bottom-0 inset-x-0 z-50 bg-surface-container-lowest shadow-[0_-2px_12px_rgba(0,0,0,0.03)]"
+					className="fixed bottom-0 inset-x-0 z-50 bg-surface-container-lowest shadow-[0_-2px_12px_rgba(0,0,0,0.03)] pb-[env(safe-area-inset-bottom)]"
 				>
 					<div className="flex justify-around items-center h-16 max-w-120 mx-auto px-margin-sm">
 						<button
@@ -1211,6 +1267,7 @@ export default function App() {
 					}}
 					onSavePreset={handleSaveNewPreset}
 					mileageRate={incomeSettings.mileageRate}
+					hourlyWage={incomeSettings.hourlyWage}
 					initialPreset={editingPreset || undefined}
 				/>
 
@@ -1258,7 +1315,10 @@ export default function App() {
 							...prev,
 							hourlyWage: wage,
 							mileageRate,
-							hoursPerCycle: wage > 0 ? Number((netpay / wage).toFixed(1)) : prev.hoursPerCycle,
+							hoursPerCycle:
+								wage > 0
+									? Number((netpay / wage).toFixed(1))
+									: prev.hoursPerCycle,
 						}));
 						setPresets(initialPresets);
 					}}

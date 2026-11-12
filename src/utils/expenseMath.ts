@@ -132,6 +132,7 @@ export function calculatePresetEquivalence(
 	unit: 'USD' | 'MILES' | 'SERVINGS',
 	isRoundTrip: boolean,
 	mileageRate = 0.14,
+	hourlyWage = 17.0,
 ): { costFormatted: string; minutesWork: number; numericCost: number } {
 	const num = parseFloat(rawValStr) || 0;
 	const multiplier = isRoundTrip ? 2 : 1;
@@ -156,8 +157,9 @@ export function calculatePresetEquivalence(
 
 	const numericCost = Number(rawCost.toFixed(2));
 	const costFormatted = numericCost.toFixed(2);
+	const effectiveWage = (!hourlyWage || hourlyWage <= 0) ? 17.0 : hourlyWage;
 	const minutesWork =
-		numericCost <= 0 ? 0 : Math.max(1, Math.round((numericCost / 20) * 60));
+		numericCost <= 0 ? 0 : Math.max(1, Math.round((numericCost / effectiveWage) * 60));
 
 	return {
 		costFormatted,

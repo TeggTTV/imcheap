@@ -105,17 +105,70 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	const [taxBufferRate, setTaxBufferRate] = useState<number>(12); // percent
 	const [tempTaxBuffer, setTempTaxBuffer] = useState<number>(12);
 	const [paycheckToast, setPaycheckToast] = useState(false);
+	const [wageInput, setWageInput] = useState('');
 
 	// Vehicle & Transit State
 	const mpgOptions = [25, 30, 35, 40];
 	const gasOptions = [3.55, 3.95, 4.35, 4.79];
 	const capOptions = [12.0, 14.0, 16.5, 18.0];
-	const [mpgIdx, setMpgIdx] = useState<number | null>(1);
-	const [customMpg, setCustomMpg] = useState<number | null>(null);
+	const [customMpg, setCustomMpg] = useState<number | null>(() => {
+		if (typeof window !== 'undefined') {
+			try {
+				const saved = localStorage.getItem('imcheap_vehicle');
+				if (saved) {
+					const v = JSON.parse(saved);
+					if (v?.mpg && !mpgOptions.includes(v.mpg)) return v.mpg;
+				}
+			} catch {}
+		}
+		return null;
+	});
+	const [mpgIdx, setMpgIdx] = useState<number | null>(() => {
+		if (typeof window !== 'undefined') {
+			try {
+				const saved = localStorage.getItem('imcheap_vehicle');
+				if (saved) {
+					const v = JSON.parse(saved);
+					if (v?.mpg) {
+						const idx = mpgOptions.indexOf(v.mpg);
+						if (idx !== -1) return idx;
+						return null;
+					}
+				}
+			} catch {}
+		}
+		return 1;
+	});
 	const [customMpgInput, setCustomMpgInput] = useState('');
 
-	const [gasIdx, setGasIdx] = useState<number | null>(1);
-	const [customGas, setCustomGas] = useState<number | null>(null);
+	const [customGas, setCustomGas] = useState<number | null>(() => {
+		if (typeof window !== 'undefined') {
+			try {
+				const saved = localStorage.getItem('imcheap_vehicle');
+				if (saved) {
+					const v = JSON.parse(saved);
+					if (v?.gasPrice && !gasOptions.includes(v.gasPrice)) return v.gasPrice;
+				}
+			} catch {}
+		}
+		return null;
+	});
+	const [gasIdx, setGasIdx] = useState<number | null>(() => {
+		if (typeof window !== 'undefined') {
+			try {
+				const saved = localStorage.getItem('imcheap_vehicle');
+				if (saved) {
+					const v = JSON.parse(saved);
+					if (v?.gasPrice) {
+						const idx = gasOptions.indexOf(v.gasPrice);
+						if (idx !== -1) return idx;
+						return null;
+					}
+				}
+			} catch {}
+		}
+		return 1;
+	});
 	const [customGasInput, setCustomGasInput] = useState('');
 
 	const [capIdx, setCapIdx] = useState<number | null>(1);
@@ -180,18 +233,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	const tankCost = currentGas * currentCap;
 	const tankHours = wageRate > 0 ? (tankCost / wageRate).toFixed(1) : '0';
 
-	// const handleSaveVehicleChanges = () => {
-	// 	setVehicleSaved(true);
-	// 	const newRate = Number(vehicleCostPerMile.toFixed(2));
-	// 	onUpdateSettings({
-	// 		...settings,
-	// 		mileageRate: newRate,
-	// 	});
-
-	// 	setTimeout(() => {
-	// 		setVehicleSaved(false);
-	// 	}, 1200);
-	// };
+	React.useEffect(() => {
+		const newRate = Number(vehicleCostPerMile.toFixed(2));
+		if (newRate > 0 && Math.abs(newRate - settings.mileageRate) > 0.0001) {
+			onUpdateSettings({
+				...settings,
+				mileageRate: newRate,
+			});
+			if (typeof window !== 'undefined') {
+				try {
+					localStorage.setItem(
+						'imcheap_vehicle',
+						JSON.stringify({ mpg: currentMpg, gasPrice: currentGas }),
+					);
+				} catch (e) {
+					console.warn('Failed to save vehicle settings to localStorage', e);
+				}
+			}
+		}
+	}, [currentGas, currentMpg, vehicleCostPerMile, settings.mileageRate, onUpdateSettings]);
 
 	// Past cycles history
 	interface PastCycleItem {
@@ -806,6 +866,58 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						/>
 
 						<div className="flex flex-col gap-y-3.5">
+							{/* Hourly Wage Card */}
+							<div className="w-full bg-white rounded-2xl p-4 border border-[#F3F4F6] shadow-sm flex flex-col gap-2">
+								<div className="flex items-center justify-between">
+									<div>
+										<span className="font-semibold text-sm text-on-surface">Hourly Wage</span>
+										<p className="text-xs text-on-surface-variant">Base hourly rate for labor calculations</p>
+									</div>
+									<span className="text-[18px] font-bold text-on-surface tabular-nums">
+										${settings.hourlyWage.toFixed(2)}/hr
+									</span>
+								</div>
+								<div className="flex items-center gap-2 pt-1">
+									<div className="relative flex-1 group">
+										<span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-outline pointer-events-none">
+											$
+										</span>
+										<input
+											type="number"
+											step="0.50"
+											min="1"
+											max="500"
+											value={wageInput}
+											onChange={(e) => setWageInput(e.target.value)}
+											placeholder={settings.hourlyWage.toFixed(2)}
+											className="w-full bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl pl-7 pr-12 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all duration-200 tabular-nums"
+										/>
+										<span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-outline pointer-events-none">
+											/hr
+										</span>
+									</div>
+									<SetActionFeedbackButton
+										onAction={() => {
+											const val = parseFloat(wageInput);
+											if (!isNaN(val) && val > 0) {
+												onUpdateSettings({
+													...settings,
+													hourlyWage: val,
+												});
+												if (typeof window !== 'undefined') {
+													try {
+														localStorage.setItem('imcheap_wage', String(val));
+													} catch (e) {
+														console.warn('Failed to save wage to localStorage', e);
+													}
+												}
+												return true;
+											}
+											return false;
+										}}
+									/>
+								</div>
+							</div>
 							{/* Active Cycle Card */}
 							<div className="w-full bg-white rounded-2xl p-4 border border-[#F3F4F6] shadow-sm flex flex-col gap-1">
 								<span className="font-medium text-xs text-on-surface-variant uppercase tracking-wider">

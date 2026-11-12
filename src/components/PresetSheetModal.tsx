@@ -11,6 +11,7 @@ interface PresetSheetModalProps {
 	onClose: () => void;
 	onSavePreset: (preset: Omit<PresetItem, 'id'>) => void;
 	mileageRate: number;
+	hourlyWage?: number;
 	initialPreset?: Partial<PresetItem>;
 }
 
@@ -62,6 +63,7 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 	onClose,
 	onSavePreset,
 	mileageRate,
+	hourlyWage = 17,
 	initialPreset,
 }) => {
 	const [presetType, setPresetType] = useState<'expense' | 'income'>(
@@ -154,6 +156,7 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 		unit,
 		isRoundTrip,
 		mileageRate,
+		hourlyWage,
 	);
 
 	const handleKeyPress = (key: string) => {
@@ -315,34 +318,53 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 							</div>
 
 							{/* Center: Large Number in the exact middle with Pill off to its right */}
-							<div className="relative flex items-center justify-center">
-								<span
-									className="font-bold text-on-surface tracking-tight leading-none text-[40px] tabular-nums"
-									id="numeric-val"
-									data-testid="preset-numeric-val"
-								>
-									{currentValue}
-								</span>
-
-								{/* Inline Tap-to-Cycle Pill positioned directly to the right without shifting the number center */}
-								<div className="absolute left-full ml-2 flex items-center">
-									<motion.button
-										type="button"
-										onClick={cycleUnit}
-										whileTap={{ scale: 0.88 }}
-										className="group inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-container-high border border-gray-300/80 shadow-xs active:bg-surface-container-highest transition-colors cursor-pointer focus:outline-none select-none whitespace-nowrap"
-										aria-label={`Cycle unit. Current: ${unit}`}
+							<div className="flex flex-col items-center justify-center">
+								<div className="relative flex items-center justify-center">
+									<span
+										className="font-bold text-on-surface tracking-tight leading-none text-[40px] tabular-nums"
+										id="numeric-val"
+										data-testid="preset-numeric-val"
 									>
-										<span className="material-symbols-outlined text-[14px] text-on-surface-variant group-hover:text-primary transition-colors">
-											{UNIT_ICONS[unit]}
+										{currentValue}
+									</span>
+
+									{/* Inline Tap-to-Cycle Pill positioned directly to the right without shifting the number center */}
+									<div className="absolute left-full ml-2 flex items-center">
+										<motion.button
+											type="button"
+											onClick={cycleUnit}
+											whileTap={{ scale: 0.88 }}
+											className="group inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-container-high border border-gray-300/80 shadow-xs active:bg-surface-container-highest transition-colors cursor-pointer focus:outline-none select-none whitespace-nowrap"
+											aria-label={`Cycle unit. Current: ${unit}`}
+										>
+											<span className="material-symbols-outlined text-[14px] text-on-surface-variant group-hover:text-primary transition-colors">
+												{UNIT_ICONS[unit]}
+											</span>
+											<span className="font-bold text-[12px] tracking-wider uppercase text-on-surface">
+												{unit}
+											</span>
+											<span className="material-symbols-outlined text-[13px] text-outline opacity-60 group-hover:opacity-100 transition-opacity">
+												sync
+											</span>
+										</motion.button>
+									</div>
+								</div>
+
+								{/* Equivalence Badge */}
+								<div className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container-low text-on-surface-variant">
+									<span className="material-symbols-outlined text-[13px] text-secondary">
+										schedule
+									</span>
+									<span
+										className="font-label-md text-label-md font-semibold text-on-surface-variant tabular-nums"
+										id="equiv-label"
+										data-testid="preset-equiv-label"
+									>
+										≈ ${equiv.costFormatted}{' '}
+										<span className="font-normal opacity-80">
+											({equiv.minutesWork >= 60 ? `${equiv.minutesWork}m / ${(equiv.minutesWork / 60).toFixed(1)} hr` : `${equiv.minutesWork}m`} of work)
 										</span>
-										<span className="font-bold text-[12px] tracking-wider uppercase text-on-surface">
-											{unit}
-										</span>
-										<span className="material-symbols-outlined text-[13px] text-outline opacity-60 group-hover:opacity-100 transition-opacity">
-											sync
-										</span>
-									</motion.button>
+									</span>
 								</div>
 							</div>
 						</div>

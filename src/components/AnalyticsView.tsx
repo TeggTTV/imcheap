@@ -469,11 +469,11 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 									key={dayItem.dateKey}
 									type="button"
 									onClick={() => setSelectedDayIndex(idx)}
-									className="relative flex flex-col items-center gap-2 cursor-pointer focus:outline-none"
+									className="relative flex-1 min-w-0 flex flex-col items-center gap-2 cursor-pointer focus:outline-none"
 								>
 									{/* Tooltip with pointer */}
 									{isSelected && (
-										<div className="absolute -top-8 whitespace-nowrap bg-[#111111] text-white px-2 py-0.5 rounded-full text-[11px] font-bold shadow-md z-10 flex items-center justify-center">
+										<div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-[#111111] text-white px-2 py-0.5 rounded-full text-[11px] font-bold shadow-md z-10 flex items-center justify-center tabular-nums">
 											${dayItem.amount.toFixed(2)} (
 											{dayItem.hours}h)
 											<div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#111111] rotate-45 rounded-xs" />
@@ -493,7 +493,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 										/>
 									</div>
 									<span
-										className={`text-[12px] ${
+										className={`text-[12px] flex-1 min-w-0 text-center w-full ${
 											isSelected
 												? 'font-bold text-[#111111]'
 												: 'font-medium text-gray-500'

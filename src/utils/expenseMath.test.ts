@@ -31,13 +31,17 @@ test('calculateWorkHoursLabel matches Screen 4 reference math (~1.1 hrs of work 
 });
 
 test('calculatePresetEquivalence matches Screen 2 reference math for 6.4 miles and round trip toggle', () => {
-  const singleTrip = calculatePresetEquivalence('6.4', 'MILES', false, 0.14);
+  const singleTrip = calculatePresetEquivalence('6.4', 'MILES', false, 0.14, 20);
   assert.equal(singleTrip.costFormatted, '0.89');
   assert.equal(singleTrip.minutesWork, 3);
 
-  const roundTrip = calculatePresetEquivalence('6.4', 'MILES', true, 0.14);
+  const roundTrip = calculatePresetEquivalence('6.4', 'MILES', true, 0.14, 20);
   assert.equal(roundTrip.costFormatted, '1.79');
   assert.equal(roundTrip.minutesWork, 5);
+
+  const wage25 = calculatePresetEquivalence('25.00', 'USD', false, 0.14, 25);
+  assert.equal(wage25.costFormatted, '25.00');
+  assert.equal(wage25.minutesWork, 60);
 });
 
 test('calculateBalanceSummary correctly reflects fresh state and updates when logging expense', () => {
