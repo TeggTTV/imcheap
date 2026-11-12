@@ -15,7 +15,9 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 	onDotClick,
 	totalSteps = 6,
 }) => {
-	const [status, setStatus] = useState<'idle' | 'loading' | 'success'>('idle');
+	const [status, setStatus] = useState<'idle' | 'loading' | 'success'>(
+		'idle',
+	);
 
 	const handleTurnOnLocation = () => {
 		if (status !== 'idle') return;
@@ -306,7 +308,9 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 						Turn on Location Services
 					</h2>
 					<p className="text-[13px] text-neutral-500 mt-2 leading-relaxed max-w-xs font-normal">
-						Detect local deals, store prices, and accurate sales tax automatically to calculate your true working hours spent wherever you shop.
+						Detect local deals, store prices, and accurate sales tax
+						automatically to calculate your true working hours spent
+						wherever you shop.
 					</p>
 
 					{/* Privacy & Trust Badge */}
@@ -387,7 +391,9 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 								<span className="material-symbols-outlined animate-spin text-[20px] text-secondary">
 									progress_activity
 								</span>
-								<span className="text-secondary">Locating...</span>
+								<span className="text-secondary">
+									Locating...
+								</span>
 							</>
 						)}
 						{status === 'success' && (
@@ -395,7 +401,9 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 								<span className="material-symbols-outlined text-[20px] text-emerald-600">
 									check_circle
 								</span>
-								<span className="text-emerald-700">Location Enabled</span>
+								<span className="text-emerald-700">
+									Location Enabled
+								</span>
 							</>
 						)}
 						{status === 'idle' && (
@@ -410,9 +418,9 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 				</div>
 
 				{/* Settings Reassurance Microcopy */}
-				<p className="text-[11px] text-neutral-400 text-center font-medium">
+				{/* <p className="text-[11px] text-neutral-400 text-center font-medium">
 					You can change this anytime in Settings.
-				</p>
+				</p> */}
 			</div>
 		</div>
 	);
