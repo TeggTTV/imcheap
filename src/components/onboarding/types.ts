@@ -44,6 +44,7 @@ export interface HabitStepProps {
 }
 
 export interface PaycheckStepProps {
+	wage: number;
 	netpay: number;
 	setNetpay: (netpay: number) => void;
 	netpayInput: string;

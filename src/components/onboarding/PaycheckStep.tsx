@@ -1,5 +1,9 @@
 import React, { useMemo } from 'react';
-import { OnboardingStepDefinition, PaycheckStepProps } from './types';
+import {
+	OnboardingStepDefinition,
+	PaycheckStepProps,
+	formatLaborTime,
+} from './types';
 
 export const PaycheckStepContent: React.FC<PaycheckStepProps> = ({
 	netpay,
@@ -89,6 +93,7 @@ export const PaycheckStepContent: React.FC<PaycheckStepProps> = ({
 };
 
 export function usePaycheckStep({
+	wage,
 	netpay,
 	setNetpay,
 	netpayInput,
@@ -97,16 +102,29 @@ export function usePaycheckStep({
 	setIsEditingNetpay,
 }: PaycheckStepProps): OnboardingStepDefinition {
 	return useMemo(() => {
+		const paycheckLaborHours = wage > 0 ? netpay / wage : 0;
+		const paycheckLaborLabel = formatLaborTime(paycheckLaborHours);
+
 		return {
 			id: 'step_final',
 			image: '/screen final.png',
 			fallbackImage: '',
-			receipt: null,
-			headline: 'Gettin Started',
+			receipt: {
+				icon: 'payments',
+				iconEmoji: '💵',
+				iconBg: 'rgba(209, 250, 229, 0.6)',
+				iconColor: 'rgb(5, 150, 105)',
+				title: 'Monthly Take-Home',
+				subtitle: `$${netpay.toFixed(2)} • Direct Deposit`,
+				cost: `$${netpay.toFixed(2)}`,
+				labor: paycheckLaborLabel,
+			},
+			headline: 'Getting Started',
 			body: 'In order to start using the app, we need to know how much you made last month. This is so you can start tracking your spending right away.',
 			ctaText: 'Continue',
 			renderContent: () => (
 				<PaycheckStepContent
+					wage={wage}
 					netpay={netpay}
 					setNetpay={setNetpay}
 					netpayInput={netpayInput}
@@ -117,6 +135,7 @@ export function usePaycheckStep({
 			),
 		};
 	}, [
+		wage,
 		netpay,
 		setNetpay,
 		netpayInput,

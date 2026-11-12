@@ -113,6 +113,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 	});
 	const habitStep = useHabitStep({ wage, habitCost, setHabitCost });
 	const paycheckStep = usePaycheckStep({
+		wage,
 		netpay,
 		setNetpay,
 		netpayInput,
@@ -453,11 +454,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 											<div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
 												<div className="w-full h-full flex flex-col justify-between">
 													{/* Text Block */}
-													<div
-														className={`flex flex-col gap-1.5 shrink-0 ${
-															idx === 4 ? 'pt-1' : 'pt-16'
-														}`}
-													>
+													<div className="flex flex-col gap-1.5 shrink-0 pt-16">
 														<h1 className="text-[22px] sm:text-[24px] font-extrabold text-[#111111] leading-[1.2] tracking-tight">
 															{step.headline}
 														</h1>
