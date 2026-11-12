@@ -321,7 +321,10 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 						>
 							lock
 						</span>
-						<span>Only used while in-app · Zero tracking</span>
+						<span>
+							Privacy is a priority, turn off Location at any
+							time.
+						</span>
 					</div>
 				</div>
 			</div>
