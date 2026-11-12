@@ -107,8 +107,8 @@ export function usePaycheckStep({
 
 		return {
 			id: 'step_final',
-			image: '/screen final.png',
-			fallbackImage: '',
+			image: '/screen-workspace.png',
+			fallbackImage: '/screen final.png',
 			receipt: {
 				icon: 'payments',
 				iconEmoji: '💵',
