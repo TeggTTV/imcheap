@@ -19,6 +19,7 @@ export interface OnboardingStepDefinition {
 	body: string;
 	ctaText: string;
 	receipt: ReceiptConfig | null;
+	renderHero?: () => React.ReactNode;
 	renderContent: () => React.ReactNode;
 }
 

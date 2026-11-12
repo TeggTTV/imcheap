@@ -15,9 +15,7 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 	onDotClick,
 	totalSteps = 6,
 }) => {
-	const [status, setStatus] = useState<'idle' | 'loading' | 'success'>(
-		'idle',
-	);
+	const [status, setStatus] = useState<'idle' | 'loading' | 'success'>('idle');
 
 	const handleTurnOnLocation = () => {
 		if (status !== 'idle') return;
@@ -31,7 +29,7 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 		setTimeout(() => {
 			setStatus('success');
 			setTimeout(() => {
-				// onNext();
+				onNext();
 			}, 600);
 		}, 1000);
 	};
@@ -51,6 +49,7 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 					<span className="text-[18px] font-extrabold tracking-tight text-[#1c1b1b] font-sans">
 						ImCheap
 					</span>
+					<span className="w-1.5 h-1.5 rounded-full bg-[#006948] mt-0.5 animate-pulse" />
 				</div>
 				<button
 					type="button"
@@ -88,9 +87,8 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 							xmlns="http://www.w3.org/2000/svg"
 						>
 							<defs>
-								{/* Stylized Street Pattern */}
 								<pattern
-									id="city-streets"
+									id="standalone-city-streets"
 									patternUnits="userSpaceOnUse"
 									width="50"
 									height="50"
@@ -117,7 +115,7 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 									/>
 								</pattern>
 								<linearGradient
-									id="blob-wash"
+									id="standalone-blob-wash"
 									x1="0%"
 									y1="0%"
 									x2="100%"
@@ -127,22 +125,20 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 									<stop offset="60%" stopColor="#F1F5F9" />
 									<stop offset="100%" stopColor="#E2E8F0" />
 								</linearGradient>
-								{/* Map Mask for Organic Blob */}
-								<clipPath id="blob-mask">
+								<clipPath id="standalone-blob-mask">
 									<path d="M 140 20 C 205 10 255 45 250 115 C 245 175 210 215 155 225 C 95 235 45 205 35 150 C 25 90 70 30 140 20 Z" />
 								</clipPath>
 							</defs>
 
-							{/* Organic Fluid Blob */}
 							<path
 								d="M 140 20 C 205 10 255 45 250 115 C 245 175 210 215 155 225 C 95 235 45 205 35 150 C 25 90 70 30 140 20 Z"
-								fill="url(#blob-wash)"
+								fill="url(#standalone-blob-wash)"
 							/>
-							<g clipPath="url(#blob-mask)">
+							<g clipPath="url(#standalone-blob-mask)">
 								<rect
 									width="280"
 									height="240"
-									fill="url(#city-streets)"
+									fill="url(#standalone-city-streets)"
 								/>
 								<path
 									d="M 40 160 C 90 120 180 190 250 100"
@@ -177,13 +173,11 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 							viewBox="0 0 180 150"
 							xmlns="http://www.w3.org/2000/svg"
 						>
-							{/* Ambient Map Drop Shadow */}
 							<path
 								d="M 18 108 L 58 126 L 102 108 L 146 126 L 158 116 L 118 98 L 74 116 L 30 98 Z"
 								fill="#000000"
 								opacity="0.08"
 							/>
-							{/* Folded Map Panel 1 (Left - Sky Blue) */}
 							<polygon
 								points="20,50 60,68 60,122 20,104"
 								fill="#38BDF8"
@@ -200,7 +194,6 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 								strokeWidth="4"
 							/>
 
-							{/* Folded Map Panel 2 (Center-Left - Vibrant Emerald) */}
 							<polygon
 								points="60,68 102,48 102,102 60,122"
 								fill="#10B981"
@@ -217,7 +210,6 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 								opacity="0.3"
 							/>
 
-							{/* Folded Map Panel 3 (Center-Right - Mint / Spring Green) */}
 							<polygon
 								points="102,48 144,68 144,122 102,102"
 								fill="#34D399"
@@ -229,7 +221,6 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 								strokeWidth="4"
 							/>
 
-							{/* Folded Map Panel 4 (Right - Soft Teal) */}
 							<polygon
 								points="144,68 162,59 162,113 144,122"
 								fill="#2DD4BF"
@@ -240,7 +231,6 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 								opacity="0.7"
 							/>
 
-							{/* 3D Large Location Pin Anchor & Shadow */}
 							<ellipse
 								cx="88"
 								cy="74"
@@ -250,12 +240,11 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 								opacity="0.25"
 							/>
 
-							{/* 3D Vibrant Coral Pin Drop Marker */}
 							<g className="transform -translate-y-2">
 								<path
 									d="M 88 74 C 74 54 62 40 62 26 C 62 11.6 73.6 0 88 0 C 102.4 0 114 11.6 114 26 C 114 40 102 54 88 74 Z"
-									fill="url(#location-pin-gradient)"
-									filter="url(#location-pin-shadow)"
+									fill="url(#restore-pin-gradient)"
+									filter="url(#restore-pin-shadow)"
 								/>
 								<path
 									d="M 88 3 C 99.5 3 109 12.5 109 24 C 109 34 100 45 88 62 C 84 56 79 49 75 42 C 82 38 88 30 88 20 C 88 13.5 85 8 80 4 C 82.5 3.3 85.2 3 88 3 Z"
@@ -279,7 +268,7 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 
 							<defs>
 								<linearGradient
-									id="location-pin-gradient"
+									id="restore-pin-gradient"
 									x1="62"
 									y1="0"
 									x2="114"
@@ -291,7 +280,7 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 									<stop offset="100%" stopColor="#E11D48" />
 								</linearGradient>
 								<filter
-									id="location-pin-shadow"
+									id="restore-pin-shadow"
 									x="52"
 									y="-4"
 									width="72"
@@ -317,16 +306,25 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 						Turn on Location Services
 					</h2>
 					<p className="text-[13px] text-neutral-500 mt-2 leading-relaxed max-w-xs font-normal">
-						Detect local deals, store prices, and accurate sales tax
-						automatically to calculate your true working hours spent
-						wherever you shop.
+						Detect local deals, store prices, and accurate sales tax automatically to calculate your true working hours spent wherever you shop.
 					</p>
+
+					{/* Privacy & Trust Badge */}
+					<div className="mt-3.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#86f2e4]/20 text-[#006f66] text-[12px] font-semibold">
+						<span
+							className="material-symbols-outlined text-[15px] leading-none"
+							style={{ fontVariationSettings: "'FILL' 1" }}
+						>
+							lock
+						</span>
+						<span>Only used while in-app · Zero tracking</span>
+					</div>
 				</div>
 			</div>
 
 			{/* Bottom Action Dock */}
 			<div className="relative z-20 flex flex-col items-center w-full gap-3 pt-2">
-				{/* Pagination Stepper Pills */}
+				{/* Pagination Stepper Pills (All 6 dots, final active) */}
 				<div
 					aria-label="Onboarding Progress"
 					className="flex items-center justify-center gap-1.5 py-1"
@@ -373,31 +371,31 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 						<span>Back</span>
 					</button>
 
-					{/* Location Action CTA Button */}
+					{/* Turn On Location CTA: White-ish with text-secondary */}
 					<button
 						type="button"
 						onClick={handleTurnOnLocation}
 						disabled={status !== 'idle'}
-						className={`flex-1 h-13 rounded-2xl font-bold text-[16px] tracking-tight shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer ${
+						className={`flex-1 h-13 rounded-2xl font-bold text-[16px] tracking-tight border active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs ${
 							status === 'success'
-								? 'bg-secondary text-white'
-								: 'bg-green-50 text-secondary'
+								? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+								: 'bg-white hover:bg-neutral-50/90 border-neutral-200 text-secondary'
 						}`}
 					>
 						{status === 'loading' && (
 							<>
-								<span className="material-symbols-outlined animate-spin text-[20px]">
+								<span className="material-symbols-outlined animate-spin text-[20px] text-secondary">
 									progress_activity
 								</span>
-								<span>Locating...</span>
+								<span className="text-secondary">Locating...</span>
 							</>
 						)}
 						{status === 'success' && (
 							<>
-								<span className="material-symbols-outlined text-[20px]">
+								<span className="material-symbols-outlined text-[20px] text-emerald-600">
 									check_circle
 								</span>
-								<span>Location Enabled</span>
+								<span className="text-emerald-700">Location Enabled</span>
 							</>
 						)}
 						{status === 'idle' && (

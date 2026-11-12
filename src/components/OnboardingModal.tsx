@@ -13,6 +13,7 @@ import {
 	useCommuteStep,
 	useHabitStep,
 	usePaycheckStep,
+	OnboardingStepDefinition,
 } from './onboarding';
 
 export interface OnboardingScreenConfig {
@@ -91,7 +92,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 	);
 
 	// Modular step configurations
-	const introDefinition = {
+	const introDefinition: OnboardingStepDefinition = {
 		id: 'step_intro',
 		image: '',
 		fallbackImage: '',
@@ -123,7 +124,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 		setIsEditingNetpay,
 	});
 
-	const locationDefinition = {
+	const locationDefinition: OnboardingStepDefinition = {
 		id: 'step_location',
 		image: '',
 		fallbackImage: '',
@@ -389,20 +390,23 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 									<>
 										{/* 1. Upper Hero Photo Container */}
 										<div className="relative w-full h-[46vh] sm:h-100 bg-neutral-100 shrink-0 overflow-visible">
-											{/* Full-bleed edge-to-edge photography */}
-											<div className="absolute inset-0 w-full h-full overflow-hidden">
-												<img
-													src={stepImageSrc}
-													alt={step.headline}
-													onError={() => {
-														setImageErrors((prev) => ({
-															...prev,
-															[step.id]: true,
-														}));
-													}}
-													className="w-full h-full object-cover object-center pointer-events-none"
-												/>
-											</div>
+											{step.renderHero ? (
+												step.renderHero()
+											) : (
+												<div className="absolute inset-0 w-full h-full overflow-hidden">
+													<img
+														src={stepImageSrc}
+														alt={step.headline}
+														onError={() => {
+															setImageErrors((prev) => ({
+																...prev,
+																[step.id]: true,
+															}));
+														}}
+														className="w-full h-full object-cover object-center pointer-events-none"
+													/>
+												</div>
+											)}
 
 											{/* Subtle top-down vignette gradient for header legibility */}
 											<div className="absolute inset-x-0 top-0 h-28 bg-linear-to-b from-black/75 via-black/25 to-transparent pointer-events-none z-10" />
@@ -475,7 +479,11 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 											<div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
 												<div className="w-full h-full flex flex-col justify-between">
 													{/* Text Block */}
-													<div className="flex flex-col gap-1.5 shrink-0 pt-16">
+													<div
+														className={`flex flex-col gap-1.5 shrink-0 ${
+															step.receipt ? 'pt-16' : 'pt-4'
+														}`}
+													>
 														<h1 className="text-[22px] sm:text-[24px] font-extrabold text-[#111111] leading-[1.2] tracking-tight">
 															{step.headline}
 														</h1>
