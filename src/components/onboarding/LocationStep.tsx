@@ -30,9 +30,6 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 
 		setTimeout(() => {
 			setStatus('success');
-			setTimeout(() => {
-				onNext();
-			}, 600);
 		}, 1000);
 	};
 
@@ -303,7 +300,7 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 				</div>
 
 				{/* Headline & Value Proposition */}
-				<div className="flex flex-col items-center text-center mt-3 max-w-sm px-2">
+				<div className="flex flex-col items-center text-center mt-3 max-w-sm px-2 w-full">
 					<h2 className="text-[24px] sm:text-[26px] font-extrabold text-[#111111] tracking-tight leading-tight">
 						Turn on Location Services
 					</h2>
@@ -313,8 +310,49 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 						wherever you shop.
 					</p>
 
+					{/* Turn On Location In-Body Button */}
+					<button
+						type="button"
+						onClick={handleTurnOnLocation}
+						disabled={status !== 'idle'}
+						className={`mt-4 w-full max-w-xs h-12 rounded-2xl font-bold text-[15px] tracking-tight border active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs ${
+							status === 'success'
+								? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+								: 'bg-white hover:bg-neutral-50/90 border-neutral-200 text-secondary'
+						}`}
+					>
+						{status === 'loading' && (
+							<>
+								<span className="material-symbols-outlined animate-spin text-[18px] text-secondary">
+									progress_activity
+								</span>
+								<span className="text-secondary">
+									Locating...
+								</span>
+							</>
+						)}
+						{status === 'success' && (
+							<>
+								<span className="material-symbols-outlined text-[18px] text-emerald-600">
+									check_circle
+								</span>
+								<span className="text-emerald-700">
+									Location Enabled
+								</span>
+							</>
+						)}
+						{status === 'idle' && (
+							<>
+								<span>Turn On Location</span>
+								<span className="material-symbols-outlined text-[17px]">
+									near_me
+								</span>
+							</>
+						)}
+					</button>
+
 					{/* Privacy & Trust Badge */}
-					<div className="mt-3.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#86f2e4]/20 text-[#006f66] text-[12px] font-semibold">
+					<div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#86f2e4]/20 text-[#006f66] text-[12px] font-semibold">
 						<span
 							className="material-symbols-outlined text-[15px] leading-none"
 							style={{ fontVariationSettings: "'FILL' 1" }}
@@ -378,45 +416,25 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 						<span>Back</span>
 					</button>
 
-					{/* Turn On Location CTA: White-ish with text-secondary */}
+					{/* Continue Button */}
 					<button
 						type="button"
-						onClick={handleTurnOnLocation}
-						disabled={status !== 'idle'}
-						className={`flex-1 h-13 rounded-2xl font-bold text-[16px] tracking-tight border active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs ${
-							status === 'success'
-								? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-								: 'bg-white hover:bg-neutral-50/90 border-neutral-200 text-secondary'
-						}`}
+						onClick={onNext}
+						className="flex-1 h-13 bg-[#111111] hover:bg-neutral-900 active:scale-[0.98] text-white font-bold text-[16px] rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
 					>
-						{status === 'loading' && (
-							<>
-								<span className="material-symbols-outlined animate-spin text-[20px] text-secondary">
-									progress_activity
-								</span>
-								<span className="text-secondary">
-									Locating...
-								</span>
-							</>
-						)}
-						{status === 'success' && (
-							<>
-								<span className="material-symbols-outlined text-[20px] text-emerald-600">
-									check_circle
-								</span>
-								<span className="text-emerald-700">
-									Location Enabled
-								</span>
-							</>
-						)}
-						{status === 'idle' && (
-							<>
-								<span>Turn On Location</span>
-								<span className="material-symbols-outlined text-[18px]">
-									near_me
-								</span>
-							</>
-						)}
+						<span>Continue</span>
+						<svg
+							className="w-4 h-4 stroke-[2.5]"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								d="M8.25 4.5l7.5 7.5-7.5 7.5"
+							/>
+						</svg>
 					</button>
 				</div>
 

@@ -1,14 +1,10 @@
-import React, {
-	useState,
-	useEffect,
-	useCallback,
-	useRef,
-} from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'motion/react';
 import { PresetItem } from '../utils/expenseMath';
 import {
 	IntroStep,
 	LocationStep,
+	OutroStep,
 	useWageStep,
 	useCommuteStep,
 	useHabitStep,
@@ -135,6 +131,17 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 		renderContent: () => null,
 	};
 
+	const outroDefinition: OnboardingStepDefinition = {
+		id: 'step_outro',
+		image: '',
+		fallbackImage: '',
+		receipt: null,
+		headline: "You're All Set!",
+		body: 'Your personal time-cost engine is ready. Step inside to start tracking your runway and preserving your hours.',
+		ctaText: 'Get Started',
+		renderContent: () => null,
+	};
+
 	const screens = [
 		introDefinition,
 		wageStep,
@@ -142,6 +149,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 		habitStep,
 		paycheckStep,
 		locationDefinition,
+		outroDefinition,
 	];
 
 	const currentStep = screens[currentIndex];
@@ -170,7 +178,16 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 			onComplete({ wage, vehicle, netpay: committedNetpay, presets });
 		}
 		onClose();
-	}, [wage, mpg, gasPrice, tankSize, netpay, netpayInput, onComplete, onClose]);
+	}, [
+		wage,
+		mpg,
+		gasPrice,
+		tankSize,
+		netpay,
+		netpayInput,
+		onComplete,
+		onClose,
+	]);
 
 	const handleSkip = useCallback(() => {
 		try {
@@ -278,8 +295,12 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 		isDragging.current = false;
 
 		try {
-			if ((e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) {
-				(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+			if (
+				(e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)
+			) {
+				(e.currentTarget as HTMLElement).releasePointerCapture(
+					e.pointerId,
+				);
 			}
 		} catch {
 			// Pointer capture was already released
@@ -380,11 +401,16 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 									/>
 								) : idx === 5 ? (
 									<LocationStep
-										onNext={handleFinish}
+										onNext={nextStep}
 										onBack={prevStep}
 										onSkip={handleSkip}
 										onDotClick={handleDotClick}
 										totalSteps={screens.length}
+									/>
+								) : idx === 6 ? (
+									<OutroStep
+										onNext={handleFinish}
+										onBack={prevStep}
 									/>
 								) : (
 									<>
@@ -398,10 +424,12 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 														src={stepImageSrc}
 														alt={step.headline}
 														onError={() => {
-															setImageErrors((prev) => ({
-																...prev,
-																[step.id]: true,
-															}));
+															setImageErrors(
+																(prev) => ({
+																	...prev,
+																	[step.id]: true,
+																}),
+															);
 														}}
 														className="w-full h-full object-cover object-center pointer-events-none"
 													/>
@@ -435,20 +463,36 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 																className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-lg shadow-xs"
 																style={{
 																	backgroundColor:
-																		step.receipt.iconBg,
-																	color: step.receipt.iconColor,
+																		step
+																			.receipt
+																			.iconBg,
+																	color: step
+																		.receipt
+																		.iconColor,
 																}}
 															>
 																<span className="material-symbols-outlined text-[20px]">
-																	{step.receipt.icon}
+																	{
+																		step
+																			.receipt
+																			.icon
+																	}
 																</span>
 															</div>
 															<div className="flex flex-col min-w-0">
 																<span className="font-semibold text-slate-900 text-[14px] leading-tight truncate">
-																	{step.receipt.title}
+																	{
+																		step
+																			.receipt
+																			.title
+																	}
 																</span>
 																<span className="text-[12px] text-slate-500 font-medium leading-normal mt-0.5 truncate tabular-nums">
-																	{step.receipt.subtitle}
+																	{
+																		step
+																			.receipt
+																			.subtitle
+																	}
 																</span>
 															</div>
 														</div>
@@ -465,7 +509,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 																schedule
 															</span>
 															<span className="tabular-nums">
-																{step.receipt.labor}
+																{
+																	step.receipt
+																		.labor
+																}
 															</span>
 														</div>
 													</div>
@@ -481,7 +528,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 													{/* Text Block */}
 													<div
 														className={`flex flex-col gap-1.5 shrink-0 ${
-															step.receipt ? 'pt-16' : 'pt-4'
+															step.receipt
+																? 'pt-16'
+																: 'pt-4'
 														}`}
 													>
 														<h1 className="text-[22px] sm:text-[24px] font-extrabold text-[#111111] leading-[1.2] tracking-tight">
@@ -501,30 +550,35 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 											<div className="flex flex-col gap-3 w-full pt-2 shrink-0">
 												{/* 5-dot pagination pills centered horizontally */}
 												<div className="flex items-center justify-center gap-1.5 py-1 w-full">
-													{screens.map((s, dotIdx) => {
-														const isActive =
-															dotIdx === currentIndex;
-														return (
-															<button
-																key={s.id}
-																type="button"
-																onClick={() =>
-																	handleDotClick(dotIdx)
-																}
-																aria-label={`Go to step ${dotIdx + 1}`}
-																aria-current={
-																	isActive
-																		? 'step'
-																		: undefined
-																}
-																className={`transition-all duration-280 ease-out cursor-pointer ${
-																	isActive
-																		? 'w-6 h-2 bg-[#111111] rounded-full'
-																		: 'w-2 h-2 bg-[#E5E7EB] rounded-full'
-																}`}
-															/>
-														);
-													})}
+													{screens.map(
+														(s, dotIdx) => {
+															const isActive =
+																dotIdx ===
+																currentIndex;
+															return (
+																<button
+																	key={s.id}
+																	type="button"
+																	onClick={() =>
+																		handleDotClick(
+																			dotIdx,
+																		)
+																	}
+																	aria-label={`Go to step ${dotIdx + 1}`}
+																	aria-current={
+																		isActive
+																			? 'step'
+																			: undefined
+																	}
+																	className={`transition-all duration-280 ease-out cursor-pointer ${
+																		isActive
+																			? 'w-6 h-2 bg-[#111111] rounded-full'
+																			: 'w-2 h-2 bg-[#E5E7EB] rounded-full'
+																	}`}
+																/>
+															);
+														},
+													)}
 												</div>
 
 												{/* Bottom Action Row */}
