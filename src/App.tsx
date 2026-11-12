@@ -439,8 +439,8 @@ export default function App() {
 						isSearchOpen ? 'pt-28' : 'pt-16'
 					} ${
 						activeTab === 'dashboard'
-							? 'h-[100dvh] pb-24 overflow-hidden'
-							: 'pb-28 min-h-[100dvh]'
+							? 'h-dvh pb-24 overflow-hidden'
+							: 'pb-28 min-h-dvh'
 					} bg-surface`}
 				>
 					{activeTab === 'dashboard' && (

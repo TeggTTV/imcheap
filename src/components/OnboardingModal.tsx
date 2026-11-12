@@ -4,7 +4,7 @@ import React, {
 	useCallback,
 	useRef,
 } from 'react';
-import { motion, AnimatePresence, Transition, PanInfo } from 'motion/react';
+import { motion, useMotionValue, useTransform, animate } from 'motion/react';
 import { PresetItem } from '../utils/expenseMath';
 import {
 	IntroStep,
@@ -47,50 +47,25 @@ interface OnboardingModalProps {
 	}) => void;
 }
 
-const iosParallaxVariants = {
-	enter: (direction: number) => ({
-		x: direction > 0 ? '100%' : '-28%',
-		scale: direction > 0 ? 1 : 0.96,
-		opacity: direction > 0 ? 1 : 0.75,
-		boxShadow:
-			direction > 0
-				? '-12px 0 30px rgba(0, 0, 0, 0.18)'
-				: 'none',
-		zIndex: direction > 0 ? 20 : 10,
-	}),
-	center: {
-		x: 0,
-		scale: 1,
-		opacity: 1,
-		boxShadow: 'none',
-		zIndex: 20,
-	},
-	exit: (direction: number) => ({
-		x: direction > 0 ? '-28%' : '100%',
-		scale: direction > 0 ? 0.96 : 1,
-		opacity: direction > 0 ? 0.75 : 1,
-		boxShadow:
-			direction < 0
-				? '-12px 0 30px rgba(0, 0, 0, 0.18)'
-				: 'none',
-		zIndex: direction > 0 ? 10 : 20,
-	}),
-};
-
-const IOS_PUSH_TRANSITION: Transition = {
-	duration: 0.28,
-	ease: [0.25, 1, 0.5, 1],
-};
-
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 	isOpen,
 	onClose,
 	onComplete,
 }) => {
 	const [currentIndex, setCurrentIndex] = useState(0);
-	const [direction, setDirection] = useState<number>(1);
 	const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
-	const [isWheelTouching, setIsWheelTouching] = useState<boolean>(false);
+
+	const containerRef = useRef<HTMLDivElement>(null);
+	const pageProgress = useMotionValue(0);
+	const x = useTransform(pageProgress, (p) => `-${p * 100}%`);
+
+	const isDragging = useRef(false);
+	const startX = useRef(0);
+	const startY = useRef(0);
+	const startTime = useRef(0);
+	const startProgress = useRef(0);
+	const containerWidth = useRef(390);
+	const isHorizontalSwipe = useRef<boolean | null>(null);
 
 	// User-configurable parameters
 	const [wage, setWage] = useState<number>(ONBOARDING_CONFIG_DEFAULTS.wage);
@@ -193,7 +168,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
 	const nextStep = useCallback(() => {
 		if (currentIndex < screens.length - 1) {
-			setDirection(1);
 			setCurrentIndex((prev) => prev + 1);
 		} else {
 			handleFinish();
@@ -202,14 +176,12 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
 	const prevStep = useCallback(() => {
 		if (currentIndex > 0) {
-			setDirection(-1);
 			setCurrentIndex((prev) => prev - 1);
 		}
 	}, [currentIndex]);
 
 	const handleDotClick = (index: number) => {
 		if (index === currentIndex) return;
-		setDirection(index > currentIndex ? 1 : -1);
 		setCurrentIndex(index);
 	};
 
@@ -223,11 +195,118 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 	}, [screens]);
 
 	useEffect(() => {
+		animate(pageProgress, currentIndex, {
+			type: 'tween',
+			ease: [0.25, 1, 0.5, 1],
+			duration: 0.28,
+		});
+	}, [currentIndex, pageProgress]);
+
+	useEffect(() => {
 		if (!isOpen) {
 			setCurrentIndex(0);
-			setDirection(1);
+			pageProgress.set(0);
 		}
-	}, [isOpen]);
+	}, [isOpen, pageProgress]);
+
+	const handlePointerDown = (e: React.PointerEvent) => {
+		const target = e.target as HTMLElement;
+		if (
+			target?.closest?.('[data-rwp-wrapper]') ||
+			target?.closest?.('button, input, select, textarea')
+		) {
+			return;
+		}
+		isDragging.current = true;
+		startX.current = e.clientX;
+		startY.current = e.clientY;
+		startTime.current = performance.now();
+		startProgress.current = pageProgress.get();
+		containerWidth.current = containerRef.current?.offsetWidth || 390;
+		isHorizontalSwipe.current = null;
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+	};
+
+	const handlePointerMove = (e: React.PointerEvent) => {
+		if (!isDragging.current) return;
+		const dx = e.clientX - startX.current;
+		const dy = e.clientY - startY.current;
+
+		if (isHorizontalSwipe.current === null) {
+			if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
+				if (Math.abs(dy) > Math.abs(dx)) {
+					isHorizontalSwipe.current = false;
+					isDragging.current = false;
+					return;
+				}
+				isHorizontalSwipe.current = true;
+			} else {
+				return;
+			}
+		}
+
+		if (!isHorizontalSwipe.current) return;
+
+		const deltaProgress = -dx / containerWidth.current;
+		const rawTarget = startProgress.current + deltaProgress;
+
+		// Strictly clamp to at most 1 page displacement from currentIndex, within total page bounds
+		const minPage = Math.max(0, currentIndex - 1);
+		const maxPage = Math.min(screens.length - 1, currentIndex + 1);
+		const clampedProgress = Math.min(maxPage, Math.max(minPage, rawTarget));
+
+		pageProgress.set(clampedProgress);
+	};
+
+	const handlePointerUp = (e: React.PointerEvent) => {
+		if (!isDragging.current) return;
+		isDragging.current = false;
+
+		try {
+			if ((e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) {
+				(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+			}
+		} catch {
+			// Pointer capture was already released
+		}
+
+		if (!isHorizontalSwipe.current) {
+			animate(pageProgress, currentIndex, {
+				type: 'tween',
+				ease: [0.25, 1, 0.5, 1],
+				duration: 0.28,
+			});
+			return;
+		}
+
+		const dx = e.clientX - startX.current;
+		const elapsed = Math.max(1, performance.now() - startTime.current);
+		const vx = dx / elapsed;
+
+		const threshold = 45;
+		const flickThreshold = 0.35;
+
+		let targetIndex = currentIndex;
+		if (dx < -threshold || vx < -flickThreshold) {
+			if (currentIndex < screens.length - 1) {
+				targetIndex = currentIndex + 1;
+			}
+		} else if (dx > threshold || vx > flickThreshold) {
+			if (currentIndex > 0) {
+				targetIndex = currentIndex - 1;
+			}
+		}
+
+		if (targetIndex !== currentIndex) {
+			setCurrentIndex(targetIndex);
+		} else {
+			animate(pageProgress, currentIndex, {
+				type: 'tween',
+				ease: [0.25, 1, 0.5, 1],
+				duration: 0.28,
+			});
+		}
+	};
 
 	useEffect(() => {
 		if (!isOpen) return;
@@ -251,285 +330,231 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
 	if (!isOpen) return null;
 
-	const imageSrc =
-		imageErrors[currentStep.id] && currentStep.fallbackImage
-			? currentStep.fallbackImage
-			: currentStep.image;
-
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
 			{/* Device container matching mobile frame */}
-			<div className="relative w-full sm:max-w-105 h-dvh sm:h-215 bg-neutral-950 sm:rounded-[36px] overflow-hidden flex flex-col shadow-2xl select-none">
-				{/* Full Native iOS Navigation Stack with 1:1 Interactive Drag & Parallax Push */}
-				<AnimatePresence
-					initial={false}
-					custom={direction}
-					mode="popLayout"
+			<div
+				ref={containerRef}
+				className="relative w-full sm:max-w-105 h-dvh sm:h-215 bg-neutral-950 sm:rounded-[36px] overflow-hidden flex flex-col shadow-2xl select-none"
+			>
+				{/* Full Continuous Horizontal Slide Track */}
+				<motion.div
+					style={{ x }}
+					onPointerDown={handlePointerDown}
+					onPointerMove={handlePointerMove}
+					onPointerUp={handlePointerUp}
+					onPointerCancel={handlePointerUp}
+					className="flex flex-row w-full h-full cursor-grab active:cursor-grabbing touch-pan-y"
 				>
-					<motion.div
-						key={currentStep.id}
-						custom={direction}
-						variants={iosParallaxVariants}
-						initial="enter"
-						animate="center"
-						exit="exit"
-						transition={IOS_PUSH_TRANSITION}
-						drag={isWheelTouching ? false : 'x'}
-						dragDirectionLock
-						dragConstraints={{ left: 0, right: 0 }}
-						dragElastic={{
-							left:
-								currentIndex < screens.length - 1
-									? 0.7
-									: 0.15,
-							right: currentIndex > 0 ? 0.7 : 0.15,
-						}}
-						onPointerDownCapture={(e) => {
-							const target = e.target as HTMLElement;
-							if (target?.closest?.('[data-rwp-wrapper]')) {
-								setIsWheelTouching(true);
-							} else {
-								setIsWheelTouching(false);
-							}
-						}}
-						onDragEnd={(_e, info: PanInfo) => {
-							const threshold = 60;
-							const velocityThreshold = 300;
-							if (
-								info.offset.x < -threshold ||
-								info.velocity.x < -velocityThreshold
-							) {
-								if (currentIndex < screens.length - 1) {
-									nextStep();
-								}
-							} else if (
-								info.offset.x > threshold ||
-								info.velocity.x > velocityThreshold
-							) {
-								if (currentIndex > 0) {
-									prevStep();
-								}
-							}
-						}}
-						className="w-full h-full flex flex-col bg-white transform-gpu will-change-transform cursor-grab active:cursor-grabbing touch-pan-y"
-					>
-						{currentIndex === 0 ? (
-							<IntroStep
-								onNext={nextStep}
-								onSkip={handleSkip}
-								onDotClick={handleDotClick}
-							/>
-						) : (
-							<>
-								{/* 1. Upper Hero Photo Container */}
-								<div className="relative w-full h-[46vh] sm:h-100 bg-neutral-100 shrink-0 overflow-visible">
-									{/* Full-bleed edge-to-edge photography */}
-									<div className="absolute inset-0 w-full h-full overflow-hidden">
-										<img
-											src={imageSrc}
-											alt={currentStep.headline}
-											onError={() => {
-												setImageErrors((prev) => ({
-													...prev,
-													[currentStep.id]: true,
-												}));
-											}}
-											className="w-full h-full object-cover object-center pointer-events-none"
-										/>
-									</div>
+					{screens.map((step, idx) => {
+						const stepImageSrc =
+							imageErrors[step.id] && step.fallbackImage
+								? step.fallbackImage
+								: step.image;
 
-									{/* Subtle top-down vignette gradient for header legibility */}
-									<div className="absolute inset-x-0 top-0 h-28 bg-linear-to-b from-black/75 via-black/25 to-transparent pointer-events-none z-10" />
-
-									{/* Minimalist pinned top bar: Left ImCheap wordmark in crisp white, right Skip button */}
-									<div className="relative z-20 flex items-center justify-between px-6 pt-6">
-										<span className="text-[18px] font-extrabold tracking-tight text-white font-sans drop-shadow-sm">
-											ImCheap
-										</span>
-										<button
-											type="button"
-											onClick={handleSkip}
-											className="text-[15px] text-white opacity-85 hover:opacity-100 transition-opacity cursor-pointer font-medium drop-shadow-sm"
-										>
-											Skip
-										</button>
-									</div>
-
-									{/* Pinned Floating Micro-Receipt Card (only rendered on steps that have a receipt) */}
-									{currentStep.receipt && (
-										<div className="absolute -bottom-6 inset-x-6 z-20 h-17 bg-white rounded-2xl px-3.5 shadow-xl border border-slate-100 flex items-center overflow-hidden">
-											<div className="w-full h-full flex items-center justify-between min-w-0">
-												{/* Left side: Category circular badge + title and subtext */}
-												<div className="flex items-center gap-3 min-w-0 pr-2">
-													<div
-														className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-lg shadow-xs"
-														style={{
-															backgroundColor:
-																currentStep
-																	.receipt
-																	.iconBg,
-															color: currentStep
-																.receipt
-																.iconColor,
-														}}
-													>
-														<span className="material-symbols-outlined text-[20px]">
-															{
-																currentStep
-																	.receipt
-																	.icon
-															}
-														</span>
-													</div>
-													<div className="flex flex-col min-w-0">
-														<span className="font-semibold text-slate-900 text-[14px] leading-tight truncate">
-															{
-																currentStep
-																	.receipt
-																	.title
-															}
-														</span>
-														<span className="text-[12px] text-slate-500 font-medium leading-normal mt-0.5 truncate tabular-nums">
-															{
-																currentStep
-																	.receipt
-																	.subtitle
-															}
-														</span>
-													</div>
-												</div>
-
-												{/* Right side: Emerald pill badge displaying clock icon and shift labor time */}
-												<div className="bg-[#ECFDF5] text-secondary px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap flex items-center gap-1.5 shrink-0">
-													<span
-														className="material-symbols-outlined text-[15px]"
-														style={{
-															fontVariationSettings:
-																"'FILL' 1",
-														}}
-													>
-														schedule
-													</span>
-													<span className="tabular-nums">
-														{
-															currentStep.receipt
-																.labor
-														}
-													</span>
-												</div>
-											</div>
-										</div>
-									)}
-								</div>
-
-								{/* 2. Compact White Bottom Sheet */}
-								<section className="bg-white rounded-t-4xl px-6 pt-6 pb-6 sm:pb-8 pb-safe flex flex-col justify-between shadow-2xl relative z-10 -mt-6 flex-1 min-h-0">
-									{/* Text Block & Content Container */}
-									<div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
-										<div className="w-full h-full flex flex-col justify-between">
-											{/* Text Block */}
-											<div
-												className={`flex flex-col gap-1.5 shrink-0 ${
-													currentIndex === 4
-														? 'pt-1'
-														: 'pt-16'
-												}`}
-											>
-												<h1 className="text-[22px] sm:text-[24px] font-extrabold text-[#111111] leading-[1.2] tracking-tight">
-													{currentStep.headline}
-												</h1>
-												<p className="text-[13px] text-[#6B7280] leading-relaxed font-normal">
-													{currentStep.body}
-												</p>
+						return (
+							<div
+								key={step.id}
+								className="w-full h-full shrink-0 flex-none flex flex-col bg-white overflow-hidden"
+							>
+								{idx === 0 ? (
+									<IntroStep
+										onNext={nextStep}
+										onSkip={handleSkip}
+										onDotClick={handleDotClick}
+									/>
+								) : (
+									<>
+										{/* 1. Upper Hero Photo Container */}
+										<div className="relative w-full h-[46vh] sm:h-100 bg-neutral-100 shrink-0 overflow-visible">
+											{/* Full-bleed edge-to-edge photography */}
+											<div className="absolute inset-0 w-full h-full overflow-hidden">
+												<img
+													src={stepImageSrc}
+													alt={step.headline}
+													onError={() => {
+														setImageErrors((prev) => ({
+															...prev,
+															[step.id]: true,
+														}));
+													}}
+													className="w-full h-full object-cover object-center pointer-events-none"
+												/>
 											</div>
 
-											{/* Step Interactive Content */}
-											{currentStep.renderContent()}
-										</div>
-									</div>
+											{/* Subtle top-down vignette gradient for header legibility */}
+											<div className="absolute inset-x-0 top-0 h-28 bg-linear-to-b from-black/75 via-black/25 to-transparent pointer-events-none z-10" />
 
-									{/* 3. Centered Stepper & Thumb-Zone Controls */}
-									<div className="flex flex-col gap-3 w-full pt-2 shrink-0">
-										{/* 5-dot pagination pills centered horizontally */}
-										<div className="flex items-center justify-center gap-1.5 py-1 w-full">
-											{screens.map((screen, idx) => {
-												const isActive =
-													idx === currentIndex;
-												return (
-													<button
-														key={screen.id}
-														type="button"
-														onClick={() =>
-															handleDotClick(idx)
-														}
-														aria-label={`Go to step ${idx + 1}`}
-														aria-current={
-															isActive
-																? 'step'
-																: undefined
-														}
-														className={`transition-all duration-280 ease-out cursor-pointer ${
-															isActive
-																? 'w-6 h-2 bg-[#111111] rounded-full'
-																: 'w-2 h-2 bg-[#E5E7EB] rounded-full'
-														}`}
-													/>
-												);
-											})}
-										</div>
-
-										{/* Bottom Action Row */}
-										<div className="flex items-center gap-3 w-full">
-											{/* Back button */}
-											<button
-												type="button"
-												onClick={prevStep}
-												className="h-13 px-5 bg-neutral-100 hover:bg-neutral-200 active:scale-[0.98] text-neutral-800 font-semibold text-[15px] rounded-2xl flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer"
-											>
-												<svg
-													className="w-4 h-4 stroke-[2.5]"
-													fill="none"
-													stroke="currentColor"
-													viewBox="0 0 24 24"
-												>
-													<path
-														strokeLinecap="round"
-														strokeLinejoin="round"
-														d="M15.75 19.5L8.25 12l7.5-7.5"
-													/>
-												</svg>
-												<span>Back</span>
-											</button>
-
-											{/* Primary CTA button */}
-											<button
-												type="button"
-												onClick={nextStep}
-												className="flex-1 h-13 bg-[#111111] hover:bg-neutral-900 active:scale-[0.98] text-white font-bold text-[16px] rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
-											>
-												<span>
-													{currentStep.ctaText}
+											{/* Minimalist pinned top bar: Left ImCheap wordmark in crisp white, right Skip button */}
+											<div className="relative z-20 flex items-center justify-between px-6 pt-6">
+												<span className="text-[18px] font-extrabold tracking-tight text-white font-sans drop-shadow-sm">
+													ImCheap
 												</span>
-												<svg
-													className="w-4 h-4 stroke-[2.5]"
-													fill="none"
-													stroke="currentColor"
-													viewBox="0 0 24 24"
+												<button
+													type="button"
+													onClick={handleSkip}
+													className="text-[15px] text-white opacity-85 hover:opacity-100 transition-opacity cursor-pointer font-medium drop-shadow-sm"
 												>
-													<path
-														strokeLinecap="round"
-														strokeLinejoin="round"
-														d="M8.25 4.5l7.5 7.5-7.5 7.5"
-													/>
-												</svg>
-											</button>
+													Skip
+												</button>
+											</div>
+
+											{/* Pinned Floating Micro-Receipt Card (only rendered on steps that have a receipt) */}
+											{step.receipt && (
+												<div className="absolute -bottom-6 inset-x-6 z-20 h-17 bg-white rounded-2xl px-3.5 shadow-xl border border-slate-100 flex items-center overflow-hidden">
+													<div className="w-full h-full flex items-center justify-between min-w-0">
+														{/* Left side: Category circular badge + title and subtext */}
+														<div className="flex items-center gap-3 min-w-0 pr-2">
+															<div
+																className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-lg shadow-xs"
+																style={{
+																	backgroundColor:
+																		step.receipt.iconBg,
+																	color: step.receipt.iconColor,
+																}}
+															>
+																<span className="material-symbols-outlined text-[20px]">
+																	{step.receipt.icon}
+																</span>
+															</div>
+															<div className="flex flex-col min-w-0">
+																<span className="font-semibold text-slate-900 text-[14px] leading-tight truncate">
+																	{step.receipt.title}
+																</span>
+																<span className="text-[12px] text-slate-500 font-medium leading-normal mt-0.5 truncate tabular-nums">
+																	{step.receipt.subtitle}
+																</span>
+															</div>
+														</div>
+
+														{/* Right side: Emerald pill badge displaying clock icon and shift labor time */}
+														<div className="bg-[#ECFDF5] text-secondary px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap flex items-center gap-1.5 shrink-0">
+															<span
+																className="material-symbols-outlined text-[15px]"
+																style={{
+																	fontVariationSettings:
+																		"'FILL' 1",
+																}}
+															>
+																schedule
+															</span>
+															<span className="tabular-nums">
+																{step.receipt.labor}
+															</span>
+														</div>
+													</div>
+												</div>
+											)}
 										</div>
-									</div>
-								</section>
-							</>
-						)}
-					</motion.div>
-				</AnimatePresence>
+
+										{/* 2. Compact White Bottom Sheet */}
+										<section className="bg-white rounded-t-4xl px-6 pt-6 pb-6 sm:pb-8 pb-safe flex flex-col justify-between shadow-2xl relative z-10 -mt-6 flex-1 min-h-0">
+											{/* Text Block & Content Container */}
+											<div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
+												<div className="w-full h-full flex flex-col justify-between">
+													{/* Text Block */}
+													<div
+														className={`flex flex-col gap-1.5 shrink-0 ${
+															idx === 4 ? 'pt-1' : 'pt-16'
+														}`}
+													>
+														<h1 className="text-[22px] sm:text-[24px] font-extrabold text-[#111111] leading-[1.2] tracking-tight">
+															{step.headline}
+														</h1>
+														<p className="text-[13px] text-[#6B7280] leading-relaxed font-normal">
+															{step.body}
+														</p>
+													</div>
+
+													{/* Step Interactive Content */}
+													{step.renderContent()}
+												</div>
+											</div>
+
+											{/* 3. Centered Stepper & Thumb-Zone Controls */}
+											<div className="flex flex-col gap-3 w-full pt-2 shrink-0">
+												{/* 5-dot pagination pills centered horizontally */}
+												<div className="flex items-center justify-center gap-1.5 py-1 w-full">
+													{screens.map((s, dotIdx) => {
+														const isActive =
+															dotIdx === currentIndex;
+														return (
+															<button
+																key={s.id}
+																type="button"
+																onClick={() =>
+																	handleDotClick(dotIdx)
+																}
+																aria-label={`Go to step ${dotIdx + 1}`}
+																aria-current={
+																	isActive
+																		? 'step'
+																		: undefined
+																}
+																className={`transition-all duration-280 ease-out cursor-pointer ${
+																	isActive
+																		? 'w-6 h-2 bg-[#111111] rounded-full'
+																		: 'w-2 h-2 bg-[#E5E7EB] rounded-full'
+																}`}
+															/>
+														);
+													})}
+												</div>
+
+												{/* Bottom Action Row */}
+												<div className="flex items-center gap-3 w-full">
+													{/* Back button */}
+													<button
+														type="button"
+														onClick={prevStep}
+														className="h-13 px-5 bg-neutral-100 hover:bg-neutral-200 active:scale-[0.98] text-neutral-800 font-semibold text-[15px] rounded-2xl flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer"
+													>
+														<svg
+															className="w-4 h-4 stroke-[2.5]"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+														>
+															<path
+																strokeLinecap="round"
+																strokeLinejoin="round"
+																d="M15.75 19.5L8.25 12l7.5-7.5"
+															/>
+														</svg>
+														<span>Back</span>
+													</button>
+
+													{/* Primary CTA button */}
+													<button
+														type="button"
+														onClick={nextStep}
+														className="flex-1 h-13 bg-[#111111] hover:bg-neutral-900 active:scale-[0.98] text-white font-bold text-[16px] rounded-2xl flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+													>
+														<span>
+															{step.ctaText}
+														</span>
+														<svg
+															className="w-4 h-4 stroke-[2.5]"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+														>
+															<path
+																strokeLinecap="round"
+																strokeLinejoin="round"
+																d="M8.25 4.5l7.5 7.5-7.5 7.5"
+															/>
+														</svg>
+													</button>
+												</div>
+											</div>
+										</section>
+									</>
+								)}
+							</div>
+						);
+					})}
+				</motion.div>
 			</div>
 		</div>
 	);

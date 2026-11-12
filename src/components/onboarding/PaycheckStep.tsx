@@ -13,7 +13,7 @@ export const PaycheckStepContent: React.FC<PaycheckStepProps> = ({
 		<div className="my-auto py-2 flex flex-col items-center w-full">
 			<div className="w-full rounded-3xl bg-[#F9FAFB] border border-[#F3F4F6] p-5 flex flex-col items-center shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
 				<span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-3">
-					What was your last paycheck?
+					What was your net pay last month?
 				</span>
 
 				<div className="flex items-center justify-center gap-2 mb-4 w-full">
@@ -102,8 +102,8 @@ export function usePaycheckStep({
 			image: '/screen final.png',
 			fallbackImage: '',
 			receipt: null,
-			headline: 'Final Thing',
-			body: "For best results, enter your last paycheck's take-home amount or net pay.",
+			headline: 'Gettin Started',
+			body: 'In order to start using the app, we need to know how much you made last month. This is so you can start tracking your spending right away.',
 			ctaText: 'Continue',
 			renderContent: () => (
 				<PaycheckStepContent
@@ -125,4 +125,3 @@ export function usePaycheckStep({
 		setIsEditingNetpay,
 	]);
 }
-
