@@ -1248,6 +1248,7 @@ export default function App() {
 					onComplete={({
 						wage,
 						vehicle,
+						netpay,
 						presets: initialPresets,
 					}) => {
 						const mileageRate = Number(
@@ -1257,6 +1258,7 @@ export default function App() {
 							...prev,
 							hourlyWage: wage,
 							mileageRate,
+							hoursPerCycle: wage > 0 ? Number((netpay / wage).toFixed(1)) : prev.hoursPerCycle,
 						}));
 						setPresets(initialPresets);
 					}}

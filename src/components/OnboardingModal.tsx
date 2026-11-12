@@ -41,6 +41,7 @@ interface OnboardingModalProps {
 	onComplete?: (config: {
 		wage: number;
 		vehicle: { mpg: number; gasPrice: number; tankSize: number };
+		netpay: number;
 		presets: PresetItem[];
 	}) => void;
 }
@@ -139,6 +140,13 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 	const [habitCost, setHabitCost] = useState<number>(
 		ONBOARDING_CONFIG_DEFAULTS.habitCost,
 	);
+	const [netpay, setNetpay] = useState<number>(
+		ONBOARDING_CONFIG_DEFAULTS.netpay,
+	);
+	const [isEditingNetpay, setIsEditingNetpay] = useState<boolean>(false);
+	const [netpayInput, setNetpayInput] = useState<string>(
+		ONBOARDING_CONFIG_DEFAULTS.netpay.toFixed(2),
+	);
 
 	const touchStartX = useRef<number | null>(null);
 	const touchStartY = useRef<number | null>(null);
@@ -217,11 +225,19 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 				},
 				headline: 'Small routines silently drain your paycheck.',
 				body: 'Select your everyday routine price to create your initial 1-tap quick log button with automatic work-hour conversions.',
+				ctaText: 'Continue',
+			},
+			{
+				id: 'step_final',
+				image: '/screen final.png',
+				fallbackImage: '',
+				receipt: null,
+				headline: 'Final Thing',
+				body: "For best results, enter your last paycheck's take-home amount or net pay.",
 				ctaText: 'Get Started',
 			},
 		];
 	}, [
-		wage,
 		mealCost,
 		mealLaborLabel,
 		commuteCost,
@@ -241,6 +257,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 			localStorage.setItem('imcheap_wage', String(wage));
 			localStorage.setItem('imcheap_vehicle', JSON.stringify(vehicle));
 			localStorage.setItem('imcheap_presets', JSON.stringify(presets));
+			localStorage.setItem('imcheap_netpay', String(netpay));
 			localStorage.setItem('imcheap_onboarding_completed', 'true');
 		} catch (err) {
 			console.warn(
@@ -250,20 +267,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 		}
 
 		if (onComplete) {
-			onComplete({ wage, vehicle, presets });
+			onComplete({ wage, vehicle, netpay, presets });
 		}
 		onClose();
-	}, [
-		wage,
-		mpg,
-		gasPrice,
-		tankSize,
-		habitCost,
-		commuteDistance,
-		commuteCost,
-		onComplete,
-		onClose,
-	]);
+	}, [wage, mpg, gasPrice, tankSize, netpay, onComplete, onClose]);
 
 	const handleSkip = useCallback(() => {
 		try {
@@ -325,7 +332,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
 	// Touch swipe gesture handlers (disabled on interactive wheel areas)
 	const handleTouchStart = (e: React.TouchEvent) => {
-		// If touch originates inside a wheel picker, don't trigger slide change
 		if ((e.target as HTMLElement).closest('[data-rwp-wrapper]')) {
 			touchStartX.current = null;
 			touchStartY.current = null;
@@ -366,10 +372,16 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 			<div
 				onTouchStart={handleTouchStart}
 				onTouchEnd={handleTouchEnd}
-				className="relative w-full sm:max-w-[420px] h-[100dvh] sm:h-[860px] bg-white sm:rounded-[36px] overflow-hidden flex flex-col shadow-2xl select-none"
+				className="relative w-full sm:max-w-105 h-dvh sm:h-215 bg-white sm:rounded-[36px] overflow-hidden flex flex-col shadow-2xl select-none"
 			>
 				{/* 1. Upper Hero Photo Container */}
-				<div className="relative w-full h-[46vh] sm:h-[400px] bg-black shrink-0 overflow-visible">
+				<div
+					className={`relative w-full ${
+						currentIndex === 3
+							? 'h-[52vh] sm:h-112.5'
+							: 'h-[46vh] sm:h-100'
+					} bg-black shrink-0 overflow-visible transition-[height] duration-300`}
+				>
 					{/* Full-bleed edge-to-edge photography with page sliding */}
 					<div className="absolute inset-0 w-full h-full overflow-hidden">
 						<AnimatePresence
@@ -410,7 +422,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 					</div>
 
 					{/* Subtle top-down vignette gradient for header legibility */}
-					<div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/75 via-black/25 to-transparent pointer-events-none z-10" />
+					<div className="absolute inset-x-0 top-0 h-28 bg-linear-to-b from-black/75 via-black/25 to-transparent pointer-events-none z-10" />
 
 					{/* Minimalist pinned top bar: Left ImCheap wordmark in crisp white, right Skip button */}
 					<div className="relative z-20 flex items-center justify-between px-6 pt-6">
@@ -426,80 +438,86 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 						</button>
 					</div>
 
-					{/* Pinned Floating Micro-Receipt Card across the image/sheet seam */}
-					<div className="absolute -bottom-6 inset-x-6 z-20 h-[68px] bg-white rounded-2xl px-3.5 shadow-xl border border-slate-100 flex items-center overflow-hidden">
-						<div className="relative w-full h-full">
-							<AnimatePresence
-								initial={false}
-								custom={direction}
-								mode="popLayout"
-							>
-								<motion.div
-									key={currentStep.id + '_receipt'}
+					{/* Pinned Floating Micro-Receipt Card (only rendered on steps that have a receipt) */}
+					{currentStep.receipt && (
+						<div className="absolute -bottom-6 inset-x-6 z-20 h-[68px] bg-white rounded-2xl px-3.5 shadow-xl border border-slate-100 flex items-center overflow-hidden">
+							<div className="relative w-full h-full">
+								<AnimatePresence
+									initial={false}
 									custom={direction}
-									variants={slideVariants}
-									initial="enter"
-									animate="center"
-									exit="exit"
-									transition={{
-										x: {
-											type: 'spring',
-											stiffness: 300,
-											damping: 30,
-										},
-										opacity: { duration: 0.2 },
-									}}
-									className="w-full h-full flex items-center justify-between min-w-0"
+									mode="popLayout"
 								>
-									{/* Left side: Category circular badge + title and subtext */}
-									<div className="flex items-center gap-3 min-w-0 pr-2">
-										<div
-											className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-lg shadow-xs"
-											style={{
-												backgroundColor:
-													currentStep.receipt.iconBg,
-												color: currentStep.receipt
-													.iconColor,
-											}}
-										>
-											<span className="material-symbols-outlined text-[20px]">
-												{currentStep.receipt.icon}
-											</span>
+									<motion.div
+										key={currentStep.id + '_receipt'}
+										custom={direction}
+										variants={slideVariants}
+										initial="enter"
+										animate="center"
+										exit="exit"
+										transition={{
+											x: {
+												type: 'spring',
+												stiffness: 300,
+												damping: 30,
+											},
+											opacity: { duration: 0.2 },
+										}}
+										className="w-full h-full flex items-center justify-between min-w-0"
+									>
+										{/* Left side: Category circular badge + title and subtext */}
+										<div className="flex items-center gap-3 min-w-0 pr-2">
+											<div
+												className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-lg shadow-xs"
+												style={{
+													backgroundColor:
+														currentStep.receipt
+															.iconBg,
+													color: currentStep.receipt
+														.iconColor,
+												}}
+											>
+												<span className="material-symbols-outlined text-[20px]">
+													{currentStep.receipt.icon}
+												</span>
+											</div>
+											<div className="flex flex-col min-w-0">
+												<span className="font-semibold text-slate-900 text-[14px] leading-tight truncate">
+													{currentStep.receipt.title}
+												</span>
+												<span className="text-[12px] text-slate-500 font-medium leading-normal mt-0.5 truncate tabular-nums">
+													{
+														currentStep.receipt
+															.subtitle
+													}
+												</span>
+											</div>
 										</div>
-										<div className="flex flex-col min-w-0">
-											<span className="font-semibold text-slate-900 text-[14px] leading-tight truncate">
-												{currentStep.receipt.title}
-											</span>
-											<span className="text-[12px] text-slate-500 font-medium leading-normal mt-0.5 truncate tabular-nums">
-												{currentStep.receipt.subtitle}
-											</span>
-										</div>
-									</div>
 
-									{/* Right side: Emerald pill badge displaying clock icon and shift labor time */}
-									<div className="bg-[#ECFDF5] text-[#059669] px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap flex items-center gap-1.5 shrink-0">
-										<span
-											className="material-symbols-outlined text-[15px]"
-											style={{
-												fontVariationSettings:
-													"'FILL' 1",
-											}}
-										>
-											schedule
-										</span>
-										<span className="tabular-nums">
-											{currentStep.receipt.labor}
-										</span>
-									</div>
-								</motion.div>
-							</AnimatePresence>
+										{/* Right side: Emerald pill badge displaying clock icon and shift labor time */}
+										<div className="bg-[#ECFDF5] text-[#059669] px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap flex items-center gap-1.5 shrink-0">
+											<span
+												className="material-symbols-outlined text-[15px]"
+												style={{
+													fontVariationSettings:
+														"'FILL' 1",
+												}}
+											>
+												schedule
+											</span>
+											<span className="tabular-nums">
+												{currentStep.receipt.labor}
+											</span>
+										</div>
+									</motion.div>
+								</AnimatePresence>
+							</div>
 						</div>
-					</div>
+					)}
 				</div>
 
 				{/* 2. Compact White Bottom Sheet */}
 				<section className="bg-white rounded-t-[32px] px-6 pt-10 pb-6 sm:pb-8 pb-safe flex flex-col justify-between shadow-2xl relative z-10 -mt-6 flex-1 min-h-0">
-					{/* Text Block & Wheel Picker Container with mode="popLayout" to eliminate displacement */}
+					{/* Text Block & Content Container with mode="popLayout" to eliminate displacement */}
 					<div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
 						<AnimatePresence
 							initial={false}
@@ -524,7 +542,11 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 								className="w-full h-full flex flex-col justify-between"
 							>
 								{/* Text Block */}
-								<div className="flex flex-col gap-1.5 shrink-0 pt-8">
+								<div
+									className={`flex flex-col gap-1.5 shrink-0 ${
+										currentIndex === 3 ? 'pt-3' : 'pt-8'
+									}`}
+								>
 									<h1 className="text-[22px] sm:text-[24px] font-extrabold text-[#111111] leading-[1.2] tracking-tight">
 										{currentStep.headline}
 									</h1>
@@ -545,7 +567,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
 											{/* Native @ncdai/react-wheel-picker */}
 											<div className="w-full h-[100px] flex items-center justify-center">
-												<WheelPickerWrapper className="w-full h-[100px] bg-white rounded-xl  shadow-xs">
+												<WheelPickerWrapper className="w-full h-[100px] bg-white rounded-xl shadow-xs">
 													<WheelPicker
 														options={wageOptions}
 														value={String(
@@ -735,13 +757,134 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 										</div>
 									</div>
 								)}
+
+								{/* SCREEN 4: FINAL THING (NET PAY ESTIMATE) */}
+								{currentIndex === 3 && (
+									<div className="my-auto py-2 flex flex-col items-center w-full">
+										<div className="w-full rounded-[24px] bg-[#F9FAFB] border border-[#F3F4F6] p-5 flex flex-col items-center shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+											<span className="text-[11px] font-extrabold uppercase tracking-wider text-[#9CA3AF] mb-3">
+												ESTIMATED NET PAY
+											</span>
+
+											<div className="flex items-center justify-center gap-2 mb-4 w-full">
+												<span className="text-[28px] sm:text-[32px] font-extrabold text-[#111111]">
+													$
+												</span>
+												<div
+													className={`relative flex items-center justify-center rounded-2xl bg-white transition-all duration-300 ease-out ${
+														isEditingNetpay
+															? 'w-56 px-3 py-1 border border-neutral-300/80 shadow-[0_2px_12px_rgba(0,0,0,0.06)]'
+															: 'w-40 px-2 py-0 border border-transparent'
+													}`}
+												>
+													<input
+														type="number"
+														step="0.01"
+														value={
+															isEditingNetpay
+																? netpayInput
+																: netpay.toFixed(
+																		2,
+																	)
+														}
+														onFocus={() => {
+															setNetpayInput(
+																netpay.toFixed(
+																	2,
+																),
+															);
+															setIsEditingNetpay(
+																true,
+															);
+														}}
+														onBlur={() => {
+															setIsEditingNetpay(
+																false,
+															);
+															const parsed =
+																parseFloat(
+																	netpayInput,
+																);
+															if (
+																isNaN(parsed) ||
+																parsed < 0
+															) {
+																setNetpayInput(
+																	netpay.toFixed(
+																		2,
+																	),
+																);
+															} else {
+																setNetpayInput(
+																	parsed.toFixed(
+																		2,
+																	),
+																);
+															}
+														}}
+														onChange={(e) => {
+															setNetpayInput(
+																e.target.value,
+															);
+															const parsed =
+																parseFloat(
+																	e.target
+																		.value,
+																);
+															if (
+																!isNaN(
+																	parsed,
+																) &&
+																parsed >= 0
+															) {
+																setNetpay(
+																	parsed,
+																);
+															}
+														}}
+														onKeyDown={(e) => {
+															if (
+																e.key ===
+																'Enter'
+															) {
+																(
+																	e.target as HTMLInputElement
+																).blur();
+															}
+														}}
+														className="w-full text-[32px] sm:text-[36px] font-black text-[#111111] tracking-tight bg-transparent border-none p-0 text-center outline-none focus:outline-none focus:ring-0 select-text cursor-text"
+													/>
+												</div>
+											</div>
+
+											{/* Privacy Badge */}
+											<div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-gray-100 shadow-xs text-[12px] font-medium text-gray-500">
+												<svg
+													className="w-3.5 h-3.5 text-emerald-600 stroke-[2]"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24"
+												>
+													<path
+														strokeLinecap="round"
+														strokeLinejoin="round"
+														d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"
+													/>
+												</svg>
+												<span>
+													Private & stored on device
+												</span>
+											</div>
+										</div>
+									</div>
+								)}
 							</motion.div>
 						</AnimatePresence>
 					</div>
 
 					{/* 3. Centered Stepper & Thumb-Zone Controls */}
 					<div className="flex flex-col gap-3 w-full pt-2 shrink-0">
-						{/* 3-dot pagination pills centered horizontally */}
+						{/* 4-dot pagination pills centered horizontally */}
 						<div className="flex items-center justify-center gap-1.5 py-1 w-full">
 							{screens.map((screen, idx) => {
 								const isActive = idx === currentIndex;
@@ -766,7 +909,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
 						{/* Bottom Action Row */}
 						<div className="flex items-center gap-3 w-full">
-							{/* Screens 2 & 3: Muted Back button */}
+							{/* Screens 2, 3 & 4: Muted Back button */}
 							{currentIndex > 0 && (
 								<button
 									type="button"
