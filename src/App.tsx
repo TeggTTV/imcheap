@@ -37,6 +37,7 @@ import {
 } from './components/SecondaryTabs';
 import { SmartPromptBanner } from './components/SmartPromptBanner';
 import { RecordedTrip, SmartPrompt } from './types/maps';
+import { DEFAULT_ROAD_ROUTES, fetchRoadRoute } from './utils/mapRouting';
 
 type ActiveTab = 'dashboard' | 'maps' | 'analytics' | 'presets' | 'settings';
 type ActiveModal = 'none' | 'preset' | 'breakdown';
@@ -66,15 +67,7 @@ export const INITIAL_RECORDED_TRIPS: RecordedTrip[] = [
 		cost: 1.79,
 		timestamp: '8:15 AM',
 		status: 'UNLOGGED',
-		coordinates: [
-			{ lat: 39.7029, lng: -75.1221 },
-			{ lat: 39.705, lng: -75.118 },
-			{ lat: 39.709, lng: -75.118 },
-			{ lat: 39.712, lng: -75.11 },
-			{ lat: 39.715, lng: -75.11 },
-			{ lat: 39.718, lng: -75.102 },
-			{ lat: 39.722, lng: -75.098 },
-		],
+		coordinates: DEFAULT_ROAD_ROUTES['trip-1'] || [],
 	},
 	{
 		id: 'trip-2',
@@ -84,12 +77,7 @@ export const INITIAL_RECORDED_TRIPS: RecordedTrip[] = [
 		cost: 0.89,
 		timestamp: 'Yesterday',
 		status: 'UNLOGGED',
-		coordinates: [
-			{ lat: 39.722, lng: -75.098 },
-			{ lat: 39.725, lng: -75.105 },
-			{ lat: 39.73, lng: -75.112 },
-			{ lat: 39.734, lng: -75.116 },
-		],
+		coordinates: DEFAULT_ROAD_ROUTES['trip-2'] || [],
 	},
 	{
 		id: 'trip-3',
@@ -99,12 +87,7 @@ export const INITIAL_RECORDED_TRIPS: RecordedTrip[] = [
 		cost: 1.4,
 		timestamp: 'Nov 12',
 		status: 'LOGGED',
-		coordinates: [
-			{ lat: 39.722, lng: -75.098 },
-			{ lat: 39.715, lng: -75.12 },
-			{ lat: 39.698, lng: -75.135 },
-			{ lat: 39.685, lng: -75.142 },
-		],
+		coordinates: DEFAULT_ROAD_ROUTES['trip-3'] || [],
 	},
 ];
 
@@ -555,8 +538,11 @@ export default function App() {
 		setToastMessage(`Trip logged ($${trip.cost.toFixed(2)})`);
 	};
 
-	const handleSimulateTrip = () => {
-		const newTripMiles = 8.2;
+	const handleSimulateTrip = async () => {
+		const startCoord = { lat: 39.7099, lng: -75.1188 };
+		const endCoord = { lat: 39.7285, lng: -75.1012 };
+		const roadResult = await fetchRoadRoute(startCoord, endCoord);
+		const newTripMiles = roadResult?.distanceMiles || 8.2;
 		const newTripCost = Number(
 			(newTripMiles * incomeSettings.mileageRate).toFixed(2),
 		);
@@ -569,13 +555,7 @@ export default function App() {
 			cost: newTripCost,
 			timestamp: 'Just now',
 			status: 'UNLOGGED',
-			coordinates: [
-				{ lat: 39.7099, lng: -75.1188 },
-				{ lat: 39.7135, lng: -75.115 },
-				{ lat: 39.7201, lng: -75.109 },
-				{ lat: 39.728, lng: -75.101 },
-				{ lat: 39.735, lng: -75.092 },
-			],
+			coordinates: roadResult?.coordinates || [startCoord, endCoord],
 		};
 		setTrips((prev) => [newTrip, ...prev]);
 
