@@ -1,4 +1,3 @@
-import React from 'react';
 import {
 	WheelPicker,
 	WheelPickerWrapper,
@@ -9,4 +8,3 @@ import '@ncdai/react-wheel-picker/style.css';
 
 export { WheelPicker, WheelPickerWrapper };
 export type { WheelPickerOption, WheelPickerProps };
-

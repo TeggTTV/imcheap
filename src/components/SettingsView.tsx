@@ -7,6 +7,12 @@ import {
 } from '../utils/expenseMath';
 import { SetActionFeedbackButton } from './SetActionFeedbackButton';
 import { SubpageHeader } from './SubpageHeader';
+import { WheelPicker, WheelPickerWrapper } from './ui/wheel-picker';
+import {
+	SwipeableShiftItem,
+	TimeSelection,
+	ShiftItem,
+} from './SwipeableShiftItem';
 
 export type SettingsSubpage =
 	| 'main'
@@ -19,10 +25,69 @@ export type SettingsSubpage =
 	| 'gas_price'
 	| 'tank_capacity';
 
-interface ShiftItem {
-	id: string;
-	hours: number;
-}
+const getTodayIsoDate = () => {
+	const now = new Date();
+	const year = now.getFullYear();
+	const month = String(now.getMonth() + 1).padStart(2, '0');
+	const day = String(now.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
+};
+
+const formatShiftDate = (isoStr: string) => {
+	if (!isoStr) return '';
+	const parts = isoStr.split('-').map(Number);
+	if (parts.length !== 3 || parts.some(isNaN)) return isoStr;
+	const [y, m, d] = parts;
+	const dt = new Date(y, m - 1, d);
+	return dt.toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric',
+	});
+};
+
+const formatShortShiftDate = (isoStr: string) => {
+	if (!isoStr) return '';
+	const parts = isoStr.split('-').map(Number);
+	if (parts.length !== 3 || parts.some(isNaN)) return isoStr;
+	const [y, m, d] = parts;
+	const dt = new Date(y, m - 1, d);
+	return dt.toLocaleDateString('en-US', {
+		month: 'short',
+		day: 'numeric',
+	});
+};
+
+const formatTimeString = (t: TimeSelection) => {
+	const minStr = String(t.minute).padStart(2, '0');
+	return `${t.hour}:${minStr} ${t.period}`;
+};
+
+const calculateShiftHours = (start: TimeSelection, end: TimeSelection): number => {
+	const getMinutesFromMidnight = (t: TimeSelection) => {
+		let h24 = t.hour;
+		if (t.period === 'AM') {
+			if (h24 === 12) h24 = 0;
+		} else {
+			if (h24 !== 12) h24 += 12;
+		}
+		return h24 * 60 + t.minute;
+	};
+
+	const startMins = getMinutesFromMidnight(start);
+	const endMins = getMinutesFromMidnight(end);
+
+	if (startMins === endMins) {
+		return 8.5;
+	}
+
+	let diff = endMins - startMins;
+	if (diff < 0) {
+		diff += 24 * 60;
+	}
+
+	return Math.round((diff / 60) * 100) / 100;
+};
 
 export interface SettingsViewProps {
 	settings: IncomeSettings;
@@ -100,12 +165,171 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	};
 
 	// Paycheck Engine State
-	const [shifts, setShifts] = useState<ShiftItem[]>([]);
+	const [shifts, setShifts] = useState<ShiftItem[]>(() => {
+		if (typeof window !== 'undefined') {
+			try {
+				const saved = localStorage.getItem('imcheap_shifts');
+				if (saved) {
+					const parsed = JSON.parse(saved);
+					if (Array.isArray(parsed)) {
+						const fallbackDate = getTodayIsoDate();
+						return parsed.map((s: any) => ({
+							id: s.id || `shift-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+							hours: typeof s.hours === 'number' ? s.hours : 8,
+							date: s.date || fallbackDate,
+						}));
+					}
+				}
+			} catch (e) {
+				console.warn('Failed to parse shifts from localStorage', e);
+			}
+		}
+		return [];
+	});
+
+	React.useEffect(() => {
+		if (typeof window !== 'undefined') {
+			try {
+				localStorage.setItem('imcheap_shifts', JSON.stringify(shifts));
+			} catch (e) {
+				console.warn('Failed to save shifts to localStorage', e);
+			}
+		}
+	}, [shifts]);
+
+	const [selectedShiftDate, setSelectedShiftDate] = useState<string>(getTodayIsoDate);
+	const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 	const [currentShiftInput, setCurrentShiftInput] = useState<number>(8.5);
+	const [shiftInputStr, setShiftInputStr] = useState<string>('8.5');
 	const [taxBufferRate, setTaxBufferRate] = useState<number>(12); // percent
 	const [tempTaxBuffer, setTempTaxBuffer] = useState<number>(12);
 	const [paycheckToast, setPaycheckToast] = useState(false);
 	const [wageInput, setWageInput] = useState('');
+
+	const [tempYear, setTempYear] = useState<string>(() => String(new Date().getFullYear()));
+	const [tempMonth, setTempMonth] = useState<string>(() => String(new Date().getMonth() + 1).padStart(2, '0'));
+	const [tempDay, setTempDay] = useState<string>(() => String(new Date().getDate()).padStart(2, '0'));
+
+	const openDatePicker = () => {
+		const [y, m, d] = (selectedShiftDate || getTodayIsoDate()).split('-');
+		setTempYear(y || String(new Date().getFullYear()));
+		setTempMonth(m || String(new Date().getMonth() + 1).padStart(2, '0'));
+		setTempDay(d || String(new Date().getDate()).padStart(2, '0'));
+		setIsDatePickerOpen(true);
+	};
+
+	const handleSaveDate = () => {
+		const validDay = Math.min(
+			Number(tempDay),
+			new Date(Number(tempYear), Number(tempMonth), 0).getDate(),
+		);
+		const formattedDay = String(validDay).padStart(2, '0');
+		setSelectedShiftDate(`${tempYear}-${tempMonth}-${formattedDay}`);
+		setIsDatePickerOpen(false);
+	};
+
+	const monthOptions = [
+		{ value: '01', label: 'Jan' },
+		{ value: '02', label: 'Feb' },
+		{ value: '03', label: 'Mar' },
+		{ value: '04', label: 'Apr' },
+		{ value: '05', label: 'May' },
+		{ value: '06', label: 'Jun' },
+		{ value: '07', label: 'Jul' },
+		{ value: '08', label: 'Aug' },
+		{ value: '09', label: 'Sep' },
+		{ value: '10', label: 'Oct' },
+		{ value: '11', label: 'Nov' },
+		{ value: '12', label: 'Dec' },
+	];
+
+	const currentYearNum = new Date().getFullYear();
+	const yearOptions = [
+		{ value: String(currentYearNum - 2), label: String(currentYearNum - 2) },
+		{ value: String(currentYearNum - 1), label: String(currentYearNum - 1) },
+		{ value: String(currentYearNum), label: String(currentYearNum) },
+		{ value: String(currentYearNum + 1), label: String(currentYearNum + 1) },
+		{ value: String(currentYearNum + 2), label: String(currentYearNum + 2) },
+	];
+
+	const daysInSelectedMonth = new Date(Number(tempYear), Number(tempMonth), 0).getDate();
+	const dayOptions = Array.from({ length: daysInSelectedMonth }, (_, i) => {
+		const dayVal = String(i + 1).padStart(2, '0');
+		return { value: dayVal, label: String(i + 1) };
+	});
+
+	// Time State for Shift Entry
+	const [startTime, setStartTime] = useState<TimeSelection>({
+		hour: 9,
+		minute: 0,
+		period: 'AM',
+	});
+	const [endTime, setEndTime] = useState<TimeSelection>({
+		hour: 5,
+		minute: 30,
+		period: 'PM',
+	});
+	const [activeTimePickerTarget, setActiveTimePickerTarget] = useState<'start' | 'end' | null>(null);
+	const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
+
+	const handleStartEditShift = (shift: ShiftItem) => {
+		setEditingShiftId(shift.id);
+		setSelectedShiftDate(shift.date);
+		if (shift.startTime) {
+			setStartTime(shift.startTime);
+		}
+		if (shift.endTime) {
+			setEndTime(shift.endTime);
+		}
+	};
+
+	const handleCancelEditShift = () => {
+		setEditingShiftId(null);
+	};
+
+	const [tempTimeHour, setTempTimeHour] = useState<string>('9');
+	const [tempTimeMinute, setTempTimeMinute] = useState<string>('00');
+	const [tempTimePeriod, setTempTimePeriod] = useState<string>('AM');
+
+	const openTimePicker = (target: 'start' | 'end') => {
+		const current = target === 'start' ? startTime : endTime;
+		setTempTimeHour(String(current.hour));
+		setTempTimeMinute(String(current.minute).padStart(2, '0'));
+		setTempTimePeriod(current.period);
+		setActiveTimePickerTarget(target);
+	};
+
+	const handleSaveTime = () => {
+		if (!activeTimePickerTarget) return;
+		const updated: TimeSelection = {
+			hour: Number(tempTimeHour) || 9,
+			minute: Number(tempTimeMinute) || 0,
+			period: tempTimePeriod === 'PM' ? 'PM' : 'AM',
+		};
+		if (activeTimePickerTarget === 'start') {
+			setStartTime(updated);
+		} else {
+			setEndTime(updated);
+		}
+		setActiveTimePickerTarget(null);
+	};
+
+	const hourOptions = Array.from({ length: 12 }, (_, i) => {
+		const val = String(i + 1);
+		return { value: val, label: val };
+	});
+
+	const minuteOptions = [
+		{ value: '00', label: '00' },
+		{ value: '15', label: '15' },
+		{ value: '30', label: '30' },
+		{ value: '45', label: '45' },
+	];
+
+	const periodOptions = [
+		{ value: 'AM', label: 'AM' },
+		{ value: 'PM', label: 'PM' },
+	];
 
 	// Vehicle & Transit State
 	const mpgOptions = [25, 30, 35, 40];
@@ -190,22 +414,49 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	// Helper calculations for Paycheck Engine
 	const totalAccruedHours = shifts.reduce((sum, s) => sum + s.hours, 0);
 	const wageRate = settings.hourlyWage;
+	const isWageConfigured = wageRate > 0;
 	const grossEarned = totalAccruedHours * wageRate;
 	const taxBufferAmt = grossEarned * (taxBufferRate / 100);
 	const projectedCheck = grossEarned - taxBufferAmt;
 
-	const handleAdjustShift = (delta: number) => {
-		setCurrentShiftInput((prev) =>
-			Math.max(0.5, Math.min(24, Math.round((prev + delta) * 10) / 10)),
-		);
-	};
+	const calculatedShiftHours = calculateShiftHours(startTime, endTime);
 
-	const handleAddShift = () => {
-		const newShift: ShiftItem = {
-			id: `shift-${Date.now()}`,
-			hours: currentShiftInput,
-		};
-		setShifts((prev) => [...prev, newShift]);
+	const currentShiftGrossPreview = isWageConfigured
+		? (calculatedShiftHours * wageRate).toLocaleString('en-US', {
+				minimumFractionDigits: 2,
+				maximumFractionDigits: 2,
+		  })
+		: '0.00';
+
+	const handleAddOrUpdateShift = () => {
+		if (wageRate <= 0) return;
+		if (calculatedShiftHours <= 0) return;
+
+		if (editingShiftId) {
+			setShifts((prev) =>
+				prev.map((s) =>
+					s.id === editingShiftId
+						? {
+								...s,
+								hours: calculatedShiftHours,
+								date: selectedShiftDate || getTodayIsoDate(),
+								startTime,
+								endTime,
+						  }
+						: s,
+				),
+			);
+			setEditingShiftId(null);
+		} else {
+			const newShift: ShiftItem = {
+				id: `shift-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+				hours: calculatedShiftHours,
+				date: selectedShiftDate || getTodayIsoDate(),
+				startTime,
+				endTime,
+			};
+			setShifts((prev) => [...prev, newShift]);
+		}
 		setPaycheckToast(true);
 		setTimeout(() => setPaycheckToast(false), 1800);
 	};
@@ -217,6 +468,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	const handleClearAllShifts = () => {
 		setShifts([]);
 	};
+
+	const sortedShifts = [...shifts].sort((a, b) => {
+		const dateDiff = b.date.localeCompare(a.date);
+		if (dateDiff !== 0) return dateDiff;
+		return b.id.localeCompare(a.id);
+	});
 
 	// Helper calculations for Vehicle Math
 	const currentMpg = customMpg ?? (mpgIdx !== null ? mpgOptions[mpgIdx] : 29);
@@ -1000,58 +1257,104 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</div>
 							</div>
 
-							{/* Log Shift Stepper */}
-							<div className="w-full bg-white rounded-2xl p-3 border border-[#F3F4F6] shadow-sm flex items-center justify-between gap-3">
-								<div className="flex items-center gap-2">
-									<div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-primary">
-										<span className="material-symbols-outlined text-[19px]">
-											schedule
+							{/* Shift Entry Grouped Card */}
+							<div className="w-full bg-white rounded-2xl p-4 border border-neutral-200/60 shadow-xs flex flex-col">
+								{editingShiftId && (
+									<div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-neutral-100">
+										<span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+											<span className="material-symbols-outlined text-[16px]">
+												edit
+											</span>
+											Editing Shift
 										</span>
-									</div>
-									<div className="flex items-center gap-1 bg-surface-container-low px-2 py-1 rounded-xl">
 										<button
 											type="button"
-											aria-label="Decrease shift hours"
-											onClick={() =>
-												handleAdjustShift(-0.5)
-											}
-											className="w-7 h-7 rounded-lg bg-white flex items-center justify-center text-on-surface active:scale-95 transition-transform shadow-xs cursor-pointer"
+											onClick={handleCancelEditShift}
+											className="text-xs text-neutral-400 hover:text-neutral-700 font-medium cursor-pointer"
 										>
-											<span className="material-symbols-outlined text-[18px]">
-												remove
+											Cancel
+										</button>
+									</div>
+								)}
+
+								{/* Top Row: Horizontal 3-Column Grid */}
+								<div className="grid grid-cols-3 gap-2">
+									{/* Column 1: DATE */}
+									<div className="flex flex-col gap-1.5">
+										<span className="text-[10px] font-bold tracking-wider text-neutral-400 uppercase">
+											DATE
+										</span>
+										<button
+											type="button"
+											onClick={openDatePicker}
+											className="h-[46px] bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer text-left w-full hover:bg-neutral-100/70"
+										>
+											<span className="text-[12.5px] font-semibold text-neutral-800 tabular-nums truncate">
+												{formatShortShiftDate(selectedShiftDate)}
+											</span>
+											<span className="material-symbols-outlined text-[16px] text-neutral-400 shrink-0">
+												calendar_today
 											</span>
 										</button>
-										<span className="font-bold text-on-surface min-w-15.5 text-center text-sm tabular-nums">
-											{currentShiftInput % 1 === 0
-												? currentShiftInput
-												: currentShiftInput.toFixed(
-														1,
-													)}{' '}
-											hrs
+									</div>
+
+									{/* Column 2: START */}
+									<div className="flex flex-col gap-1.5">
+										<span className="text-[10px] font-bold tracking-wider text-neutral-400 uppercase">
+											START
 										</span>
 										<button
 											type="button"
-											aria-label="Increase shift hours"
-											onClick={() =>
-												handleAdjustShift(0.5)
-											}
-											className="w-7 h-7 rounded-lg bg-white flex items-center justify-center text-on-surface active:scale-95 transition-transform shadow-xs cursor-pointer"
+											onClick={() => openTimePicker('start')}
+											className="h-[46px] bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer text-left w-full hover:bg-neutral-100/70"
 										>
-											<span className="material-symbols-outlined text-[18px]">
-												add
+											<span className="text-[12.5px] font-semibold text-neutral-800 tabular-nums truncate">
+												{formatTimeString(startTime)}
+											</span>
+											<span className="material-symbols-outlined text-[16px] text-neutral-400 shrink-0">
+												schedule
+											</span>
+										</button>
+									</div>
+
+									{/* Column 3: END */}
+									<div className="flex flex-col gap-1.5">
+										<span className="text-[10px] font-bold tracking-wider text-neutral-400 uppercase">
+											END
+										</span>
+										<button
+											type="button"
+											onClick={() => openTimePicker('end')}
+											className="h-[46px] bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer text-left w-full hover:bg-neutral-100/70"
+										>
+											<span className="text-[12.5px] font-semibold text-neutral-800 tabular-nums truncate">
+												{formatTimeString(endTime)}
+											</span>
+											<span className="material-symbols-outlined text-[16px] text-neutral-400 shrink-0">
+												schedule
 											</span>
 										</button>
 									</div>
 								</div>
+
+								{/* Bottom Row: Full-Width Action CTA */}
 								<button
 									type="button"
-									onClick={handleAddShift}
-									className="h-10 px-5 bg-[#111111] text-white font-semibold text-sm rounded-xl flex items-center gap-1 active:scale-95 transition-transform shadow-sm cursor-pointer"
+									onClick={handleAddOrUpdateShift}
+									disabled={!isWageConfigured}
+									className={`w-full h-[48px] font-bold text-[15px] rounded-xl mt-3 flex items-center justify-center gap-2 transition-all ${
+										isWageConfigured
+											? 'bg-[#111111] text-white active:scale-[0.98] cursor-pointer shadow-xs'
+											: 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
+									}`}
 								>
-									<span className="material-symbols-outlined text-[18px]">
-										add
-									</span>
-									<span>Log Shift</span>
+									{isWageConfigured ? (
+										<span>
+											{editingShiftId ? 'Update Shift' : 'Log Shift'} (${currentShiftGrossPreview}) • {calculatedShiftHours}h
+										</span>
+									) : (
+										<span>Configure Wage First</span>
+									)}
 								</button>
 							</div>
 
@@ -1059,10 +1362,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							<div className="w-full flex flex-col gap-2">
 								<div className="flex items-center justify-between px-1">
 									<span className="text-[11px] uppercase tracking-wider font-semibold text-on-surface-variant">
-										LOGGED SHIFTS THIS MONTH (
-										{shifts.length})
+										LOGGED SHIFTS THIS MONTH ({sortedShifts.length})
 									</span>
-									{shifts.length > 0 && (
+									{sortedShifts.length > 0 && (
 										<button
 											type="button"
 											onClick={handleClearAllShifts}
@@ -1072,36 +1374,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										</button>
 									)}
 								</div>
-								<div className="w-full bg-white rounded-2xl p-3.5 border border-[#F3F4F6] shadow-sm min-h-14.5">
-									{shifts.length === 0 ? (
-										<p className="text-xs text-on-surface-variant text-center py-2">
+								<div className="w-full bg-white rounded-2xl border border-neutral-200/60 shadow-xs overflow-hidden">
+									{sortedShifts.length === 0 ? (
+										<p className="text-xs text-on-surface-variant text-center py-4">
 											No shifts logged yet this month.
 										</p>
 									) : (
-										<div className="flex flex-wrap gap-2">
-											{shifts.map((shift) => (
-												<span
-													key={shift.id}
-													className="shift-chip bg-[#F3F4F6] text-on-surface text-xs font-semibold px-3 py-1.5 rounded-xl flex items-center gap-1.5 hover:bg-slate-200 transition-colors select-none"
-												>
-													<span>{shift.hours}h</span>
-													<button
-														type="button"
-														aria-label="Remove shift"
-														onClick={() =>
-															handleRemoveShift(
-																shift.id,
-															)
-														}
-														className="text-on-surface-variant hover:text-error leading-none cursor-pointer"
-													>
-														<span className="material-symbols-outlined text-[13px]">
-															close
-														</span>
-													</button>
-												</span>
-											))}
-										</div>
+										sortedShifts.map((shift, idx) => (
+											<SwipeableShiftItem
+												key={shift.id}
+												shift={shift}
+												hourlyWage={wageRate}
+												onEdit={handleStartEditShift}
+												onDelete={handleRemoveShift}
+												isLast={idx === sortedShifts.length - 1}
+												formatDate={formatShiftDate}
+											/>
+										))
 									)}
 								</div>
 							</div>
@@ -2052,6 +2341,160 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							</div>
 						</section>
 					</motion.div>
+				)}
+			</AnimatePresence>
+
+			{/* WheelPicker Time Modal */}
+			<AnimatePresence>
+				{activeTimePickerTarget && (
+					<div
+						className="fixed inset-0 z-50 flex flex-col justify-end"
+						role="dialog"
+						aria-modal="true"
+						aria-label={activeTimePickerTarget === 'start' ? 'Select Start Time' : 'Select End Time'}
+					>
+						<motion.div
+							initial={{ opacity: 0 }}
+							animate={{ opacity: 1 }}
+							exit={{ opacity: 0 }}
+							transition={{ duration: 0.2, ease: 'easeOut' }}
+							className="fixed inset-0 bg-black/40 backdrop-blur-xs"
+							onClick={() => setActiveTimePickerTarget(null)}
+						/>
+						<motion.div
+							initial={{ y: '100%' }}
+							animate={{ y: 0 }}
+							exit={{ y: '100%' }}
+							transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+							className="relative z-10 w-full max-w-md mx-auto bg-white rounded-t-3xl p-5 shadow-2xl flex flex-col gap-4 pb-8"
+						>
+							<div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+								<div>
+									<h3 className="text-base font-bold text-neutral-900">
+										{activeTimePickerTarget === 'start' ? 'Select Start Time' : 'Select End Time'}
+									</h3>
+									<p className="text-xs text-neutral-500">
+										Set shift clock time
+									</p>
+								</div>
+								<button
+									type="button"
+									onClick={handleSaveTime}
+									className="px-4 py-1.5 bg-[#111111] text-white text-xs font-bold rounded-xl active:scale-95 transition-transform cursor-pointer"
+								>
+									Done
+								</button>
+							</div>
+
+							<div className="relative py-2">
+								{/* Selection highlight bar indicator */}
+								<div className="absolute top-1/2 left-3 right-3 -translate-y-1/2 h-[34px] bg-neutral-200/50 rounded-lg pointer-events-none" />
+								<WheelPickerWrapper className="w-full h-44 bg-neutral-50 rounded-2xl border border-neutral-200/80 overflow-hidden">
+									<WheelPicker
+										value={tempTimeHour}
+										onValueChange={(val) => setTempTimeHour(String(val))}
+										options={hourOptions}
+										optionItemHeight={34}
+									/>
+									<WheelPicker
+										value={tempTimeMinute}
+										onValueChange={(val) => setTempTimeMinute(String(val))}
+										options={minuteOptions}
+										optionItemHeight={34}
+									/>
+									<WheelPicker
+										value={tempTimePeriod}
+										onValueChange={(val) => setTempTimePeriod(String(val))}
+										options={periodOptions}
+										optionItemHeight={34}
+									/>
+								</WheelPickerWrapper>
+							</div>
+						</motion.div>
+					</div>
+				)}
+			</AnimatePresence>
+
+			{/* WheelPicker Date Modal */}
+			<AnimatePresence>
+				{isDatePickerOpen && (
+					<div
+						className="fixed inset-0 z-50 flex flex-col justify-end"
+						role="dialog"
+						aria-modal="true"
+						aria-label="Select Date"
+					>
+						<motion.div
+							initial={{ opacity: 0 }}
+							animate={{ opacity: 1 }}
+							exit={{ opacity: 0 }}
+							transition={{ duration: 0.2, ease: 'easeOut' }}
+							className="fixed inset-0 bg-black/40 backdrop-blur-xs"
+							onClick={() => setIsDatePickerOpen(false)}
+						/>
+						<motion.div
+							initial={{ y: '100%' }}
+							animate={{ y: 0 }}
+							exit={{ y: '100%' }}
+							transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+							className="relative z-10 w-full max-w-md mx-auto bg-white rounded-t-3xl p-5 shadow-2xl flex flex-col gap-4 pb-8"
+						>
+							<div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+								<div>
+									<h3 className="text-base font-bold text-neutral-900">
+										Select Shift Date
+									</h3>
+									<p className="text-xs text-neutral-500">
+										Pick the day this shift was worked
+									</p>
+								</div>
+								<button
+									type="button"
+									onClick={handleSaveDate}
+									className="px-4 py-1.5 bg-[#111111] text-white text-xs font-bold rounded-xl active:scale-95 transition-transform cursor-pointer"
+								>
+									Done
+								</button>
+							</div>
+
+							<div className="relative py-2">
+								{/* Selection highlight bar indicator */}
+								<div className="absolute top-1/2 left-3 right-3 -translate-y-1/2 h-[34px] bg-neutral-200/50 rounded-lg pointer-events-none" />
+								<WheelPickerWrapper className="w-full h-44 bg-neutral-50 rounded-2xl border border-neutral-200/80 overflow-hidden">
+									<WheelPicker
+										value={tempMonth}
+										onValueChange={(val) => {
+											setTempMonth(String(val));
+											const maxDays = new Date(Number(tempYear), Number(val), 0).getDate();
+											if (Number(tempDay) > maxDays) {
+												setTempDay(String(maxDays).padStart(2, '0'));
+											}
+										}}
+										options={monthOptions}
+										optionItemHeight={34}
+									/>
+									<WheelPicker
+										value={tempDay}
+										onValueChange={(val) => setTempDay(String(val))}
+										options={dayOptions}
+										optionItemHeight={34}
+									/>
+									<WheelPicker
+										value={tempYear}
+										onValueChange={(val) => {
+											setTempYear(String(val));
+											const maxDays = new Date(Number(val), Number(tempMonth), 0).getDate();
+											if (Number(tempDay) > maxDays) {
+												setTempDay(String(maxDays).padStart(2, '0'));
+											}
+										}}
+										options={yearOptions}
+										optionItemHeight={34}
+									/>
+								</WheelPickerWrapper>
+							</div>
+						</motion.div>
+					</div>
 				)}
 			</AnimatePresence>
 		</div>

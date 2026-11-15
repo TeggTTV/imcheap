@@ -55,7 +55,16 @@ const INCOME_CATEGORIES = [
 ];
 
 export default function App() {
-	const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+	const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+		if (typeof window !== 'undefined') {
+			const params = new URLSearchParams(window.location.search);
+			const tab = params.get('tab');
+			if (tab === 'analytics' || tab === 'presets' || tab === 'settings') {
+				return tab;
+			}
+		}
+		return 'dashboard';
+	});
 	const [activeModal, setActiveModal] = useState<ActiveModal>(() => {
 		if (typeof window !== 'undefined') {
 			const params = new URLSearchParams(window.location.search);
@@ -232,7 +241,14 @@ export default function App() {
 	}, [presets]);
 
 	const [initialSettingsSubpage, setInitialSettingsSubpage] =
-		useState<SettingsSubpage>('main');
+		useState<SettingsSubpage>(() => {
+			if (typeof window !== 'undefined') {
+				const params = new URLSearchParams(window.location.search);
+				const sub = params.get('subpage') as SettingsSubpage;
+				if (sub) return sub;
+			}
+			return 'main';
+		});
 
 	// Quick dock state
 	const [selectedPresetLabel, setSelectedPresetLabel] = useState<
@@ -259,6 +275,10 @@ export default function App() {
 	// Onboarding state
 	const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(() => {
 		if (typeof window !== 'undefined') {
+			const params = new URLSearchParams(window.location.search);
+			if (params.get('tab') || params.get('subpage')) {
+				return false;
+			}
 			try {
 				const completed = localStorage.getItem(
 					'imcheap_onboarding_completed',
