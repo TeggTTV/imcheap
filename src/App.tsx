@@ -29,13 +29,16 @@ import { SwipeableTransactionItem } from './components/SwipeableTransactionItem'
 import { TopBar } from './components/TopBar';
 import { OnboardingModal } from './components/OnboardingModal';
 import {
+	MapsView,
 	AnalyticsView,
 	PresetsView,
 	SettingsView,
 	SettingsSubpage,
 } from './components/SecondaryTabs';
+import { SmartPromptBanner } from './components/SmartPromptBanner';
+import { RecordedTrip, SmartPrompt } from './types/maps';
 
-type ActiveTab = 'dashboard' | 'analytics' | 'presets' | 'settings';
+type ActiveTab = 'dashboard' | 'maps' | 'analytics' | 'presets' | 'settings';
 type ActiveModal = 'none' | 'preset' | 'breakdown';
 
 const COLLAPSED_DOCK_Y = 396;
@@ -54,12 +57,94 @@ const INCOME_CATEGORIES = [
 	{ id: 'Refund', label: 'Refund', emoji: '🔄', icon: 'replay' },
 ];
 
+export const INITIAL_RECORDED_TRIPS: RecordedTrip[] = [
+	{
+		id: 'trip-1',
+		from: 'School',
+		to: 'Rowan',
+		miles: 12.8,
+		cost: 1.79,
+		timestamp: '8:15 AM',
+		status: 'UNLOGGED',
+		coordinates: [
+			{ lat: 39.7029, lng: -75.1221 },
+			{ lat: 39.705, lng: -75.118 },
+			{ lat: 39.709, lng: -75.118 },
+			{ lat: 39.712, lng: -75.11 },
+			{ lat: 39.715, lng: -75.11 },
+			{ lat: 39.718, lng: -75.102 },
+			{ lat: 39.722, lng: -75.098 },
+		],
+	},
+	{
+		id: 'trip-2',
+		from: 'Home',
+		to: 'ShopRite',
+		miles: 6.4,
+		cost: 0.89,
+		timestamp: 'Yesterday',
+		status: 'UNLOGGED',
+		coordinates: [
+			{ lat: 39.722, lng: -75.098 },
+			{ lat: 39.725, lng: -75.105 },
+			{ lat: 39.73, lng: -75.112 },
+			{ lat: 39.734, lng: -75.116 },
+		],
+	},
+	{
+		id: 'trip-3',
+		from: 'Home',
+		to: 'Sportime VB',
+		miles: 10.0,
+		cost: 1.4,
+		timestamp: 'Nov 12',
+		status: 'LOGGED',
+		coordinates: [
+			{ lat: 39.722, lng: -75.098 },
+			{ lat: 39.715, lng: -75.12 },
+			{ lat: 39.698, lng: -75.135 },
+			{ lat: 39.685, lng: -75.142 },
+		],
+	},
+];
+
+export const INITIAL_SMART_PROMPTS: SmartPrompt[] = [
+	{
+		id: 'prompt-frequent-school',
+		type: 'FREQUENT_ROUTE',
+		title: 'Frequent Drive Detected',
+		subtitle: 'You take School → Rowan often. Save this drive as a preset?',
+		ctaLabel: 'Save Drive',
+		payload: {
+			name: 'School → Rowan',
+			miles: 12.8,
+			category: 'Driving',
+		},
+	},
+	{
+		id: 'prompt-merchant-shoprite',
+		type: 'MERCHANT_STOP',
+		title: 'Merchant Stop Detected',
+		subtitle: 'You were just at ShopRite. Track how much you spent?',
+		ctaLabel: 'Log Spend',
+		payload: {
+			name: 'ShopRite',
+			category: 'Food',
+		},
+	},
+];
+
 export default function App() {
 	const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
 		if (typeof window !== 'undefined') {
 			const params = new URLSearchParams(window.location.search);
 			const tab = params.get('tab');
-			if (tab === 'analytics' || tab === 'presets' || tab === 'settings') {
+			if (
+				tab === 'maps' ||
+				tab === 'analytics' ||
+				tab === 'presets' ||
+				tab === 'settings'
+			) {
 				return tab;
 			}
 		}
@@ -334,6 +419,181 @@ export default function App() {
 		);
 	};
 
+	// Recorded Trips State
+	const [trips, setTrips] = useState<RecordedTrip[]>(() => {
+		if (typeof window !== 'undefined') {
+			try {
+				const saved = localStorage.getItem('imcheap_trips');
+				if (saved) {
+					const parsed = JSON.parse(saved);
+					if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+				}
+			} catch (e) {
+				console.warn('Failed to parse trips from localStorage', e);
+			}
+		}
+		return INITIAL_RECORDED_TRIPS;
+	});
+
+	// Persist trips
+	useEffect(() => {
+		try {
+			localStorage.setItem('imcheap_trips', JSON.stringify(trips));
+		} catch (e) {
+			console.warn('Failed to save trips to localStorage', e);
+		}
+	}, [trips]);
+
+	// Recalculate trip costs when mileageRate changes
+	useEffect(() => {
+		setTrips((prev) => {
+			let changed = false;
+			const updated = prev.map((trip) => {
+				const calculated = Number(
+					(trip.miles * incomeSettings.mileageRate).toFixed(2),
+				);
+				if (Math.abs(calculated - trip.cost) > 0.001) {
+					changed = true;
+					return { ...trip, cost: calculated };
+				}
+				return trip;
+			});
+			return changed ? updated : prev;
+		});
+	}, [incomeSettings.mileageRate]);
+
+	// Automatic Trip Detection setting
+	const [autoTripDetection, setAutoTripDetection] = useState<boolean>(() => {
+		if (typeof window !== 'undefined') {
+			try {
+				return localStorage.getItem('imcheap_auto_trip_detection') === 'true';
+			} catch {}
+		}
+		return false;
+	});
+
+	// Smart Prompts State & Dismissals
+	const [dismissedPromptIds, setDismissedPromptIds] = useState<string[]>(() => {
+		if (typeof window !== 'undefined') {
+			try {
+				const saved = localStorage.getItem('imcheap_dismissed_prompts');
+				if (saved) return JSON.parse(saved);
+			} catch {}
+		}
+		return [];
+	});
+
+	const [customPrompts, setCustomPrompts] = useState<SmartPrompt[]>([]);
+
+	const availablePrompts = useMemo(() => {
+		const all = [...customPrompts, ...INITIAL_SMART_PROMPTS];
+		return all.filter((p) => !dismissedPromptIds.includes(p.id));
+	}, [customPrompts, dismissedPromptIds]);
+
+	const currentSmartPrompt = availablePrompts[0] || null;
+
+	const handleDismissPrompt = (promptId: string) => {
+		setDismissedPromptIds((prev) => {
+			const next = [...prev, promptId];
+			try {
+				localStorage.setItem('imcheap_dismissed_prompts', JSON.stringify(next));
+			} catch {}
+			return next;
+		});
+	};
+
+	const handlePromptAction = (prompt: SmartPrompt) => {
+		if (prompt.type === 'FREQUENT_ROUTE') {
+			const milesVal = prompt.payload.miles || 12.8;
+			const initialCost = Number(
+				(milesVal * incomeSettings.mileageRate).toFixed(2),
+			);
+			setEditingPreset({
+				id: '',
+				label: 'School',
+				title: prompt.payload.name || 'School → Rowan',
+				category: prompt.payload.category || 'Driving',
+				icon: 'directions_car',
+				bgColor: '#EEF2FF',
+				iconColor: '#3730A3',
+				unit: 'MILES',
+				rawValue: milesVal,
+				isRoundTrip: false,
+				calculatedAmount: initialCost,
+				pinned: true,
+			});
+			setActiveModal('preset');
+		} else {
+			// Merchant Stop
+			setDockNote(prompt.payload.name || 'ShopRite');
+			setDockType('expense');
+			const foundCat = EXPENSE_CATEGORIES.find(
+				(c) =>
+					c.label.toLowerCase() ===
+					(prompt.payload.category || 'food').toLowerCase(),
+			);
+			if (foundCat) {
+				setSelectedCategory(foundCat.id);
+			}
+			setIsDockExpanded(true);
+		}
+		handleDismissPrompt(prompt.id);
+	};
+
+	const handleLogTrip = (trip: RecordedTrip) => {
+		txManager.createTransaction({
+			title: `${trip.from} → ${trip.to}`,
+			category: 'Driving',
+			amount: trip.cost,
+			type: 'expense',
+			icon: 'directions_car',
+		});
+		setTransactions(txManager.getAll());
+		setTrips((prev) =>
+			prev.map((t) => (t.id === trip.id ? { ...t, status: 'LOGGED' } : t)),
+		);
+		setToastMessage(`Trip logged ($${trip.cost.toFixed(2)})`);
+	};
+
+	const handleSimulateTrip = () => {
+		const newTripMiles = 8.2;
+		const newTripCost = Number(
+			(newTripMiles * incomeSettings.mileageRate).toFixed(2),
+		);
+		const simulatedId = `trip-sim-${Date.now()}`;
+		const newTrip: RecordedTrip = {
+			id: simulatedId,
+			from: 'Rowan Campus',
+			to: 'Target',
+			miles: newTripMiles,
+			cost: newTripCost,
+			timestamp: 'Just now',
+			status: 'UNLOGGED',
+			coordinates: [
+				{ lat: 39.7099, lng: -75.1188 },
+				{ lat: 39.7135, lng: -75.115 },
+				{ lat: 39.7201, lng: -75.109 },
+				{ lat: 39.728, lng: -75.101 },
+				{ lat: 39.735, lng: -75.092 },
+			],
+		};
+		setTrips((prev) => [newTrip, ...prev]);
+
+		const newPrompt: SmartPrompt = {
+			id: `prompt-sim-${Date.now()}`,
+			type: 'MERCHANT_STOP',
+			title: 'Target Stop Detected',
+			subtitle: 'You were just at Target. Track how much you spent?',
+			ctaLabel: 'Log Spend',
+			payload: {
+				name: 'Target',
+				category: 'Other',
+			},
+		};
+		setCustomPrompts((prev) => [newPrompt, ...prev]);
+		setToastMessage('New trip simulated');
+	};
+
 	const handleStartEditTransaction = (tx: Transaction) => {
 		setEditingTransactionId(tx.id);
 		setDockAmount(tx.amount.toFixed(2));
@@ -527,11 +787,13 @@ export default function App() {
 	const tabTitle =
 		activeTab === 'dashboard'
 			? 'Dashboard'
-			: activeTab === 'analytics'
-				? 'Analytics'
-				: activeTab === 'presets'
-					? 'Presets'
-					: 'Settings';
+			: activeTab === 'maps'
+				? 'Maps'
+				: activeTab === 'analytics'
+					? 'Analytics'
+					: activeTab === 'presets'
+						? 'Presets'
+						: 'Settings';
 
 	return (
 		<MotionConfig reducedMotion={animationsEnabled ? 'never' : 'always'}>
@@ -830,6 +1092,19 @@ export default function App() {
 									</span>
 								</div>
 							</div>
+
+							{/* Smart Dashboard Prompt Banner */}
+							{activeTab === 'dashboard' &&
+								!isDockExpanded &&
+								currentSmartPrompt && (
+									<div className="fixed bottom-[180px] inset-x-0 z-40">
+										<SmartPromptBanner
+											prompt={currentSmartPrompt}
+											onAction={handlePromptAction}
+											onDismiss={handleDismissPrompt}
+										/>
+									</div>
+								)}
 
 							{/* Dimmed Background Overlay */}
 							<motion.div
@@ -1233,6 +1508,17 @@ export default function App() {
 						</div>
 					)}
 
+					{activeTab === 'maps' && (
+						<MapsView
+							trips={trips}
+							onLogTrip={handleLogTrip}
+							onSimulateTrip={handleSimulateTrip}
+							hourlyWage={incomeSettings.hourlyWage}
+							mileageRate={incomeSettings.mileageRate}
+							autoTripDetection={autoTripDetection}
+						/>
+					)}
+
 					{activeTab === 'analytics' && (
 						<AnalyticsView
 							transactions={transactions}
@@ -1283,6 +1569,8 @@ export default function App() {
 								transactions={transactions}
 								animationsEnabled={animationsEnabled}
 								onToggleAnimations={handleToggleAnimations}
+								autoTripDetection={autoTripDetection}
+								onToggleAutoTripDetection={setAutoTripDetection}
 								onOpenSheet={(sheet) => {
 									if (sheet === 'log') {
 										setActiveTab('dashboard');
@@ -1302,14 +1590,15 @@ export default function App() {
 					style={{ y: navY }}
 					className="fixed bottom-0 inset-x-0 z-50 bg-surface-container-lowest shadow-[0_-2px_12px_rgba(0,0,0,0.03)] pb-[env(safe-area-inset-bottom)]"
 				>
-					<div className="flex justify-around items-center h-16 max-w-120 mx-auto px-margin-sm">
+					<div className="flex justify-around items-center h-16 max-w-120 mx-auto px-1 sm:px-3">
+						{/* 1. Dashboard */}
 						<button
 							type="button"
 							onClick={() => setActiveTab('dashboard')}
 							aria-current={
 								activeTab === 'dashboard' ? 'page' : undefined
 							}
-							className={`flex flex-col items-center justify-center min-w-14 h-12 transition-all gap-0.5 cursor-pointer ${
+							className={`flex flex-col items-center justify-center flex-1 h-12 transition-all gap-0.5 cursor-pointer ${
 								activeTab === 'dashboard'
 									? 'text-primary font-bold'
 									: 'text-on-surface-variant hover:text-on-surface'
@@ -1318,18 +1607,38 @@ export default function App() {
 							<span className="material-symbols-outlined text-[22px]">
 								grid_view
 							</span>
-							<span className="font-label-sm text-label-sm">
+							<span className="font-label-sm text-[11px] leading-tight">
 								Dashboard
 							</span>
 						</button>
 
+						{/* 2. Maps */}
+						<button
+							type="button"
+							onClick={() => setActiveTab('maps')}
+							aria-current={activeTab === 'maps' ? 'page' : undefined}
+							className={`flex flex-col items-center justify-center flex-1 h-12 transition-all gap-0.5 cursor-pointer ${
+								activeTab === 'maps'
+									? 'text-primary font-bold'
+									: 'text-on-surface-variant hover:text-on-surface'
+							}`}
+						>
+							<span className="material-symbols-outlined text-[22px]">
+								map
+							</span>
+							<span className="font-label-sm text-[11px] leading-tight">
+								Maps
+							</span>
+						</button>
+
+						{/* 3. Analytics */}
 						<button
 							type="button"
 							onClick={() => setActiveTab('analytics')}
 							aria-current={
 								activeTab === 'analytics' ? 'page' : undefined
 							}
-							className={`flex flex-col items-center justify-center min-w-14 h-12 transition-all gap-0.5 cursor-pointer ${
+							className={`flex flex-col items-center justify-center flex-1 h-12 transition-all gap-0.5 cursor-pointer ${
 								activeTab === 'analytics'
 									? 'text-primary font-bold'
 									: 'text-on-surface-variant hover:text-on-surface'
@@ -1338,18 +1647,19 @@ export default function App() {
 							<span className="material-symbols-outlined text-[22px]">
 								bar_chart
 							</span>
-							<span className="font-label-sm text-label-sm">
+							<span className="font-label-sm text-[11px] leading-tight">
 								Analytics
 							</span>
 						</button>
 
+						{/* 4. Presets */}
 						<button
 							type="button"
 							onClick={() => setActiveTab('presets')}
 							aria-current={
 								activeTab === 'presets' ? 'page' : undefined
 							}
-							className={`flex flex-col items-center justify-center min-w-14 h-12 transition-all gap-0.5 cursor-pointer ${
+							className={`flex flex-col items-center justify-center flex-1 h-12 transition-all gap-0.5 cursor-pointer ${
 								activeTab === 'presets'
 									? 'text-primary font-bold'
 									: 'text-on-surface-variant hover:text-on-surface'
@@ -1358,11 +1668,12 @@ export default function App() {
 							<span className="material-symbols-outlined text-[22px]">
 								tune
 							</span>
-							<span className="font-label-sm text-label-sm">
+							<span className="font-label-sm text-[11px] leading-tight">
 								Presets
 							</span>
 						</button>
 
+						{/* 5. Settings */}
 						<button
 							type="button"
 							onClick={() => {
@@ -1372,7 +1683,7 @@ export default function App() {
 							aria-current={
 								activeTab === 'settings' ? 'page' : undefined
 							}
-							className={`flex flex-col items-center justify-center min-w-14 h-12 transition-all gap-0.5 cursor-pointer ${
+							className={`flex flex-col items-center justify-center flex-1 h-12 transition-all gap-0.5 cursor-pointer ${
 								activeTab === 'settings'
 									? 'text-primary font-bold'
 									: 'text-on-surface-variant hover:text-on-surface'
@@ -1381,7 +1692,7 @@ export default function App() {
 							<span className="material-symbols-outlined text-[22px]">
 								settings
 							</span>
-							<span className="font-label-sm text-label-sm">
+							<span className="font-label-sm text-[11px] leading-tight">
 								Settings
 							</span>
 						</button>

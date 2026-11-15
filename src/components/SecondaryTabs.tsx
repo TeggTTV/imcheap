@@ -1,3 +1,6 @@
+export { MapsView } from './MapsView';
+export type { MapsViewProps } from './MapsView';
+
 export { AnalyticsView } from './AnalyticsView';
 export type { AnalyticsViewProps } from './AnalyticsView';
 

@@ -98,6 +98,8 @@ export interface SettingsViewProps {
 	initialSubpage?: SettingsSubpage;
 	animationsEnabled?: boolean;
 	onToggleAnimations?: (enabled: boolean) => void;
+	autoTripDetection?: boolean;
+	onToggleAutoTripDetection?: (enabled: boolean) => void;
 }
 
 const slideVariants = {
@@ -131,6 +133,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	initialSubpage = 'main',
 	animationsEnabled = true,
 	onToggleAnimations,
+	autoTripDetection: propsAutoTripDetection,
+	onToggleAutoTripDetection,
 }) => {
 	const [currentSubpage, setCurrentSubpage] =
 		useState<SettingsSubpage>(initialSubpage);
@@ -400,6 +404,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	const [customCapInput, setCustomCapInput] = useState('');
 
 	const [vehicleSaved, setVehicleSaved] = useState(false);
+
+	// Automatic Trip Detection State
+	const [autoTripDetection, setAutoTripDetection] = useState<boolean>(() => {
+		if (typeof propsAutoTripDetection === 'boolean') {
+			return propsAutoTripDetection;
+		}
+		if (typeof window !== 'undefined') {
+			try {
+				return localStorage.getItem('imcheap_auto_trip_detection') === 'true';
+			} catch {}
+		}
+		return false;
+	});
+
+	const handleToggleTripDetection = () => {
+		const next = !autoTripDetection;
+		setAutoTripDetection(next);
+		try {
+			localStorage.setItem('imcheap_auto_trip_detection', String(next));
+		} catch {}
+		if (onToggleAutoTripDetection) {
+			onToggleAutoTripDetection(next);
+		}
+	};
 
 	// Export State
 	const [exportRange, setExportRange] = useState<'current' | 'ytd' | 'all'>(
@@ -1678,6 +1706,49 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										</span>
 									</div>
 								</div>
+							</div>
+						</section>
+
+						{/* Automatic Trip Detection Section */}
+						<section className="mb-5">
+							<div className="flex items-center justify-between mb-2 px-1">
+								<h3 className="text-[10px] font-bold uppercase tracking-wider text-outline">
+									Automated Tracking
+								</h3>
+							</div>
+							<div className="bg-white rounded-xl shadow-sm border border-[#F3F4F6] p-4 flex items-center justify-between">
+								<div className="flex items-center gap-3 pr-2 min-w-0">
+									<div className="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface shrink-0">
+										<span className="material-symbols-outlined text-[18px]">
+											location_searching
+										</span>
+									</div>
+									<div className="flex flex-col min-w-0">
+										<span className="text-sm font-semibold text-on-surface truncate">
+											Automatic Trip Detection
+										</span>
+										<span className="text-xs text-outline leading-snug">
+											Tracks drives and store stops to suggest unlogged trips
+										</span>
+									</div>
+								</div>
+
+								<button
+									type="button"
+									role="switch"
+									aria-checked={autoTripDetection}
+									onClick={handleToggleTripDetection}
+									data-testid="auto-trip-detection-toggle"
+									className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
+										autoTripDetection ? 'bg-[#10B981]' : 'bg-[#E5E7EB]'
+									}`}
+								>
+									<span
+										className={`pointer-events-none inline-block h-[24px] w-[24px] transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+											autoTripDetection ? 'translate-x-5' : 'translate-x-0'
+										}`}
+									/>
+								</button>
 							</div>
 						</section>
 
