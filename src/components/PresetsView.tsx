@@ -1,46 +1,28 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Reorder } from 'motion/react';
 import { PresetItem } from '../utils/expenseMath';
+import { SwipeablePresetItem } from './SwipeablePresetItem';
 
 export interface PresetsViewProps {
 	presets: PresetItem[];
-	onTriggerPresetLog: (preset: PresetItem) => void;
 	onOpenNewPresetModal: () => void;
 	onEditPreset: (preset: PresetItem) => void;
-	onPrefillPresetToDock?: (preset: PresetItem) => void;
 	onDeletePreset: (id: string) => void;
 	onReorderPresets?: (newOrder: PresetItem[]) => void;
+	onTogglePin?: (id: string) => void;
 }
 
 export const PresetsView: React.FC<PresetsViewProps> = ({
 	presets,
-	onTriggerPresetLog,
 	onOpenNewPresetModal,
 	onEditPreset,
-	onPrefillPresetToDock,
+	onDeletePreset,
 	onReorderPresets,
+	onTogglePin,
 }) => {
-	// Top 5 pinned presets
-	const pinnedPresets = presets.slice(0, 5);
-	const unpinnedPresets = presets.slice(5);
-
-	// Action feedback button state for preset logs: Record<presetId, 'idle' | 'spinning' | 'success'>
-	const [logStates, setLogStates] = useState<Record<string, 'idle' | 'spinning' | 'success'>>({});
-
-	const handleLogClick = (preset: PresetItem) => {
-		if (logStates[preset.id] && logStates[preset.id] !== 'idle') return;
-
-		setLogStates((prev) => ({ ...prev, [preset.id]: 'spinning' }));
-
-		setTimeout(() => {
-			setLogStates((prev) => ({ ...prev, [preset.id]: 'success' }));
-			onTriggerPresetLog(preset);
-
-			setTimeout(() => {
-				setLogStates((prev) => ({ ...prev, [preset.id]: 'idle' }));
-			}, 250);
-		}, 250);
-	};
+	// Pinned presets
+	const pinnedPresets = presets.filter((p) => p.pinned);
+	const unpinnedPresets = presets.filter((p) => !p.pinned);
 
 	const handlePinnedReorder = (newPinned: PresetItem[]) => {
 		if (onReorderPresets) {
@@ -65,15 +47,17 @@ export const PresetsView: React.FC<PresetsViewProps> = ({
 
 	return (
 		<div className="flex flex-col w-full pb-28 pt-2">
-			{/* CARD 1: DASHBOARD DOCK (TOP 5 PINNED) */}
+			{/* CARD 1: DASHBOARD DOCK (PINNED) */}
 			<div className="bg-[#FFFFFF] rounded-[20px] border border-[#F3F4F6] shadow-sm p-4 mb-6 flex flex-col">
 				<div className="flex items-center justify-between mb-3 px-1">
 					<span className="text-[11px] font-bold tracking-wider uppercase text-[#9CA3AF]">
-						DASHBOARD DOCK (TOP 5)
+						DASHBOARD DOCK (PINNED • {pinnedPresets.length})
 					</span>
-					<span className="text-[12px] font-medium text-[#6B7280]">
-						Drag ≡ to reorder
-					</span>
+					{pinnedPresets.length > 1 && (
+						<span className="text-[12px] font-medium text-[#6B7280]">
+							Drag ≡ to reorder
+						</span>
+					)}
 				</div>
 
 				{pinnedPresets.length === 0 ? (
@@ -84,10 +68,10 @@ export const PresetsView: React.FC<PresetsViewProps> = ({
 							</span>
 						</div>
 						<span className="text-[14px] font-semibold text-[#111111]">
-							No presets created yet.
+							No pinned presets yet.
 						</span>
 						<span className="text-[12px] text-[#6B7280]">
-							Add shortcuts for frequent commutes, meals, or recurring expenses.
+							Tap any preset in the directory below to pin it to your dashboard dock.
 						</span>
 					</div>
 				) : (
@@ -97,71 +81,50 @@ export const PresetsView: React.FC<PresetsViewProps> = ({
 						onReorder={handlePinnedReorder}
 						className="flex flex-col divide-y divide-[#F3F4F6] list-none p-0 m-0"
 					>
-						{pinnedPresets.map((preset, idx) => {
-							const logState = logStates[preset.id] || 'idle';
-							return (
-								<Reorder.Item
-									key={preset.id}
-									value={preset}
-									onClick={() => onEditPreset(preset)}
-									className="flex items-center justify-between py-3 cursor-pointer hover:bg-slate-50/60 rounded-xl px-1 transition-colors bg-white select-none"
-								>
-									<div className="flex items-center gap-3 min-w-0">
-										<div className="w-5 h-5 rounded-full bg-[#111111] text-white flex items-center justify-center text-[11px] font-bold shrink-0">
-											{idx + 1}
-										</div>
-										<div
-											className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-											style={{
-												backgroundColor: preset.bgColor,
-												color: preset.iconColor,
-											}}
-										>
-											<span className="material-symbols-outlined text-[20px]">
-												{preset.icon}
-											</span>
-										</div>
-										<div className="flex flex-col min-w-0">
-											<div className="flex items-baseline gap-1.5">
-												<span className="text-[14px] font-bold text-[#111111] truncate">
-													{preset.title}
-												</span>
-												<span className="text-[12px] text-[#6B7280] font-normal truncate tabular-nums">
-													{formatPresetDetail(preset)}
-												</span>
-											</div>
-											<span className="text-[13px] font-bold text-[#111111] tabular-nums">
-												${preset.calculatedAmount.toFixed(2)}
-											</span>
-										</div>
+						{pinnedPresets.map((preset, idx) => (
+							<Reorder.Item
+								key={preset.id}
+								value={preset}
+								data-testid={`pinned-preset-${preset.id}`}
+								onClick={() => onEditPreset(preset)}
+								className="flex items-center justify-between py-3 cursor-pointer hover:bg-slate-50/60 rounded-xl px-1 transition-colors bg-white select-none"
+							>
+								<div className="flex items-center gap-3 min-w-0">
+									<div className="w-5 h-5 rounded-full bg-[#111111] text-white flex items-center justify-center text-[11px] font-bold shrink-0">
+										{idx + 1}
 									</div>
-									<div className="flex items-center gap-2 shrink-0">
-										<button
-											type="button"
-											onClick={(e) => {
-												e.stopPropagation();
-												handleLogClick(preset);
-											}}
-											aria-label={`Log ${preset.title}`}
-											className="min-w-14 px-2.5 py-1 bg-primary text-on-primary text-[11px] font-semibold rounded-lg active:scale-95 transition-transform flex items-center justify-center cursor-pointer h-7"
-										>
-											{logState === 'spinning' && (
-												<span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-											)}
-											{logState === 'success' && (
-												<span className="material-symbols-outlined text-[15px] text-secondary-fixed">
-													check
-												</span>
-											)}
-											{logState === 'idle' && <span>Log</span>}
-										</button>
-										<span className="material-symbols-outlined text-[#9CA3AF] text-[20px] select-none cursor-grab active:cursor-grabbing p-1">
-											drag_handle
+									<div
+										className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+										style={{
+											backgroundColor: preset.bgColor,
+											color: preset.iconColor,
+										}}
+									>
+										<span className="material-symbols-outlined text-[20px]">
+											{preset.icon}
 										</span>
 									</div>
-								</Reorder.Item>
-							);
-						})}
+									<div className="flex flex-col min-w-0">
+										<div className="flex items-baseline gap-1.5">
+											<span className="text-[14px] font-bold text-[#111111] truncate">
+												{preset.title}
+											</span>
+											<span className="text-[12px] text-[#6B7280] font-normal truncate tabular-nums">
+												{formatPresetDetail(preset)}
+											</span>
+										</div>
+										<span className="text-[13px] font-bold text-[#111111] tabular-nums">
+											${preset.calculatedAmount.toFixed(2)}
+										</span>
+									</div>
+								</div>
+								<div className="flex items-center gap-2 shrink-0">
+									<span className="material-symbols-outlined text-[#9CA3AF] text-[20px] select-none cursor-grab active:cursor-grabbing p-1">
+										drag_handle
+									</span>
+								</div>
+							</Reorder.Item>
+						))}
 					</Reorder.Group>
 				)}
 
@@ -182,48 +145,28 @@ export const PresetsView: React.FC<PresetsViewProps> = ({
 					<span className="text-[11px] font-bold tracking-wider uppercase text-[#9CA3AF]">
 						ALL PRESETS ({presets.length})
 					</span>
+					<span className="text-[12px] font-medium text-[#6B7280]">
+						Swipe to edit/delete • Tap to pin
+					</span>
 				</div>
 
-				<div className="flex flex-col divide-y divide-[#F3F4F6]">
+				<div className="flex flex-col overflow-hidden">
 					{presets.length === 0 ? (
 						<div className="py-6 text-center text-xs text-on-surface-variant">
 							No presets yet. Tap &quot;Add New Preset&quot; above to create one.
 						</div>
 					) : (
-						presets.map((preset, idx) => {
-							const isPinned = idx < 5;
-							return (
-								<div
-									key={preset.id}
-									onClick={() => onEditPreset(preset)}
-									className="flex items-center justify-between py-3 cursor-pointer hover:bg-slate-50/60 rounded-xl px-1 transition-colors"
-								>
-									<div className="flex flex-col min-w-0 pr-2">
-										<span className="text-[14px] font-bold text-[#111111] truncate">
-											{preset.title}
-										</span>
-										<span className="text-[12px] text-[#6B7280] truncate tabular-nums">
-											{preset.category} • {formatPresetDetail(preset)}
-										</span>
-									</div>
-
-									{isPinned ? (
-										<span className="bg-[#ECFDF5] text-[#059669] px-2.5 py-0.5 rounded-full text-[11px] font-semibold flex items-center gap-1 shrink-0">
-											Pinned ★
-										</span>
-									) : (
-										<div className="flex items-center gap-2 shrink-0">
-											<span className="text-[14px] font-bold text-[#111111] tabular-nums">
-												${preset.calculatedAmount.toFixed(2)}
-											</span>
-											<span className="material-symbols-outlined text-[#9CA3AF] text-[18px]">
-												chevron_right
-											</span>
-										</div>
-									)}
-								</div>
-							);
-						})
+						presets.map((preset, idx) => (
+							<SwipeablePresetItem
+								key={preset.id}
+								preset={preset}
+								onEdit={onEditPreset}
+								onDelete={onDeletePreset}
+								onTogglePin={onTogglePin || (() => {})}
+								isLast={idx === presets.length - 1}
+								formatPresetDetail={formatPresetDetail}
+							/>
+						))
 					)}
 				</div>
 			</div>

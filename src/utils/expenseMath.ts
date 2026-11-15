@@ -22,6 +22,7 @@ export interface PresetItem {
 	rawValue: number;
 	isRoundTrip: boolean;
 	calculatedAmount: number;
+	pinned?: boolean;
 }
 
 export interface IncomeSettings {

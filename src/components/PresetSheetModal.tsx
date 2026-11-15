@@ -217,6 +217,7 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 						exit={{ opacity: 0 }}
 						transition={{ duration: 0.22, ease: 'easeOut' }}
 						className="fixed inset-0 bg-primary/40 backdrop-blur-[2px]"
+						data-testid="preset-sheet-backdrop"
 						onClick={onClose}
 					/>
 
@@ -244,7 +245,7 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 						{/* Top Grab Handle */}
 						<button
 							type="button"
-							// onClick={onClose}
+							onClick={onClose}
 							aria-label="Close preset sheet"
 							className="w-full flex flex-col items-center py-1.5 cursor-grab active:cursor-grabbing focus:outline-none"
 						>

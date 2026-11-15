@@ -141,7 +141,10 @@ export default function App() {
 				if (savedPresets) {
 					const parsed = JSON.parse(savedPresets);
 					if (Array.isArray(parsed) && parsed.length > 0) {
-						return parsed;
+						return parsed.map((p, idx) => ({
+							...p,
+							pinned: typeof p.pinned === 'boolean' ? p.pinned : idx < 5,
+						}));
 					}
 				}
 			} catch (e) {
@@ -151,7 +154,10 @@ export default function App() {
 				);
 			}
 		}
-		return INITIAL_PRESETS;
+		return INITIAL_PRESETS.map((p, idx) => ({
+			...p,
+			pinned: typeof p.pinned === 'boolean' ? p.pinned : idx < 5,
+		}));
 	});
 	const [incomeSettings, setIncomeSettings] = useState<IncomeSettings>(() => {
 		let initial = { ...INITIAL_INCOME_SETTINGS };
@@ -311,22 +317,21 @@ export default function App() {
 	}, [toastMessage]);
 
 	const handlePresetClick = (preset: PresetItem) => {
-		// Prefill dock with preset data and open dock for review / editing / logging
 		const txType = preset.type || 'expense';
-		setDockAmount(preset.calculatedAmount.toFixed(2));
-		setDockType(txType);
-		setSelectedCategory(preset.category);
-		setSelectedPresetLabel(preset.label);
-		setDockNote(preset.title);
-		setCustomDockIcon({
+		txManager.createTransaction({
+			title: preset.title,
+			category: preset.category,
+			amount: preset.calculatedAmount,
+			type: txType,
 			icon: preset.icon,
-			bgColor: preset.bgColor,
-			iconColor: preset.iconColor,
 		});
-		if (activeTab !== 'dashboard') {
-			setActiveTab('dashboard');
-		}
-		setIsDockExpanded(true);
+		setTransactions(txManager.getAll());
+	};
+
+	const handleTogglePinPreset = (id: string) => {
+		setPresets((prev) =>
+			prev.map((p) => (p.id === id ? { ...p, pinned: !p.pinned } : p)),
+		);
 	};
 
 	const handleStartEditTransaction = (tx: Transaction) => {
@@ -518,17 +523,6 @@ export default function App() {
 		}
 	};
 
-	const handleQuickLogPresetFromTab = (preset: PresetItem) => {
-		const txType = preset.type || 'expense';
-		const newTx = txManager.createTransaction({
-			title: preset.title,
-			category: preset.category,
-			amount: preset.calculatedAmount,
-			type: txType,
-			icon: preset.icon,
-		});
-		setTransactions(txManager.getAll());
-	};
 
 	const tabTitle =
 		activeTab === 'dashboard'
@@ -679,7 +673,9 @@ export default function App() {
 
 								{/* Presets Horizontal Scroll / Grid */}
 								<div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-1">
-									{presets.map((preset) => (
+									{presets
+										.filter((p) => p.pinned)
+										.map((preset) => (
 										<button
 											key={preset.id}
 											type="button"
@@ -1249,7 +1245,6 @@ export default function App() {
 					{activeTab === 'presets' && (
 						<PresetsView
 							presets={presets}
-							onTriggerPresetLog={handleQuickLogPresetFromTab}
 							onOpenNewPresetModal={() => {
 								setEditingPreset(null);
 								setActiveModal('preset');
@@ -1258,9 +1253,7 @@ export default function App() {
 								setEditingPreset(preset);
 								setActiveModal('preset');
 							}}
-							onPrefillPresetToDock={(preset) => {
-								handlePresetClick(preset);
-							}}
+							onTogglePin={handleTogglePinPreset}
 							onReorderPresets={(newOrder) => {
 								setPresets(newOrder);
 							}}
