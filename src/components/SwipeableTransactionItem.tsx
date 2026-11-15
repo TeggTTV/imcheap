@@ -81,10 +81,13 @@ export const SwipeableTransactionItem: React.FC<
 	const laborHours = tx.amount / wage;
 	const laborText =
 		laborHours < 1
-			? `${Math.round(laborHours * 60)}m labor`
-			: `${laborHours.toFixed(1)}h labor`;
+			? `${Math.round(laborHours * 60)}m`
+			: `${laborHours.toFixed(1)}h`;
 
-	const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+	const handleDragEnd = (
+		_: MouseEvent | TouchEvent | PointerEvent,
+		info: PanInfo,
+	) => {
 		if (info.offset.x > 80) {
 			onEdit(tx);
 		} else if (info.offset.x < -80) {
@@ -173,7 +176,8 @@ export const SwipeableTransactionItem: React.FC<
 							{tx.title}
 						</span>
 						<span className="text-[12.5px] text-[#6B7280] mt-0.5">
-							{tx.category} • {formatTransactionTimestamp(tx.timestamp)}
+							{tx.category} •{' '}
+							{formatTransactionTimestamp(tx.timestamp)}
 						</span>
 					</div>
 				</div>

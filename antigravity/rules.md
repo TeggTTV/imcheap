@@ -44,7 +44,7 @@ After writing the code, you MUST verify your work before declaring it done:
 1. Run the app and inspect/test the changes across **two mobile viewports**:
     - **Standard Mobile:** `390px × 844px` (iPhone 14/15 Pro)
     - **Compact Mobile:** `375px × 667px` (iPhone SE / small Android)
-2. Verify all math calculations dynamically (e.g., changing hourly wage or gas price updates all downstream labor-hour and mileage conversions).
+2. Verify all math calculations dynamically (e.g., changing hourly wage or gas price updates all downstream hour and mileage conversions).
 3. Present a concise **Verification Report** detailing what was tested, confirming zero text clipping, zero dead "white canyons," and safe-area clearance.
 4. **STOP AND ASK:** _"Verification is complete. Please review the changes—do you approve finalizing this step?"_
 

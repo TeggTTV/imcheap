@@ -211,7 +211,10 @@ export default function App() {
 					if (Array.isArray(parsed) && parsed.length > 0) {
 						return parsed.map((p, idx) => ({
 							...p,
-							pinned: typeof p.pinned === 'boolean' ? p.pinned : idx < 5,
+							pinned:
+								typeof p.pinned === 'boolean'
+									? p.pinned
+									: idx < 5,
 						}));
 					}
 				}
@@ -409,7 +412,8 @@ export default function App() {
 				const saved = localStorage.getItem('imcheap_trips');
 				if (saved) {
 					const parsed = JSON.parse(saved);
-					if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+					if (Array.isArray(parsed) && parsed.length > 0)
+						return parsed;
 				}
 			} catch (e) {
 				console.warn('Failed to parse trips from localStorage', e);
@@ -449,22 +453,29 @@ export default function App() {
 	const [autoTripDetection, setAutoTripDetection] = useState<boolean>(() => {
 		if (typeof window !== 'undefined') {
 			try {
-				return localStorage.getItem('imcheap_auto_trip_detection') === 'true';
+				return (
+					localStorage.getItem('imcheap_auto_trip_detection') ===
+					'true'
+				);
 			} catch {}
 		}
 		return false;
 	});
 
 	// Smart Prompts State & Dismissals
-	const [dismissedPromptIds, setDismissedPromptIds] = useState<string[]>(() => {
-		if (typeof window !== 'undefined') {
-			try {
-				const saved = localStorage.getItem('imcheap_dismissed_prompts');
-				if (saved) return JSON.parse(saved);
-			} catch {}
-		}
-		return [];
-	});
+	const [dismissedPromptIds, setDismissedPromptIds] = useState<string[]>(
+		() => {
+			if (typeof window !== 'undefined') {
+				try {
+					const saved = localStorage.getItem(
+						'imcheap_dismissed_prompts',
+					);
+					if (saved) return JSON.parse(saved);
+				} catch {}
+			}
+			return [];
+		},
+	);
 
 	const [customPrompts, setCustomPrompts] = useState<SmartPrompt[]>([]);
 
@@ -479,7 +490,10 @@ export default function App() {
 		setDismissedPromptIds((prev) => {
 			const next = [...prev, promptId];
 			try {
-				localStorage.setItem('imcheap_dismissed_prompts', JSON.stringify(next));
+				localStorage.setItem(
+					'imcheap_dismissed_prompts',
+					JSON.stringify(next),
+				);
 			} catch {}
 			return next;
 		});
@@ -533,9 +547,32 @@ export default function App() {
 		});
 		setTransactions(txManager.getAll());
 		setTrips((prev) =>
-			prev.map((t) => (t.id === trip.id ? { ...t, status: 'LOGGED' } : t)),
+			prev.map((t) =>
+				t.id === trip.id ? { ...t, status: 'LOGGED' } : t,
+			),
 		);
 		setToastMessage(`Trip logged ($${trip.cost.toFixed(2)})`);
+	};
+
+	const handleAddRecordedTrip = (newTrip: RecordedTrip) => {
+		setTrips((prev) => [newTrip, ...prev]);
+		setToastMessage(
+			`Drive recorded: ${newTrip.from} → ${newTrip.to} (${newTrip.miles.toFixed(1)} mi)`,
+		);
+
+		const newPrompt: SmartPrompt = {
+			id: `prompt-${newTrip.id}`,
+			type: 'FREQUENT_ROUTE',
+			title: 'Drive Recorded',
+			subtitle: `You just traveled ${newTrip.from} → ${newTrip.to} (${newTrip.miles.toFixed(1)} mi). Save this drive as a preset?`,
+			ctaLabel: 'Save Drive',
+			payload: {
+				name: `${newTrip.from} → ${newTrip.to}`,
+				miles: newTrip.miles,
+				category: 'Driving',
+			},
+		};
+		setSmartPrompts((prev) => [newPrompt, ...prev]);
 	};
 
 	const handleSimulateTrip = async () => {
@@ -725,7 +762,9 @@ export default function App() {
 					category: catMeta.label,
 					amount: finalAmount,
 					type: dockType,
-					icon: matchedPreset ? matchedPreset.icon : currentDockIcon.icon,
+					icon: matchedPreset
+						? matchedPreset.icon
+						: currentDockIcon.icon,
 					note: dockNote.trim() || undefined,
 				});
 			}
@@ -762,7 +801,6 @@ export default function App() {
 			setPresets((prev) => [...prev, newPreset]);
 		}
 	};
-
 
 	const tabTitle =
 		activeTab === 'dashboard'
@@ -918,37 +956,37 @@ export default function App() {
 									{presets
 										.filter((p) => p.pinned)
 										.map((preset) => (
-										<button
-											key={preset.id}
-											type="button"
-											onClick={() =>
-												handlePresetClick(preset)
-											}
-											className="flex flex-col items-center bg-white justify-center active:scale-95 transition-all rounded-2xl p-3 w-21 h-24.5 shrink-0 cursor-pointer shadow-xs"
-										>
-											<div className="w-10 h-10 rounded-full flex items-center justify-center mb-2">
-												<span
-													className="material-symbols-outlined text-[20px]"
-													style={{
-														color:
-															preset.iconColor ||
-															'#111111',
-													}}
-												>
-													{preset.icon}
+											<button
+												key={preset.id}
+												type="button"
+												onClick={() =>
+													handlePresetClick(preset)
+												}
+												className="flex flex-col items-center bg-white justify-center active:scale-95 transition-all rounded-2xl p-3 w-21 h-24.5 shrink-0 cursor-pointer shadow-xs"
+											>
+												<div className="w-10 h-10 rounded-full flex items-center justify-center mb-2">
+													<span
+														className="material-symbols-outlined text-[20px]"
+														style={{
+															color:
+																preset.iconColor ||
+																'#111111',
+														}}
+													>
+														{preset.icon}
+													</span>
+												</div>
+												<span className="text-[12px] font-bold text-[#111111] truncate w-full text-center">
+													{preset.label}
 												</span>
-											</div>
-											<span className="text-[12px] font-bold text-[#111111] truncate w-full text-center">
-												{preset.label}
-											</span>
-											<span className="text-[11px] text-[#6B7280] font-medium tabular-nums mt-0.5">
-												$
-												{preset.calculatedAmount.toFixed(
-													2,
-												)}
-											</span>
-										</button>
-									))}
+												<span className="text-[11px] text-[#6B7280] font-medium tabular-nums mt-0.5">
+													$
+													{preset.calculatedAmount.toFixed(
+														2,
+													)}
+												</span>
+											</button>
+										))}
 
 									{/* Add Preset button */}
 									<button
@@ -1493,6 +1531,7 @@ export default function App() {
 							trips={trips}
 							onLogTrip={handleLogTrip}
 							onSimulateTrip={handleSimulateTrip}
+							onAddRecordedTrip={handleAddRecordedTrip}
 							hourlyWage={incomeSettings.hourlyWage}
 							mileageRate={incomeSettings.mileageRate}
 							autoTripDetection={autoTripDetection}
@@ -1596,7 +1635,9 @@ export default function App() {
 						<button
 							type="button"
 							onClick={() => setActiveTab('maps')}
-							aria-current={activeTab === 'maps' ? 'page' : undefined}
+							aria-current={
+								activeTab === 'maps' ? 'page' : undefined
+							}
 							className={`flex flex-col items-center justify-center flex-1 h-12 transition-all gap-0.5 cursor-pointer ${
 								activeTab === 'maps'
 									? 'text-primary font-bold'
@@ -1704,8 +1745,6 @@ export default function App() {
 						setActiveTab('settings');
 					}}
 				/>
-
-
 
 				{/* Interactive Multi-Screen Onboarding Walkthrough */}
 				<OnboardingModal
