@@ -4,17 +4,14 @@ import 'leaflet/dist/leaflet.css';
 import { Coordinate, RecordedTrip } from '../types/maps';
 import {
 	fetchRoadRoute,
-	reverseGeocode,
-	searchAddresses,
 	DEFAULT_ROAD_ROUTES,
-	haversineDistanceMiles,
 } from '../utils/mapRouting';
+import { SwipeableTripItem } from './SwipeableTripItem';
 
 export interface MapsViewProps {
 	trips: RecordedTrip[];
 	onLogTrip: (trip: RecordedTrip) => void;
-	onSimulateTrip: () => void;
-	onAddRecordedTrip?: (trip: RecordedTrip) => void;
+	onDeleteTrip?: (id: string) => void;
 	hourlyWage: number;
 	mileageRate: number;
 	autoTripDetection?: boolean;
@@ -25,8 +22,7 @@ const DEFAULT_CENTER: [number, number] = [39.7032, -75.122]; // Glassboro, NJ (G
 export const MapsView: React.FC<MapsViewProps> = ({
 	trips,
 	onLogTrip,
-	onSimulateTrip,
-	onAddRecordedTrip,
+	onDeleteTrip,
 	hourlyWage,
 	mileageRate,
 	autoTripDetection = false,
@@ -37,22 +33,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	const markersLayerRef = useRef<L.LayerGroup | null>(null);
 	const userMarkerRef = useRef<L.Marker | null>(null);
 
-	// Live Drive Recording & Simulation state
-	const [isRecordingDrive, setIsRecordingDrive] = useState(false);
-	const [isSimulatingDrive, setIsSimulatingDrive] = useState(false);
-	const [driveSeconds, setDriveSeconds] = useState(0);
-	const [driveMiles, setDriveMiles] = useState(0);
-	const [driveStartName, setDriveStartName] = useState("Rowan's House");
-	const [driveEndName, setDriveEndName] = useState('Home');
-	const [liveBreadcrumbs, setLiveBreadcrumbs] = useState<Coordinate[]>([]);
-
-	const livePolylineRef = useRef<L.Polyline | null>(null);
-	const liveVehicleMarkerRef = useRef<L.Marker | null>(null);
-	const liveWatchIdRef = useRef<number | null>(null);
-	const liveTimerRef = useRef<any>(null);
-	const liveSimulationIntervalRef = useRef<any>(null);
-
-	// User location state, prioritizing calibrated address if saved
+	// User location state, prioritizing calibrated address if saved in Settings
 	const [userLocation, setUserLocation] = useState<Coordinate>(() => {
 		if (typeof window !== 'undefined') {
 			try {
@@ -68,41 +49,14 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		return { lat: DEFAULT_CENTER[0], lng: DEFAULT_CENTER[1] };
 	});
 
-	const [currentAddress, setCurrentAddress] = useState<string>('');
 	const [activeTripId, setActiveTripId] = useState<string | null>(() => {
 		return trips[0]?.id || null;
 	});
-	const [gpsStatus, setGpsStatus] = useState<'Ready' | 'Tracking' | 'Idle'>(
-		autoTripDetection ? 'Tracking' : 'Ready',
-	);
-
-	// Address search / calibration modal state
-	const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
-	const [searchQuery, setSearchQuery] = useState('');
-	const [searchResults, setSearchResults] = useState<
-		Array<{ label: string; lat: number; lng: number }>
-	>([]);
-	const [isSearching, setIsSearching] = useState(false);
-	const [isPickOnMapActive, setIsPickOnMapActive] = useState(false);
-
-	// Reverse geocode user location to show street address
-	useEffect(() => {
-		let isMounted = true;
-		reverseGeocode(userLocation).then((addr) => {
-			if (isMounted) {
-				setCurrentAddress(addr);
-			}
-		});
-		return () => {
-			isMounted = false;
-		};
-	}, [userLocation]);
 
 	// High accuracy GPS detection
 	useEffect(() => {
 		if (!('geolocation' in navigator)) return;
 
-		// Only override saved custom location if user explicitly requests or none saved
 		const hasCustomLocation = Boolean(
 			localStorage.getItem('imcheap_user_custom_location'),
 		);
@@ -122,7 +76,6 @@ export const MapsView: React.FC<MapsViewProps> = ({
 						);
 					}
 				}
-				setGpsStatus(autoTripDetection ? 'Tracking' : 'Ready');
 			},
 			(err) => {
 				console.warn('Geolocation error / high accuracy fallback', err);
@@ -159,11 +112,11 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		const markersGroup = L.layerGroup().addTo(map);
 		markersLayerRef.current = markersGroup;
 
-		// Custom pulsing user location marker (draggable for manual fine-tuning)
+		// Pulsing user location marker
 		const userIcon = L.divIcon({
 			className: 'bg-transparent',
 			html: `
-				<div class="relative flex items-center justify-center w-7 h-7 cursor-grab active:cursor-grabbing">
+				<div class="relative flex items-center justify-center w-7 h-7">
 					<div class="absolute w-7 h-7 rounded-full bg-emerald-500/25 animate-ping"></div>
 					<div class="relative w-4 h-4 rounded-full bg-[#111111] border-[2.5px] border-white shadow-md"></div>
 				</div>
@@ -174,40 +127,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 
 		const userMarker = L.marker([userLocation.lat, userLocation.lng], {
 			icon: userIcon,
-			draggable: true,
 			zIndexOffset: 1000,
 		}).addTo(map);
 
-		userMarker.on('dragend', async (e) => {
-			const target = e.target as L.Marker;
-			const pos = target.getLatLng();
-			const newCoords = { lat: pos.lat, lng: pos.lng };
-			setUserLocation(newCoords);
-			try {
-				localStorage.setItem(
-					'imcheap_user_custom_location',
-					JSON.stringify(newCoords),
-				);
-			} catch {}
-		});
-
 		userMarkerRef.current = userMarker;
-
-		// Map click handler when "Pick on Map" mode is enabled
-		map.on('click', (e: L.LeafletMouseEvent) => {
-			if (isPickOnMapActive) {
-				const newCoords = { lat: e.latlng.lat, lng: e.latlng.lng };
-				setUserLocation(newCoords);
-				try {
-					localStorage.setItem(
-						'imcheap_user_custom_location',
-						JSON.stringify(newCoords),
-					);
-				} catch {}
-				setIsPickOnMapActive(false);
-			}
-		});
-
 		mapInstanceRef.current = map;
 
 		// Auto fit to initial active trip if any
@@ -218,7 +141,6 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		}
 
 		return () => {
-			stopLiveDriveTracking();
 			map.remove();
 			mapInstanceRef.current = null;
 		};
@@ -239,7 +161,6 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		markersGroup: L.LayerGroup,
 		trip: RecordedTrip,
 	) => {
-		// Clear previous polyline & markers
 		if (polylineLayerRef.current) {
 			map.removeLayer(polylineLayerRef.current);
 			polylineLayerRef.current = null;
@@ -248,7 +169,6 @@ export const MapsView: React.FC<MapsViewProps> = ({
 
 		let coords = trip.coordinates;
 
-		// If trip has pre-baked road routes or fewer than 20 points, fetch real road geometry
 		if (DEFAULT_ROAD_ROUTES[trip.id]) {
 			coords = DEFAULT_ROAD_ROUTES[trip.id];
 		} else if (!coords || coords.length < 20) {
@@ -266,7 +186,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 
 		const latLngs: [number, number][] = coords.map((c) => [c.lat, c.lng]);
 
-		// Polyline snapped strictly to real streets and roads
+		// Polyline snapped to real streets
 		const polyline = L.polyline(latLngs, {
 			color: '#111111',
 			weight: 4.5,
@@ -276,7 +196,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		}).addTo(map);
 		polylineLayerRef.current = polyline;
 
-		// Start Marker "A" snapped to road start
+		// Start Marker "A"
 		const startCoord = latLngs[0];
 		const iconA = L.divIcon({
 			className: 'bg-transparent',
@@ -289,7 +209,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		});
 		L.marker(startCoord, { icon: iconA }).addTo(markersGroup);
 
-		// End Marker "B" snapped to road end
+		// End Marker "B"
 		const endCoord = latLngs[latLngs.length - 1];
 		const iconB = L.divIcon({
 			className: 'bg-transparent',
@@ -302,7 +222,6 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		});
 		L.marker(endCoord, { icon: iconB }).addTo(markersGroup);
 
-		// Fit bounds comfortably to the road route
 		const bounds = L.latLngBounds(latLngs);
 		map.fitBounds(bounds, {
 			padding: [48, 48],
@@ -333,7 +252,6 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			markersLayerRef.current.clearLayers();
 		}
 
-		// Re-query high-accuracy GPS if available
 		if ('geolocation' in navigator) {
 			navigator.geolocation.getCurrentPosition(
 				(pos) => {
@@ -368,350 +286,6 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		}
 	};
 
-	// Debounced address search
-	const handleSearchChange = async (val: string) => {
-		setSearchQuery(val);
-		if (val.trim().length >= 3) {
-			setIsSearching(true);
-			const results = await searchAddresses(val);
-			setSearchResults(results);
-			setIsSearching(false);
-		} else {
-			setSearchResults([]);
-		}
-	};
-
-	const handleSelectAddress = (item: {
-		label: string;
-		lat: number;
-		lng: number;
-	}) => {
-		const newCoords = { lat: item.lat, lng: item.lng };
-		setUserLocation(newCoords);
-		setCurrentAddress(item.label);
-		try {
-			localStorage.setItem(
-				'imcheap_user_custom_location',
-				JSON.stringify(newCoords),
-			);
-		} catch {}
-		setIsAddressModalOpen(false);
-		setSearchQuery('');
-		setSearchResults([]);
-		if (mapInstanceRef.current) {
-			mapInstanceRef.current.setView([newCoords.lat, newCoords.lng], 16, {
-				animate: true,
-			});
-		}
-	};
-
-	const formatTimer = (totalSeconds: number) => {
-		const mins = Math.floor(totalSeconds / 60);
-		const secs = totalSeconds % 60;
-		return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-	};
-
-	const stopLiveDriveTracking = () => {
-		if (liveTimerRef.current) {
-			clearInterval(liveTimerRef.current);
-			liveTimerRef.current = null;
-		}
-		if (liveSimulationIntervalRef.current) {
-			clearInterval(liveSimulationIntervalRef.current);
-			liveSimulationIntervalRef.current = null;
-		}
-		if (liveWatchIdRef.current !== null && 'geolocation' in navigator) {
-			navigator.geolocation.clearWatch(liveWatchIdRef.current);
-			liveWatchIdRef.current = null;
-		}
-		if (livePolylineRef.current && mapInstanceRef.current) {
-			mapInstanceRef.current.removeLayer(livePolylineRef.current);
-			livePolylineRef.current = null;
-		}
-		if (liveVehicleMarkerRef.current && mapInstanceRef.current) {
-			mapInstanceRef.current.removeLayer(liveVehicleMarkerRef.current);
-			liveVehicleMarkerRef.current = null;
-		}
-	};
-
-	const startLiveDrive = (
-		originName = "Rowan's House",
-		destName = 'Home',
-	) => {
-		stopLiveDriveTracking();
-
-		setIsRecordingDrive(true);
-		setIsSimulatingDrive(false);
-		setDriveSeconds(0);
-		setDriveMiles(0);
-		setDriveStartName(originName);
-		setDriveEndName(destName);
-		setActiveTripId(null);
-
-		const map = mapInstanceRef.current;
-		if (!map) return;
-
-		if (polylineLayerRef.current) {
-			map.removeLayer(polylineLayerRef.current);
-			polylineLayerRef.current = null;
-		}
-		if (markersLayerRef.current) {
-			markersLayerRef.current.clearLayers();
-		}
-
-		const startCoord = { ...userLocation };
-		setLiveBreadcrumbs([startCoord]);
-
-		// Marker A
-		const iconA = L.divIcon({
-			className: 'bg-transparent',
-			html: `
-				<div class="w-7 h-7 rounded-full bg-white border-2 border-[#111111] text-[#111111] font-black text-[12px] flex items-center justify-center shadow-lg transform -translate-x-1/2 -translate-y-1/2">
-					A
-				</div>
-			`,
-			iconSize: [28, 28],
-		});
-		if (markersLayerRef.current) {
-			L.marker([startCoord.lat, startCoord.lng], { icon: iconA }).addTo(
-				markersLayerRef.current,
-			);
-		}
-
-		// Vehicle marker
-		const vehicleIcon = L.divIcon({
-			className: 'bg-transparent',
-			html: `
-				<div class="relative flex items-center justify-center w-8 h-8">
-					<div class="absolute w-8 h-8 rounded-full bg-emerald-500/30 animate-ping"></div>
-					<div class="w-7 h-7 rounded-full bg-[#111111] border-2 border-white text-emerald-400 flex items-center justify-center shadow-lg">
-						<span class="material-symbols-outlined text-[16px]">navigation</span>
-					</div>
-				</div>
-			`,
-			iconSize: [32, 32],
-			iconAnchor: [16, 16],
-		});
-		const vehicleMarker = L.marker([startCoord.lat, startCoord.lng], {
-			icon: vehicleIcon,
-			zIndexOffset: 1200,
-		}).addTo(map);
-		liveVehicleMarkerRef.current = vehicleMarker;
-
-		// Live route polyline
-		const liveLine = L.polyline([[startCoord.lat, startCoord.lng]], {
-			color: '#059669',
-			weight: 5,
-			opacity: 0.95,
-			lineCap: 'round',
-			lineJoin: 'round',
-		}).addTo(map);
-		livePolylineRef.current = liveLine;
-
-		map.setView([startCoord.lat, startCoord.lng], 16, { animate: true });
-
-		liveTimerRef.current = setInterval(() => {
-			setDriveSeconds((s) => s + 1);
-		}, 1000);
-
-		if ('geolocation' in navigator) {
-			const watchId = navigator.geolocation.watchPosition(
-				(pos) => {
-					const newCoord: Coordinate = {
-						lat: pos.coords.latitude,
-						lng: pos.coords.longitude,
-					};
-					setUserLocation(newCoord);
-					vehicleMarker.setLatLng([newCoord.lat, newCoord.lng]);
-
-					setLiveBreadcrumbs((prev) => {
-						if (prev.length === 0) return [newCoord];
-						const last = prev[prev.length - 1];
-						const d = haversineDistanceMiles(last, newCoord);
-						if (d >= 0.003) {
-							setDriveMiles((m) => Number((m + d).toFixed(2)));
-							const updated = [...prev, newCoord];
-							liveLine.setLatLngs(
-								updated.map((c) => [c.lat, c.lng]),
-							);
-							map.panTo([newCoord.lat, newCoord.lng]);
-							return updated;
-						}
-						return prev;
-					});
-				},
-				(err) => console.warn('Live drive GPS error', err),
-				{ enableHighAccuracy: true, timeout: 5000, maximumAge: 0 },
-			);
-			liveWatchIdRef.current = watchId;
-		}
-	};
-
-	const startRowanHomeSimulation = () => {
-		stopLiveDriveTracking();
-
-		const routeCoords = DEFAULT_ROAD_ROUTES['trip-rowan-home'];
-		if (!routeCoords || routeCoords.length < 2) return;
-
-		setIsRecordingDrive(true);
-		setIsSimulatingDrive(true);
-		setDriveSeconds(0);
-		setDriveMiles(0);
-		setDriveStartName("Rowan's House");
-		setDriveEndName('Home');
-		setActiveTripId(null);
-
-		const map = mapInstanceRef.current;
-		if (!map) return;
-
-		if (polylineLayerRef.current) {
-			map.removeLayer(polylineLayerRef.current);
-			polylineLayerRef.current = null;
-		}
-		if (markersLayerRef.current) {
-			markersLayerRef.current.clearLayers();
-		}
-
-		const startCoord = routeCoords[0];
-		setLiveBreadcrumbs([startCoord]);
-
-		// Marker A
-		const iconA = L.divIcon({
-			className: 'bg-transparent',
-			html: `
-				<div class="w-7 h-7 rounded-full bg-white border-2 border-[#111111] text-[#111111] font-black text-[12px] flex items-center justify-center shadow-lg transform -translate-x-1/2 -translate-y-1/2">
-					A
-				</div>
-			`,
-			iconSize: [28, 28],
-		});
-		if (markersLayerRef.current) {
-			L.marker([startCoord.lat, startCoord.lng], { icon: iconA }).addTo(
-				markersLayerRef.current,
-			);
-		}
-
-		// Vehicle marker
-		const vehicleIcon = L.divIcon({
-			className: 'bg-transparent',
-			html: `
-				<div class="relative flex items-center justify-center w-8 h-8">
-					<div class="absolute w-8 h-8 rounded-full bg-emerald-500/30 animate-ping"></div>
-					<div class="w-7 h-7 rounded-full bg-[#111111] border-2 border-white text-emerald-400 flex items-center justify-center shadow-lg">
-						<span class="material-symbols-outlined text-[16px]">navigation</span>
-					</div>
-				</div>
-			`,
-			iconSize: [32, 32],
-			iconAnchor: [16, 16],
-		});
-		const vehicleMarker = L.marker([startCoord.lat, startCoord.lng], {
-			icon: vehicleIcon,
-			zIndexOffset: 1200,
-		}).addTo(map);
-		liveVehicleMarkerRef.current = vehicleMarker;
-
-		// Live route polyline
-		const liveLine = L.polyline([[startCoord.lat, startCoord.lng]], {
-			color: '#059669',
-			weight: 5,
-			opacity: 0.95,
-			lineCap: 'round',
-			lineJoin: 'round',
-		}).addTo(map);
-		livePolylineRef.current = liveLine;
-
-		// Fit bounds to entire route
-		const bounds = L.latLngBounds(routeCoords.map((c) => [c.lat, c.lng]));
-		map.fitBounds(bounds, { padding: [40, 40] });
-
-		liveTimerRef.current = setInterval(() => {
-			setDriveSeconds((s) => s + 1);
-		}, 1000);
-
-		let step = 0;
-		const totalSteps = routeCoords.length;
-		const totalDistance = 1.33;
-
-		liveSimulationIntervalRef.current = setInterval(() => {
-			step++;
-			if (step >= totalSteps) {
-				finishDrive(
-					routeCoords,
-					totalDistance,
-					"Rowan's House",
-					'Home',
-				);
-				return;
-			}
-			const currentCoord = routeCoords[step];
-			vehicleMarker.setLatLng([currentCoord.lat, currentCoord.lng]);
-			const partialLine = routeCoords.slice(0, step + 1);
-			liveLine.setLatLngs(partialLine.map((c) => [c.lat, c.lng]));
-
-			const currentDist = Number(
-				((step / (totalSteps - 1)) * totalDistance).toFixed(2),
-			);
-			setDriveMiles(currentDist);
-		}, 140);
-	};
-
-	const finishDrive = (
-		forcedCoords?: Coordinate[],
-		forcedMiles?: number,
-		fromName?: string,
-		toName?: string,
-	) => {
-		stopLiveDriveTracking();
-
-		const finalFrom = fromName || driveStartName || "Rowan's House";
-		const finalTo = toName || driveEndName || 'Home';
-		const defaultRowanHome = DEFAULT_ROAD_ROUTES['trip-rowan-home'] || [];
-
-		const finalCoords =
-			forcedCoords && forcedCoords.length >= 2
-				? forcedCoords
-				: liveBreadcrumbs.length >= 2
-					? liveBreadcrumbs
-					: defaultRowanHome;
-
-		let finalMiles = forcedMiles ?? driveMiles;
-		if (!finalMiles || finalMiles < 0.2) {
-			finalMiles = 1.3;
-		}
-
-		const cost = Number((finalMiles * mileageRate).toFixed(2));
-
-		const newTrip: RecordedTrip = {
-			id: `trip-rowan-${Date.now()}`,
-			from: finalFrom,
-			to: finalTo,
-			miles: Number(finalMiles.toFixed(1)),
-			cost,
-			timestamp: 'Just now',
-			status: 'UNLOGGED',
-			coordinates: finalCoords,
-		};
-
-		setIsRecordingDrive(false);
-		setIsSimulatingDrive(false);
-		setDriveSeconds(0);
-		setDriveMiles(0);
-
-		if (onAddRecordedTrip) {
-			onAddRecordedTrip(newTrip);
-		}
-
-		setActiveTripId(newTrip.id);
-		if (mapInstanceRef.current && markersLayerRef.current) {
-			renderTripRoute(
-				mapInstanceRef.current,
-				markersLayerRef.current,
-				newTrip,
-			);
-		}
-	};
-
 	const activeTrip = trips.find((t) => t.id === activeTripId);
 	const activeMiles = activeTrip ? activeTrip.miles : 12.8;
 	const activeLaborMinutes =
@@ -724,95 +298,8 @@ export const MapsView: React.FC<MapsViewProps> = ({
 
 	return (
 		<div className="flex flex-col gap-4 pb-28 pt-2 px-margin-sm max-w-120 mx-auto w-full select-none">
-			{/* Current Address & Location Calibration Bar */}
-			<div className="flex items-center justify-between bg-white rounded-2xl px-3.5 py-2.5 border border-gray-200/80 shadow-2xs">
-				<div className="flex items-center gap-2.5 min-w-0 flex-1">
-					<div className="w-8 h-8 rounded-full bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
-						<span className="material-symbols-outlined text-[18px]">
-							near_me
-						</span>
-					</div>
-					<div className="flex flex-col min-w-0 flex-1 pr-1">
-						<span className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280]">
-							Current Location
-						</span>
-						<span
-							className="text-[13px] font-bold text-[#111111] truncate"
-							title={currentAddress}
-						>
-							{currentAddress ||
-								'Locating exact street address...'}
-						</span>
-					</div>
-				</div>
-
-				<button
-					type="button"
-					onClick={() => setIsAddressModalOpen(true)}
-					data-testid="edit-location-btn"
-					className="text-[12px] font-bold text-[#059669] hover:text-[#047857] hover:bg-emerald-50 active:scale-95 px-2.5 py-1.5 rounded-xl border border-emerald-200/60 transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs"
-				>
-					<span>Fine-Tune</span>
-					<span className="material-symbols-outlined text-[14px]">
-						edit
-					</span>
-				</button>
-			</div>
-
-			{/* Drive Tracking & Test Action Bar */}
-			<div className="flex items-center gap-2">
-				<button
-					type="button"
-					onClick={() => {
-						if (isRecordingDrive) {
-							finishDrive();
-						} else {
-							startLiveDrive("Rowan's House", 'Home');
-						}
-					}}
-					data-testid="toggle-live-drive-btn"
-					className={`flex-1 py-2.5 px-3.5 rounded-2xl font-bold text-[13px] flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs active:scale-98 ${
-						isRecordingDrive && !isSimulatingDrive
-							? 'bg-emerald-600 text-white animate-pulse'
-							: 'bg-[#111111] hover:bg-neutral-800 text-white'
-					}`}
-				>
-					<span className="material-symbols-outlined text-[18px]">
-						{isRecordingDrive && !isSimulatingDrive
-							? 'stop_circle'
-							: 'directions_car'}
-					</span>
-					<span>
-						{isRecordingDrive && !isSimulatingDrive
-							? 'Recording Live Drive...'
-							: 'Start Live Drive'}
-					</span>
-				</button>
-
-				<button
-					type="button"
-					onClick={() => {
-						if (isRecordingDrive) {
-							stopLiveDriveTracking();
-							setIsRecordingDrive(false);
-							setIsSimulatingDrive(false);
-						} else {
-							startRowanHomeSimulation();
-						}
-					}}
-					data-testid="test-rowan-home-btn"
-					className="py-2.5 px-3.5 rounded-2xl bg-white hover:bg-neutral-50 border border-gray-200/80 font-bold text-[12.5px] text-[#111111] flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-98 shrink-0"
-				>
-					<span className="material-symbols-outlined text-[17px] text-[#059669]">
-						play_arrow
-					</span>
-					<span>Test Rowan → Home</span>
-				</button>
-			</div>
-
 			{/* Custom Grayscale Map Card */}
 			<div className="relative w-full h-[320px] rounded-3xl overflow-hidden border border-gray-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.04)] bg-white">
-				{/* Map Container with clean high-contrast grayscale styling */}
 				<div
 					ref={mapContainerRef}
 					className="w-full h-full z-0"
@@ -821,135 +308,47 @@ export const MapsView: React.FC<MapsViewProps> = ({
 					}}
 				/>
 
-				{/* When recording: Live Drive Over-Map HUD */}
-				{isRecordingDrive ? (
-					<>
-						{/* Bottom HUD: Live Drive Stats & Finish / Skip Actions */}
-						<div className="absolute bottom-3 left-3 right-3 z-10 bg-white/95 backdrop-blur-md rounded-2xl p-3 shadow-xl border border-neutral-200/90 flex items-center justify-between gap-3">
-							<div className="flex flex-col min-w-0">
-								<div className="flex items-baseline gap-2">
-									<span className="text-[17px] font-black text-[#111111] tabular-nums">
-										{driveMiles.toFixed(1)} mi
-									</span>
-									<span className="text-[12px] font-bold text-[#6B7280] tabular-nums">
-										{formatTimer(driveSeconds)}
-									</span>
-								</div>
-								<span className="text-[11px] font-bold text-[#059669] tabular-nums">
-									${(driveMiles * mileageRate).toFixed(2)} ·{' '}
-									{hourlyWage > 0
-										? (
-												((driveMiles * mileageRate) /
-													hourlyWage) *
-												60
-											).toFixed(1)
-										: '0.0'}
-									m labor
-								</span>
-							</div>
+				{/* Floating Pill: Top-Left Active Commute Indicator */}
+				<div className="absolute top-3.5 left-3.5 z-10 pointer-events-none">
+					<div className="bg-white/95 backdrop-blur-md rounded-full px-3 py-1.5 shadow-md border border-neutral-200/60 flex items-center gap-1.5">
+						<span className="material-symbols-outlined text-[16px] text-[#111111]">
+							directions_car
+						</span>
+						<span className="text-[12px] font-bold text-[#111111]">
+							{activeTrip
+								? `${activeTrip.from} → ${activeTrip.to}`
+								: 'Active Commute'}
+						</span>
+					</div>
+				</div>
 
-							<div className="flex items-center gap-1.5 shrink-0">
-								{isSimulatingDrive && (
-									<button
-										type="button"
-										onClick={() => {
-											const routeCoords =
-												DEFAULT_ROAD_ROUTES[
-													'trip-rowan-home'
-												] || [];
-											finishDrive(
-												routeCoords,
-												1.3,
-												"Rowan's House",
-												'Home',
-											);
-										}}
-										data-testid="skip-drive-btn"
-										className="px-2.5 py-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-[#111111] font-bold text-[11.5px] cursor-pointer transition-all active:scale-95 flex items-center gap-1"
-									>
-										<span>Skip</span>
-										<span className="material-symbols-outlined text-[14px]">
-											fast_forward
-										</span>
-									</button>
-								)}
-
-								<button
-									type="button"
-									onClick={() => finishDrive()}
-									data-testid="finish-drive-btn"
-									className="px-3 py-1.5 rounded-xl bg-[#059669] hover:bg-[#047857] text-white font-bold text-[12px] cursor-pointer transition-all active:scale-95 shadow-xs flex items-center gap-1"
-								>
-									<span>Finish Drive</span>
-									<span className="material-symbols-outlined text-[15px]">
-										check
-									</span>
-								</button>
-
-								<button
-									type="button"
-									onClick={() => {
-										stopLiveDriveTracking();
-										setIsRecordingDrive(false);
-										setIsSimulatingDrive(false);
-									}}
-									aria-label="Cancel drive tracking"
-									className="w-8 h-8 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-gray-500 hover:text-gray-800 flex items-center justify-center cursor-pointer transition-all"
-								>
-									<span className="material-symbols-outlined text-[16px]">
-										close
-									</span>
-								</button>
-							</div>
-						</div>
-					</>
-				) : (
-					<>
-						{/* Floating Pill: Top-Left Active Commute Indicator */}
-						<div className="absolute top-3.5 left-3.5 z-10 pointer-events-none">
-							<div className="bg-white/95 backdrop-blur-md rounded-full px-3 py-1.5 shadow-md border border-neutral-200/60 flex items-center gap-1.5">
-								<span className="material-symbols-outlined text-[16px] text-[#111111]">
-									directions_car
-								</span>
-								<span className="text-[12px] font-bold text-[#111111]">
-									{activeTrip
-										? `${activeTrip.from} → ${activeTrip.to}`
-										: 'Active Commute'}
-								</span>
-							</div>
-						</div>
-
-						{/* Floating Pill: Bottom-Left Trip Stat */}
-						<div className="absolute bottom-3.5 left-3.5 z-10 pointer-events-none">
-							<div className="bg-white/95 backdrop-blur-md rounded-full px-3.5 py-1.5 shadow-md border border-neutral-200/60 flex items-center gap-2">
-								<span className="text-[13px] font-black text-[#111111] tabular-nums">
-									{activeMiles.toFixed(1)} mi
-								</span>
-								<span className="text-gray-300 font-bold">
-									•
-								</span>
-								<span className="text-[12px] font-bold text-[#059669] flex items-center gap-1 tabular-nums">
-									<span className="material-symbols-outlined text-[14px]">
-										schedule
-									</span>
-									{activeLaborMinutes.toFixed(1)}m
-								</span>
-							</div>
-						</div>
-
-						{/* Floating Target Button: Bottom-Right Recenter */}
-						<button
-							type="button"
-							onClick={handleCenterOnMe}
-							aria-label="Center on live location"
-							className="absolute bottom-3.5 right-3.5 z-10 w-10 h-10 rounded-full bg-white shadow-md border border-neutral-200/60 flex items-center justify-center text-[#111111] hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
-						>
-							<span className="material-symbols-outlined text-[20px]">
-								my_location
+				{/* Floating Pill: Bottom-Left Trip Stat */}
+				<div className="absolute bottom-3.5 left-3.5 z-10 pointer-events-none">
+					<div className="bg-white/95 backdrop-blur-md rounded-full px-3.5 py-1.5 shadow-md border border-neutral-200/60 flex items-center gap-2">
+						<span className="text-[13px] font-black text-[#111111] tabular-nums">
+							{activeMiles.toFixed(1)} mi
+						</span>
+						<span className="text-gray-300 font-bold">•</span>
+						<span className="text-[12px] font-bold text-[#059669] flex items-center gap-1 tabular-nums">
+							<span className="material-symbols-outlined text-[14px]">
+								schedule
 							</span>
-						</button>
-					</>
-				)}
+							{activeLaborMinutes.toFixed(1)}m
+						</span>
+					</div>
+				</div>
+
+				{/* Floating Target Button: Bottom-Right Recenter */}
+				<button
+					type="button"
+					onClick={handleCenterOnMe}
+					aria-label="Center on live location"
+					className="absolute bottom-3.5 right-3.5 z-10 w-10 h-10 rounded-full bg-white shadow-md border border-neutral-200/60 flex items-center justify-center text-[#111111] hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
+				>
+					<span className="material-symbols-outlined text-[20px]">
+						my_location
+					</span>
+				</button>
 			</div>
 
 			{/* Recorded Trips Section */}
@@ -957,7 +356,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				<div className="flex items-center justify-between px-1">
 					<div className="flex items-center gap-2">
 						<span className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">
-							Trips
+							Recorded Trips
 						</span>
 						<span className="w-5 h-5 rounded-full bg-neutral-100 text-[#111111] flex items-center justify-center text-[11px] font-bold tabular-nums">
 							{trips.length}
@@ -965,189 +364,57 @@ export const MapsView: React.FC<MapsViewProps> = ({
 					</div>
 				</div>
 
-				{/* Grouped White Card: Trips List */}
-				<div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_16px_rgba(0,0,0,0.03)] overflow-hidden divide-y divide-gray-100">
+				{/* Grouped White Card: Swipeable Trips List (Delete Only) */}
+				<div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_16px_rgba(0,0,0,0.03)] overflow-hidden">
 					{trips.length === 0 ? (
 						<div className="p-8 text-center text-[#6B7280] text-sm">
 							No trips recorded yet.
 						</div>
 					) : (
-						trips.map((trip) => {
+						trips.map((trip, idx) => {
 							const isSelected = trip.id === activeTripId;
-							const tripLaborMinutes =
-								hourlyWage > 0
-									? ((trip.cost || trip.miles * mileageRate) /
-											hourlyWage) *
-										60
-									: 0;
-
 							return (
-								<div
+								<SwipeableTripItem
 									key={trip.id}
-									data-testid={`trip-row-${trip.id}`}
-									onClick={() => handleSelectTrip(trip)}
-									className={`relative p-4 flex items-center justify-between cursor-pointer transition-colors ${
-										isSelected
-											? 'bg-neutral-50/70'
-											: 'hover:bg-neutral-50/40 bg-white'
-									}`}
-								>
-									{/* Active left indicator bar */}
-									{isSelected && (
-										<div className="absolute left-0 top-3 bottom-3 w-1.5 bg-[#111111] rounded-r-full" />
-									)}
-
-									{/* Left Column: Route Title & Subtext */}
-									<div className="flex flex-col min-w-0 pr-2 pl-1">
-										<div className="flex items-center gap-1.5">
-											<span className="text-[15px] font-bold text-[#111111] truncate">
-												{trip.from} → {trip.to}
-											</span>
-											<span className="material-symbols-outlined text-[15px] text-gray-400">
-												north_east
-											</span>
-										</div>
-										<span className="text-[12px] text-[#6B7280] truncate mt-0.5 tabular-nums">
-											{trip.miles.toFixed(1)} mi ·{' '}
-											{tripLaborMinutes.toFixed(1)}m ·{' '}
-											{trip.timestamp}
-										</span>
-									</div>
-
-									{/* Right Column: Cost & Action Button */}
-									<div className="flex flex-col items-end gap-1 shrink-0">
-										<span className="text-[15px] font-bold text-[#111111] tabular-nums">
-											${trip.cost.toFixed(2)}
-										</span>
-
-										{trip.status === 'UNLOGGED' ? (
-											<button
-												type="button"
-												data-testid={`log-trip-${trip.id}`}
-												onClick={(e) => {
-													e.stopPropagation();
-													onLogTrip(trip);
-												}}
-												className="bg-[#ECFDF5] hover:bg-[#D1FAE5] active:scale-95 text-[#059669] border border-emerald-200/80 px-2.5 py-0.5 rounded-full text-[11.5px] font-bold transition-all cursor-pointer shadow-2xs"
-											>
-												Unlogged • Log
-											</button>
-										) : (
-											<span className="bg-neutral-100 text-neutral-500 px-2.5 py-0.5 rounded-full text-[11.5px] font-medium">
-												Logged ✓
-											</span>
-										)}
-									</div>
-								</div>
+									trip={trip}
+									isSelected={isSelected}
+									onSelect={handleSelectTrip}
+									onLog={onLogTrip}
+									onDelete={(id) => onDeleteTrip?.(id)}
+									hourlyWage={hourlyWage}
+									mileageRate={mileageRate}
+									isLast={idx === trips.length - 1}
+								/>
 							);
 						})
 					)}
 				</div>
 			</section>
-			{/* Address Search / Exact Pinpoint Modal */}
-			{isAddressModalOpen && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-					<div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-4 border border-gray-100">
-						<div className="flex items-center justify-between">
-							<div className="flex items-center gap-2">
-								<span className="material-symbols-outlined text-[22px] text-[#059669]">
-									location_on
-								</span>
-								<h3 className="text-[16px] font-bold text-[#111111]">
-									Set Exact Address
-								</h3>
-							</div>
-							<button
-								type="button"
-								onClick={() => setIsAddressModalOpen(false)}
-								data-testid="close-address-modal-btn"
-								className="w-8 h-8 rounded-full text-gray-400 hover:text-gray-700 flex items-center justify-center cursor-pointer"
-							>
-								<span className="material-symbols-outlined text-[20px]">
-									close
-								</span>
-							</button>
-						</div>
 
-						<p className="text-[12px] text-[#6B7280] leading-relaxed">
-							Browser Wi-Fi and IP detection can place you a few
-							blocks away. Enter your street address to lock in
-							your exact coordinates.
-						</p>
-
-						<div className="relative w-full">
-							<input
-								type="text"
-								data-testid="address-search-input"
-								value={searchQuery}
-								onChange={(e) =>
-									handleSearchChange(e.target.value)
-								}
-								placeholder="e.g. 123 Main St, Glassboro NJ"
-								className="w-full bg-[#F4F7FB] border border-gray-200 rounded-xl px-3.5 py-2.5 text-[14px] font-medium text-[#111111] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#059669]"
-							/>
-							{isSearching && (
-								<div className="absolute right-3 top-2.5">
-									<span className="material-symbols-outlined text-[18px] text-gray-400 animate-spin">
-										progress_activity
-									</span>
-								</div>
-							)}
-						</div>
-
-						{/* Search Suggestions */}
-						{searchResults.length > 0 && (
-							<div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm divide-y divide-gray-100 max-h-48 overflow-y-auto">
-								{searchResults.map((item, idx) => (
-									<button
-										key={idx}
-										type="button"
-										data-testid={`address-result-${idx}`}
-										onClick={() =>
-											handleSelectAddress(item)
-										}
-										className="w-full text-left p-2.5 hover:bg-neutral-50 transition-colors text-[13px] text-[#111111] font-medium flex items-start gap-2 cursor-pointer"
-									>
-										<span className="material-symbols-outlined text-[16px] text-gray-400 shrink-0 mt-0.5">
-											place
-										</span>
-										<span className="truncate">
-											{item.label}
-										</span>
-									</button>
-								))}
-							</div>
-						)}
-
-						<div className="flex items-center gap-2 pt-1">
-							<button
-								type="button"
-								onClick={handleCenterOnMe}
-								className="flex-1 py-2.5 px-3 rounded-xl border border-gray-200 text-[#111111] font-bold text-[13px] hover:bg-neutral-50 transition-all flex items-center justify-center gap-1.5"
-							>
-								<span className="material-symbols-outlined text-[18px]">
-									gps_fixed
-								</span>
-								<span>Re-Detect GPS</span>
-							</button>
-
-							<button
-								type="button"
-								onClick={() => {
-									setIsPickOnMapActive(true);
-									setIsAddressModalOpen(false);
-								}}
-								className="flex-1 py-2.5 px-3 rounded-xl bg-[#111111] text-white font-bold text-[13px] hover:bg-neutral-900 transition-all flex items-center justify-center gap-1.5 shadow-sm"
-							>
-								<span className="material-symbols-outlined text-[18px]">
-									touch_app
-								</span>
-								<span>Tap on Map</span>
-							</button>
-						</div>
+			{/* Bottom Transit Mileage Card */}
+			<div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-[0_2px_16px_rgba(0,0,0,0.03)] flex items-center justify-between gap-3">
+				<div className="flex items-center gap-3 min-w-0">
+					<div className="w-10 h-10 rounded-2xl bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
+						<span className="material-symbols-outlined text-[22px]">
+							energy_savings_leaf
+						</span>
+					</div>
+					<div className="flex flex-col min-w-0">
+						<span className="text-[14px] font-bold text-[#111111] truncate">
+							Transit Mileage Index
+						</span>
+						<span className="text-[11.5px] text-[#6B7280] truncate tabular-nums">
+							Fuel burn converted into{' '}
+							{totalLaborMinutes.toFixed(1)}m total labor this
+							week
+						</span>
 					</div>
 				</div>
-			)}
+
+				<div className="bg-[#ECFDF5] text-[#059669] px-2.5 py-1 rounded-xl text-[12px] font-bold shrink-0 tabular-nums">
+					-12% cost
+				</div>
+			</div>
 		</div>
 	);
 };

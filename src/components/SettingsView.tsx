@@ -13,6 +13,8 @@ import {
 	TimeSelection,
 	ShiftItem,
 } from './SwipeableShiftItem';
+import { reverseGeocode, searchAddresses } from '../utils/mapRouting';
+import { Coordinate } from '../types/maps';
 
 export type SettingsSubpage =
 	| 'main'
@@ -165,6 +167,100 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 			onToggleAnimations(next);
 		} else {
 			setInternalAnimations(next);
+		}
+	};
+
+	// Location Calibration State
+	const [calibratedLocation, setCalibratedLocation] = useState<Coordinate>(
+		() => {
+			if (typeof window !== 'undefined') {
+				try {
+					const saved = localStorage.getItem(
+						'imcheap_user_custom_location',
+					);
+					if (saved) {
+						const parsed = JSON.parse(saved);
+						if (parsed?.lat && parsed?.lng) return parsed;
+					}
+				} catch {}
+			}
+			return { lat: 39.7032, lng: -75.122 };
+		},
+	);
+	const [calibratedAddress, setCalibratedAddress] = useState<string>('');
+	const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+	const [addressQuery, setAddressQuery] = useState('');
+	const [addressResults, setAddressResults] = useState<
+		Array<{ label: string; lat: number; lng: number }>
+	>([]);
+	const [isSearchingAddress, setIsSearchingAddress] = useState(false);
+
+	React.useEffect(() => {
+		let isMounted = true;
+		reverseGeocode(calibratedLocation).then((addr) => {
+			if (isMounted) {
+				setCalibratedAddress(addr);
+			}
+		});
+		return () => {
+			isMounted = false;
+		};
+	}, [calibratedLocation]);
+
+	const handleSearchAddressChange = async (val: string) => {
+		setAddressQuery(val);
+		if (val.trim().length >= 3) {
+			setIsSearchingAddress(true);
+			const results = await searchAddresses(val);
+			setAddressResults(results);
+			setIsSearchingAddress(false);
+		} else {
+			setAddressResults([]);
+		}
+	};
+
+	const handleSelectCalibratedAddress = (item: {
+		label: string;
+		lat: number;
+		lng: number;
+	}) => {
+		const newCoords = { lat: item.lat, lng: item.lng };
+		setCalibratedLocation(newCoords);
+		setCalibratedAddress(item.label);
+		try {
+			localStorage.setItem(
+				'imcheap_user_custom_location',
+				JSON.stringify(newCoords),
+			);
+		} catch {}
+		setIsLocationModalOpen(false);
+		setAddressQuery('');
+		setAddressResults([]);
+	};
+
+	const handleResetGpsLocation = () => {
+		if ('geolocation' in navigator) {
+			navigator.geolocation.getCurrentPosition(
+				(pos) => {
+					const newCoords = {
+						lat: pos.coords.latitude,
+						lng: pos.coords.longitude,
+					};
+					setCalibratedLocation(newCoords);
+					try {
+						localStorage.removeItem(
+							'imcheap_user_custom_location',
+						);
+					} catch {}
+					setIsLocationModalOpen(false);
+				},
+				() => {
+					setIsLocationModalOpen(false);
+				},
+				{ enableHighAccuracy: true, timeout: 8000, maximumAge: 0 },
+			);
+		} else {
+			setIsLocationModalOpen(false);
 		}
 	};
 
@@ -2411,6 +2507,51 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</button>
 							</div>
 						</section>
+
+						{/* SECTION 4: LOCATION & MAPS */}
+						<section className="flex flex-col mt-6">
+							<div className="px-1 mb-2">
+								<span className="text-[11px] font-bold uppercase tracking-wider text-[#9CA3AF]">
+									Location &amp; Maps
+								</span>
+							</div>
+							<div className="bg-white rounded-[18px] border border-[#F3F4F6] shadow-sm overflow-hidden divide-y divide-[#F3F4F6]">
+								<div className="flex items-center justify-between p-4">
+									<div className="flex items-center gap-3.5 min-w-0 pr-3">
+										<div className="w-10 h-10 rounded-xl bg-[#EEF2F6] flex items-center justify-center text-[#1E293B] shrink-0">
+											<span className="material-symbols-outlined text-[20px]">
+												location_on
+											</span>
+										</div>
+										<div className="flex flex-col min-w-0">
+											<span className="text-[15px] font-semibold text-[#111111]">
+												Calibrated Address
+											</span>
+											<span
+												className="text-[12px] text-[#6B7280] mt-0.5 truncate"
+												title={calibratedAddress}
+											>
+												{calibratedAddress ||
+													'201 Girard Road, Glassboro, NJ'}
+											</span>
+										</div>
+									</div>
+									<button
+										type="button"
+										onClick={() =>
+											setIsLocationModalOpen(true)
+										}
+										data-testid="settings-fine-tune-location-btn"
+										className="text-[12px] font-bold text-[#059669] hover:text-[#047857] hover:bg-emerald-50 active:scale-95 px-3 py-1.5 rounded-xl border border-emerald-200/60 transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs"
+									>
+										<span>Fine-Tune</span>
+										<span className="material-symbols-outlined text-[14px]">
+											edit
+										</span>
+									</button>
+								</div>
+							</div>
+						</section>
 					</motion.div>
 				)}
 			</AnimatePresence>
@@ -2565,6 +2706,97 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</WheelPickerWrapper>
 							</div>
 						</motion.div>
+					</div>
+				)}
+			</AnimatePresence>
+
+			{/* Exact Address Calibration Modal */}
+			<AnimatePresence>
+				{isLocationModalOpen && (
+					<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+						<div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-4 border border-gray-100">
+							<div className="flex items-center justify-between">
+								<div className="flex items-center gap-2">
+									<span className="material-symbols-outlined text-[22px] text-[#059669]">
+										location_on
+									</span>
+									<h3 className="text-[16px] font-bold text-[#111111]">
+										Set Exact Address
+									</h3>
+								</div>
+								<button
+									type="button"
+									onClick={() => setIsLocationModalOpen(false)}
+									data-testid="close-address-modal-btn"
+									className="w-8 h-8 rounded-full text-gray-400 hover:text-gray-700 flex items-center justify-center cursor-pointer"
+								>
+									<span className="material-symbols-outlined text-[20px]">
+										close
+									</span>
+								</button>
+							</div>
+
+							<p className="text-[12px] text-[#6B7280] leading-relaxed">
+								Browser Wi-Fi and IP detection can place you a few blocks away. Enter your street address to lock in your exact coordinates for Maps.
+							</p>
+
+							<div className="relative w-full">
+								<input
+									type="text"
+									data-testid="address-search-input"
+									value={addressQuery}
+									onChange={(e) =>
+										handleSearchAddressChange(e.target.value)
+									}
+									placeholder="e.g. 123 Main St, Glassboro NJ"
+									className="w-full bg-[#F4F7FB] border border-gray-200 rounded-xl px-3.5 py-2.5 text-[14px] font-medium text-[#111111] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#059669]"
+								/>
+								{isSearchingAddress && (
+									<div className="absolute right-3 top-2.5">
+										<span className="material-symbols-outlined text-[18px] text-gray-400 animate-spin">
+											progress_activity
+										</span>
+									</div>
+								)}
+							</div>
+
+							{/* Search Suggestions */}
+							{addressResults.length > 0 && (
+								<div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm divide-y divide-gray-100 max-h-48 overflow-y-auto">
+									{addressResults.map((item, idx) => (
+										<button
+											key={idx}
+											type="button"
+											data-testid={`address-result-${idx}`}
+											onClick={() =>
+												handleSelectCalibratedAddress(item)
+											}
+											className="w-full text-left p-2.5 hover:bg-neutral-50 transition-colors text-[13px] text-[#111111] font-medium flex items-start gap-2 cursor-pointer"
+										>
+											<span className="material-symbols-outlined text-[16px] text-gray-400 shrink-0 mt-0.5">
+												place
+											</span>
+											<span className="truncate">
+												{item.label}
+											</span>
+										</button>
+									))}
+								</div>
+							)}
+
+							<div className="flex items-center gap-2 pt-1">
+								<button
+									type="button"
+									onClick={handleResetGpsLocation}
+									className="w-full py-2.5 px-3 rounded-xl border border-gray-200 text-[#111111] font-bold text-[13px] hover:bg-neutral-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+								>
+									<span className="material-symbols-outlined text-[18px]">
+										gps_fixed
+									</span>
+									<span>Re-Detect GPS Location</span>
+								</button>
+							</div>
+						</div>
 					</div>
 				)}
 			</AnimatePresence>

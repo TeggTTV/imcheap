@@ -554,6 +554,10 @@ export default function App() {
 		setToastMessage(`Trip logged ($${trip.cost.toFixed(2)})`);
 	};
 
+	const handleDeleteTrip = (id: string) => {
+		setTrips((prev) => prev.filter((t) => t.id !== id));
+	};
+
 	const handleAddRecordedTrip = (newTrip: RecordedTrip) => {
 		setTrips((prev) => [newTrip, ...prev]);
 		setToastMessage(
@@ -1530,8 +1534,7 @@ export default function App() {
 						<MapsView
 							trips={trips}
 							onLogTrip={handleLogTrip}
-							onSimulateTrip={handleSimulateTrip}
-							onAddRecordedTrip={handleAddRecordedTrip}
+							onDeleteTrip={handleDeleteTrip}
 							hourlyWage={incomeSettings.hourlyWage}
 							mileageRate={incomeSettings.mileageRate}
 							autoTripDetection={autoTripDetection}
