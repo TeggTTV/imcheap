@@ -26,3 +26,19 @@ export interface SmartPrompt {
 		category?: string;
 	};
 }
+
+export interface SavedHomeAddress {
+	address: string;
+	lat: number;
+	lng: number;
+}
+
+export interface LiveTrackingStatus {
+	state: 'AT_HOME' | 'STATIONARY' | 'TRACKING_TRIP';
+	originName?: string;
+	destinationName?: string;
+	dwellMinutes?: number;
+	currentMiles?: number;
+	startTime?: number;
+}
+

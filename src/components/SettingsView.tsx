@@ -14,7 +14,8 @@ import {
 	ShiftItem,
 } from './SwipeableShiftItem';
 import { reverseGeocode, searchAddresses } from '../utils/mapRouting';
-import { Coordinate } from '../types/maps';
+import { SavedHomeAddress } from '../types/maps';
+import { getSavedHomeAddress, saveHomeAddress } from '../utils/tripTracker';
 
 export type SettingsSubpage =
 	| 'main'
@@ -65,7 +66,10 @@ const formatTimeString = (t: TimeSelection) => {
 	return `${t.hour}:${minStr} ${t.period}`;
 };
 
-const calculateShiftHours = (start: TimeSelection, end: TimeSelection): number => {
+const calculateShiftHours = (
+	start: TimeSelection,
+	end: TimeSelection,
+): number => {
 	const getMinutesFromMidnight = (t: TimeSelection) => {
 		let h24 = t.hour;
 		if (t.period === 'AM') {
@@ -170,42 +174,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 		}
 	};
 
-	// Location Calibration State
-	const [calibratedLocation, setCalibratedLocation] = useState<Coordinate>(
-		() => {
-			if (typeof window !== 'undefined') {
-				try {
-					const saved = localStorage.getItem(
-						'imcheap_user_custom_location',
-					);
-					if (saved) {
-						const parsed = JSON.parse(saved);
-						if (parsed?.lat && parsed?.lng) return parsed;
-					}
-				} catch {}
-			}
-			return { lat: 39.7032, lng: -75.122 };
-		},
-	);
-	const [calibratedAddress, setCalibratedAddress] = useState<string>('');
+	// Home Address Setting State
+	const [homeAddress, setHomeAddress] = useState<SavedHomeAddress>(() => {
+		return getSavedHomeAddress();
+	});
 	const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
 	const [addressQuery, setAddressQuery] = useState('');
 	const [addressResults, setAddressResults] = useState<
 		Array<{ label: string; lat: number; lng: number }>
 	>([]);
 	const [isSearchingAddress, setIsSearchingAddress] = useState(false);
-
-	React.useEffect(() => {
-		let isMounted = true;
-		reverseGeocode(calibratedLocation).then((addr) => {
-			if (isMounted) {
-				setCalibratedAddress(addr);
-			}
-		});
-		return () => {
-			isMounted = false;
-		};
-	}, [calibratedLocation]);
 
 	const handleSearchAddressChange = async (val: string) => {
 		setAddressQuery(val);
@@ -219,39 +197,41 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 		}
 	};
 
-	const handleSelectCalibratedAddress = (item: {
+	const handleSelectHomeAddress = (item: {
 		label: string;
 		lat: number;
 		lng: number;
 	}) => {
-		const newCoords = { lat: item.lat, lng: item.lng };
-		setCalibratedLocation(newCoords);
-		setCalibratedAddress(item.label);
-		try {
-			localStorage.setItem(
-				'imcheap_user_custom_location',
-				JSON.stringify(newCoords),
-			);
-		} catch {}
+		const newHome: SavedHomeAddress = {
+			address: item.label,
+			lat: item.lat,
+			lng: item.lng,
+		};
+		setHomeAddress(newHome);
+		saveHomeAddress(newHome);
 		setIsLocationModalOpen(false);
 		setAddressQuery('');
 		setAddressResults([]);
 	};
 
-	const handleResetGpsLocation = () => {
+	const handleUseCurrentGpsAsHome = () => {
 		if ('geolocation' in navigator) {
 			navigator.geolocation.getCurrentPosition(
-				(pos) => {
-					const newCoords = {
+				async (pos) => {
+					const coords = {
 						lat: pos.coords.latitude,
 						lng: pos.coords.longitude,
 					};
-					setCalibratedLocation(newCoords);
-					try {
-						localStorage.removeItem(
-							'imcheap_user_custom_location',
-						);
-					} catch {}
+					const addr = await reverseGeocode(coords);
+					const newHome: SavedHomeAddress = {
+						address:
+							addr ||
+							`${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`,
+						lat: coords.lat,
+						lng: coords.lng,
+					};
+					setHomeAddress(newHome);
+					saveHomeAddress(newHome);
 					setIsLocationModalOpen(false);
 				},
 				() => {
@@ -274,7 +254,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 					if (Array.isArray(parsed)) {
 						const fallbackDate = getTodayIsoDate();
 						return parsed.map((s: any) => ({
-							id: s.id || `shift-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+							id:
+								s.id ||
+								`shift-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
 							hours: typeof s.hours === 'number' ? s.hours : 8,
 							date: s.date || fallbackDate,
 						}));
@@ -297,18 +279,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 		}
 	}, [shifts]);
 
-	const [selectedShiftDate, setSelectedShiftDate] = useState<string>(getTodayIsoDate);
+	const [selectedShiftDate, setSelectedShiftDate] =
+		useState<string>(getTodayIsoDate);
 	const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
-	const [currentShiftInput, setCurrentShiftInput] = useState<number>(8.5);
-	const [shiftInputStr, setShiftInputStr] = useState<string>('8.5');
+	const [] = useState<string>('8.5');
 	const [taxBufferRate, setTaxBufferRate] = useState<number>(12); // percent
 	const [tempTaxBuffer, setTempTaxBuffer] = useState<number>(12);
 	const [paycheckToast, setPaycheckToast] = useState(false);
 	const [wageInput, setWageInput] = useState('');
 
-	const [tempYear, setTempYear] = useState<string>(() => String(new Date().getFullYear()));
-	const [tempMonth, setTempMonth] = useState<string>(() => String(new Date().getMonth() + 1).padStart(2, '0'));
-	const [tempDay, setTempDay] = useState<string>(() => String(new Date().getDate()).padStart(2, '0'));
+	const [tempYear, setTempYear] = useState<string>(() =>
+		String(new Date().getFullYear()),
+	);
+	const [tempMonth, setTempMonth] = useState<string>(() =>
+		String(new Date().getMonth() + 1).padStart(2, '0'),
+	);
+	const [tempDay, setTempDay] = useState<string>(() =>
+		String(new Date().getDate()).padStart(2, '0'),
+	);
 
 	const openDatePicker = () => {
 		const [y, m, d] = (selectedShiftDate || getTodayIsoDate()).split('-');
@@ -345,14 +333,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
 	const currentYearNum = new Date().getFullYear();
 	const yearOptions = [
-		{ value: String(currentYearNum - 2), label: String(currentYearNum - 2) },
-		{ value: String(currentYearNum - 1), label: String(currentYearNum - 1) },
+		{
+			value: String(currentYearNum - 2),
+			label: String(currentYearNum - 2),
+		},
+		{
+			value: String(currentYearNum - 1),
+			label: String(currentYearNum - 1),
+		},
 		{ value: String(currentYearNum), label: String(currentYearNum) },
-		{ value: String(currentYearNum + 1), label: String(currentYearNum + 1) },
-		{ value: String(currentYearNum + 2), label: String(currentYearNum + 2) },
+		{
+			value: String(currentYearNum + 1),
+			label: String(currentYearNum + 1),
+		},
+		{
+			value: String(currentYearNum + 2),
+			label: String(currentYearNum + 2),
+		},
 	];
 
-	const daysInSelectedMonth = new Date(Number(tempYear), Number(tempMonth), 0).getDate();
+	const daysInSelectedMonth = new Date(
+		Number(tempYear),
+		Number(tempMonth),
+		0,
+	).getDate();
 	const dayOptions = Array.from({ length: daysInSelectedMonth }, (_, i) => {
 		const dayVal = String(i + 1).padStart(2, '0');
 		return { value: dayVal, label: String(i + 1) };
@@ -369,7 +373,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 		minute: 30,
 		period: 'PM',
 	});
-	const [activeTimePickerTarget, setActiveTimePickerTarget] = useState<'start' | 'end' | null>(null);
+	const [activeTimePickerTarget, setActiveTimePickerTarget] = useState<
+		'start' | 'end' | null
+	>(null);
 	const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
 
 	const handleStartEditShift = (shift: ShiftItem) => {
@@ -471,7 +477,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 				const saved = localStorage.getItem('imcheap_vehicle');
 				if (saved) {
 					const v = JSON.parse(saved);
-					if (v?.gasPrice && !gasOptions.includes(v.gasPrice)) return v.gasPrice;
+					if (v?.gasPrice && !gasOptions.includes(v.gasPrice))
+						return v.gasPrice;
 				}
 			} catch {}
 		}
@@ -499,7 +506,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	const [customCap, setCustomCap] = useState<number | null>(null);
 	const [customCapInput, setCustomCapInput] = useState('');
 
-	const [vehicleSaved, setVehicleSaved] = useState(false);
+	const [] = useState(false);
 
 	// Automatic Trip Detection State
 	const [autoTripDetection, setAutoTripDetection] = useState<boolean>(() => {
@@ -508,7 +515,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 		}
 		if (typeof window !== 'undefined') {
 			try {
-				return localStorage.getItem('imcheap_auto_trip_detection') === 'true';
+				return (
+					localStorage.getItem('imcheap_auto_trip_detection') ===
+					'true'
+				);
 			} catch {}
 		}
 		return false;
@@ -549,7 +559,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 		? (calculatedShiftHours * wageRate).toLocaleString('en-US', {
 				minimumFractionDigits: 2,
 				maximumFractionDigits: 2,
-		  })
+			})
 		: '0.00';
 
 	const handleAddOrUpdateShift = () => {
@@ -566,7 +576,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								date: selectedShiftDate || getTodayIsoDate(),
 								startTime,
 								endTime,
-						  }
+							}
 						: s,
 				),
 			);
@@ -625,14 +635,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 				try {
 					localStorage.setItem(
 						'imcheap_vehicle',
-						JSON.stringify({ mpg: currentMpg, gasPrice: currentGas }),
+						JSON.stringify({
+							mpg: currentMpg,
+							gasPrice: currentGas,
+						}),
 					);
 				} catch (e) {
-					console.warn('Failed to save vehicle settings to localStorage', e);
+					console.warn(
+						'Failed to save vehicle settings to localStorage',
+						e,
+					);
 				}
 			}
 		}
-	}, [currentGas, currentMpg, vehicleCostPerMile, settings.mileageRate, onUpdateSettings]);
+	}, [
+		currentGas,
+		currentMpg,
+		vehicleCostPerMile,
+		settings.mileageRate,
+		onUpdateSettings,
+	]);
 
 	// Past cycles history
 	interface PastCycleItem {
@@ -1251,8 +1273,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							<div className="w-full bg-white rounded-2xl p-4 border border-[#F3F4F6] shadow-sm flex flex-col gap-2">
 								<div className="flex items-center justify-between">
 									<div>
-										<span className="font-semibold text-sm text-on-surface">Hourly Wage</span>
-										<p className="text-xs text-on-surface-variant">Base hourly rate for labor calculations</p>
+										<span className="font-semibold text-sm text-on-surface">
+											Hourly Wage
+										</span>
+										<p className="text-xs text-on-surface-variant">
+											Base hourly rate for labor
+											calculations
+										</p>
 									</div>
 									<span className="text-[18px] font-bold text-on-surface tabular-nums">
 										${settings.hourlyWage.toFixed(2)}/hr
@@ -1269,8 +1296,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											min="1"
 											max="500"
 											value={wageInput}
-											onChange={(e) => setWageInput(e.target.value)}
-											placeholder={settings.hourlyWage.toFixed(2)}
+											onChange={(e) =>
+												setWageInput(e.target.value)
+											}
+											placeholder={settings.hourlyWage.toFixed(
+												2,
+											)}
 											className="w-full bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl pl-7 pr-12 py-2.5 text-sm text-on-surface focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all duration-200 tabular-nums"
 										/>
 										<span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-outline pointer-events-none">
@@ -1285,11 +1316,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 													...settings,
 													hourlyWage: val,
 												});
-												if (typeof window !== 'undefined') {
+												if (
+													typeof window !==
+													'undefined'
+												) {
 													try {
-														localStorage.setItem('imcheap_wage', String(val));
+														localStorage.setItem(
+															'imcheap_wage',
+															String(val),
+														);
 													} catch (e) {
-														console.warn('Failed to save wage to localStorage', e);
+														console.warn(
+															'Failed to save wage to localStorage',
+															e,
+														);
 													}
 												}
 												return true;
@@ -1411,10 +1451,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										<button
 											type="button"
 											onClick={openDatePicker}
-											className="h-[46px] bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer text-left w-full hover:bg-neutral-100/70"
+											className="h-11.5 bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer text-left w-full hover:bg-neutral-100/70"
 										>
 											<span className="text-[12.5px] font-semibold text-neutral-800 tabular-nums truncate">
-												{formatShortShiftDate(selectedShiftDate)}
+												{formatShortShiftDate(
+													selectedShiftDate,
+												)}
 											</span>
 											<span className="material-symbols-outlined text-[16px] text-neutral-400 shrink-0">
 												calendar_today
@@ -1429,8 +1471,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										</span>
 										<button
 											type="button"
-											onClick={() => openTimePicker('start')}
-											className="h-[46px] bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer text-left w-full hover:bg-neutral-100/70"
+											onClick={() =>
+												openTimePicker('start')
+											}
+											className="h-11.5 bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer text-left w-full hover:bg-neutral-100/70"
 										>
 											<span className="text-[12.5px] font-semibold text-neutral-800 tabular-nums truncate">
 												{formatTimeString(startTime)}
@@ -1448,8 +1492,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										</span>
 										<button
 											type="button"
-											onClick={() => openTimePicker('end')}
-											className="h-[46px] bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer text-left w-full hover:bg-neutral-100/70"
+											onClick={() =>
+												openTimePicker('end')
+											}
+											className="h-11.5 bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer text-left w-full hover:bg-neutral-100/70"
 										>
 											<span className="text-[12.5px] font-semibold text-neutral-800 tabular-nums truncate">
 												{formatTimeString(endTime)}
@@ -1466,7 +1512,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 									type="button"
 									onClick={handleAddOrUpdateShift}
 									disabled={!isWageConfigured}
-									className={`w-full h-[48px] font-bold text-[15px] rounded-xl mt-3 flex items-center justify-center gap-2 transition-all ${
+									className={`w-full h-12 font-bold text-[15px] rounded-xl mt-3 flex items-center justify-center gap-2 transition-all ${
 										isWageConfigured
 											? 'bg-[#111111] text-white active:scale-[0.98] cursor-pointer shadow-xs'
 											: 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
@@ -1474,7 +1520,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								>
 									{isWageConfigured ? (
 										<span>
-											{editingShiftId ? 'Update Shift' : 'Log Shift'} (${currentShiftGrossPreview}) • {calculatedShiftHours}h
+											{editingShiftId
+												? 'Update Shift'
+												: 'Log Shift'}{' '}
+											(${currentShiftGrossPreview}) •{' '}
+											{calculatedShiftHours}h
 										</span>
 									) : (
 										<span>Configure Wage First</span>
@@ -1486,7 +1536,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							<div className="w-full flex flex-col gap-2">
 								<div className="flex items-center justify-between px-1">
 									<span className="text-[11px] uppercase tracking-wider font-semibold text-on-surface-variant">
-										LOGGED SHIFTS THIS MONTH ({sortedShifts.length})
+										LOGGED SHIFTS THIS MONTH (
+										{sortedShifts.length})
 									</span>
 									{sortedShifts.length > 0 && (
 										<button
@@ -1511,7 +1562,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 												hourlyWage={wageRate}
 												onEdit={handleStartEditShift}
 												onDelete={handleRemoveShift}
-												isLast={idx === sortedShifts.length - 1}
+												isLast={
+													idx ===
+													sortedShifts.length - 1
+												}
 												formatDate={formatShiftDate}
 											/>
 										))
@@ -1824,7 +1878,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											Automatic Trip Detection
 										</span>
 										<span className="text-xs text-outline leading-snug">
-											Tracks drives and store stops to suggest unlogged trips
+											Tracks drives and store stops to
+											suggest unlogged trips
 										</span>
 									</div>
 								</div>
@@ -1836,12 +1891,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 									onClick={handleToggleTripDetection}
 									data-testid="auto-trip-detection-toggle"
 									className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
-										autoTripDetection ? 'bg-[#10B981]' : 'bg-[#E5E7EB]'
+										autoTripDetection
+											? 'bg-[#10B981]'
+											: 'bg-[#E5E7EB]'
 									}`}
 								>
 									<span
 										className={`pointer-events-none inline-block h-[24px] w-[24px] transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-											autoTripDetection ? 'translate-x-5' : 'translate-x-0'
+											autoTripDetection
+												? 'translate-x-5'
+												: 'translate-x-0'
 										}`}
 									/>
 								</button>
@@ -2508,11 +2567,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							</div>
 						</section>
 
-						{/* SECTION 4: LOCATION & MAPS */}
+						{/* SECTION 4: HOME & LOCATION */}
 						<section className="flex flex-col mt-6">
 							<div className="px-1 mb-2">
 								<span className="text-[11px] font-bold uppercase tracking-wider text-[#9CA3AF]">
-									Location &amp; Maps
+									Home &amp; Location
 								</span>
 							</div>
 							<div className="bg-white rounded-[18px] border border-[#F3F4F6] shadow-sm overflow-hidden divide-y divide-[#F3F4F6]">
@@ -2520,19 +2579,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 									<div className="flex items-center gap-3.5 min-w-0 pr-3">
 										<div className="w-10 h-10 rounded-xl bg-[#EEF2F6] flex items-center justify-center text-[#1E293B] shrink-0">
 											<span className="material-symbols-outlined text-[20px]">
-												location_on
+												home
 											</span>
 										</div>
 										<div className="flex flex-col min-w-0">
 											<span className="text-[15px] font-semibold text-[#111111]">
-												Calibrated Address
+												Home Address
 											</span>
 											<span
 												className="text-[12px] text-[#6B7280] mt-0.5 truncate"
-												title={calibratedAddress}
+												title={
+													homeAddress?.address ||
+													'Set your home address'
+												}
 											>
-												{calibratedAddress ||
-													'201 Girard Road, Glassboro, NJ'}
+												{homeAddress?.address ||
+													'Set your home address'}
 											</span>
 										</div>
 									</div>
@@ -2542,9 +2604,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											setIsLocationModalOpen(true)
 										}
 										data-testid="settings-fine-tune-location-btn"
-										className="text-[12px] font-bold text-[#059669] hover:text-[#047857] hover:bg-emerald-50 active:scale-95 px-3 py-1.5 rounded-xl border border-emerald-200/60 transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs"
+										className="text-[12px] font-bold text-secondary hover:text-[#047857] hover:bg-emerald-50 active:scale-95 px-3 py-1.5 rounded-xl border border-emerald-200/60 transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs"
 									>
-										<span>Fine-Tune</span>
+										<span>
+											{homeAddress?.address
+												? 'Change'
+												: 'Set Address'}
+										</span>
 										<span className="material-symbols-outlined text-[14px]">
 											edit
 										</span>
@@ -2563,7 +2629,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						className="fixed inset-0 z-50 flex flex-col justify-end"
 						role="dialog"
 						aria-modal="true"
-						aria-label={activeTimePickerTarget === 'start' ? 'Select Start Time' : 'Select End Time'}
+						aria-label={
+							activeTimePickerTarget === 'start'
+								? 'Select Start Time'
+								: 'Select End Time'
+						}
 					>
 						<motion.div
 							initial={{ opacity: 0 }}
@@ -2577,13 +2647,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							initial={{ y: '100%' }}
 							animate={{ y: 0 }}
 							exit={{ y: '100%' }}
-							transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+							transition={{
+								type: 'spring',
+								damping: 28,
+								stiffness: 300,
+							}}
 							className="relative z-10 w-full max-w-md mx-auto bg-white rounded-t-3xl p-5 shadow-2xl flex flex-col gap-4 pb-8"
 						>
 							<div className="flex items-center justify-between border-b border-neutral-100 pb-3">
 								<div>
 									<h3 className="text-base font-bold text-neutral-900">
-										{activeTimePickerTarget === 'start' ? 'Select Start Time' : 'Select End Time'}
+										{activeTimePickerTarget === 'start'
+											? 'Select Start Time'
+											: 'Select End Time'}
 									</h3>
 									<p className="text-xs text-neutral-500">
 										Set shift clock time
@@ -2600,23 +2676,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
 							<div className="relative py-2">
 								{/* Selection highlight bar indicator */}
-								<div className="absolute top-1/2 left-3 right-3 -translate-y-1/2 h-[34px] bg-neutral-200/50 rounded-lg pointer-events-none" />
+								<div className="absolute top-1/2 left-3 right-3 -translate-y-1/2 h-8.5 bg-neutral-200/50 rounded-lg pointer-events-none" />
 								<WheelPickerWrapper className="w-full h-44 bg-neutral-50 rounded-2xl border border-neutral-200/80 overflow-hidden">
 									<WheelPicker
 										value={tempTimeHour}
-										onValueChange={(val) => setTempTimeHour(String(val))}
+										onValueChange={(val) =>
+											setTempTimeHour(String(val))
+										}
 										options={hourOptions}
 										optionItemHeight={34}
 									/>
 									<WheelPicker
 										value={tempTimeMinute}
-										onValueChange={(val) => setTempTimeMinute(String(val))}
+										onValueChange={(val) =>
+											setTempTimeMinute(String(val))
+										}
 										options={minuteOptions}
 										optionItemHeight={34}
 									/>
 									<WheelPicker
 										value={tempTimePeriod}
-										onValueChange={(val) => setTempTimePeriod(String(val))}
+										onValueChange={(val) =>
+											setTempTimePeriod(String(val))
+										}
 										options={periodOptions}
 										optionItemHeight={34}
 									/>
@@ -2648,7 +2730,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							initial={{ y: '100%' }}
 							animate={{ y: 0 }}
 							exit={{ y: '100%' }}
-							transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+							transition={{
+								type: 'spring',
+								damping: 28,
+								stiffness: 300,
+							}}
 							className="relative z-10 w-full max-w-md mx-auto bg-white rounded-t-3xl p-5 shadow-2xl flex flex-col gap-4 pb-8"
 						>
 							<div className="flex items-center justify-between border-b border-neutral-100 pb-3">
@@ -2671,15 +2757,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
 							<div className="relative py-2">
 								{/* Selection highlight bar indicator */}
-								<div className="absolute top-1/2 left-3 right-3 -translate-y-1/2 h-[34px] bg-neutral-200/50 rounded-lg pointer-events-none" />
+								<div className="absolute top-1/2 left-3 right-3 -translate-y-1/2 h-8.5 bg-neutral-200/50 rounded-lg pointer-events-none" />
 								<WheelPickerWrapper className="w-full h-44 bg-neutral-50 rounded-2xl border border-neutral-200/80 overflow-hidden">
 									<WheelPicker
 										value={tempMonth}
 										onValueChange={(val) => {
 											setTempMonth(String(val));
-											const maxDays = new Date(Number(tempYear), Number(val), 0).getDate();
+											const maxDays = new Date(
+												Number(tempYear),
+												Number(val),
+												0,
+											).getDate();
 											if (Number(tempDay) > maxDays) {
-												setTempDay(String(maxDays).padStart(2, '0'));
+												setTempDay(
+													String(maxDays).padStart(
+														2,
+														'0',
+													),
+												);
 											}
 										}}
 										options={monthOptions}
@@ -2687,7 +2782,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 									/>
 									<WheelPicker
 										value={tempDay}
-										onValueChange={(val) => setTempDay(String(val))}
+										onValueChange={(val) =>
+											setTempDay(String(val))
+										}
 										options={dayOptions}
 										optionItemHeight={34}
 									/>
@@ -2695,9 +2792,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										value={tempYear}
 										onValueChange={(val) => {
 											setTempYear(String(val));
-											const maxDays = new Date(Number(val), Number(tempMonth), 0).getDate();
+											const maxDays = new Date(
+												Number(val),
+												Number(tempMonth),
+												0,
+											).getDate();
 											if (Number(tempDay) > maxDays) {
-												setTempDay(String(maxDays).padStart(2, '0'));
+												setTempDay(
+													String(maxDays).padStart(
+														2,
+														'0',
+													),
+												);
 											}
 										}}
 										options={yearOptions}
@@ -2717,16 +2823,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						<div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-4 border border-gray-100">
 							<div className="flex items-center justify-between">
 								<div className="flex items-center gap-2">
-									<span className="material-symbols-outlined text-[22px] text-[#059669]">
-										location_on
+									<span className="material-symbols-outlined text-[22px] text-secondary">
+										home
 									</span>
 									<h3 className="text-[16px] font-bold text-[#111111]">
-										Set Exact Address
+										Set Home Address
 									</h3>
 								</div>
 								<button
 									type="button"
-									onClick={() => setIsLocationModalOpen(false)}
+									onClick={() =>
+										setIsLocationModalOpen(false)
+									}
 									data-testid="close-address-modal-btn"
 									className="w-8 h-8 rounded-full text-gray-400 hover:text-gray-700 flex items-center justify-center cursor-pointer"
 								>
@@ -2737,7 +2845,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							</div>
 
 							<p className="text-[12px] text-[#6B7280] leading-relaxed">
-								Browser Wi-Fi and IP detection can place you a few blocks away. Enter your street address to lock in your exact coordinates for Maps.
+								The app uses your Home Address to immediately
+								detect when you leave or return from trips.
 							</p>
 
 							<div className="relative w-full">
@@ -2746,10 +2855,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 									data-testid="address-search-input"
 									value={addressQuery}
 									onChange={(e) =>
-										handleSearchAddressChange(e.target.value)
+										handleSearchAddressChange(
+											e.target.value,
+										)
 									}
-									placeholder="e.g. 123 Main St, Glassboro NJ"
-									className="w-full bg-[#F4F7FB] border border-gray-200 rounded-xl px-3.5 py-2.5 text-[14px] font-medium text-[#111111] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#059669]"
+									placeholder="e.g. 201 Girard Rd, Glassboro NJ"
+									className="w-full bg-[#F4F7FB] border border-gray-200 rounded-xl px-3.5 py-2.5 text-[14px] font-medium text-[#111111] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-secondary"
 								/>
 								{isSearchingAddress && (
 									<div className="absolute right-3 top-2.5">
@@ -2769,7 +2880,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											type="button"
 											data-testid={`address-result-${idx}`}
 											onClick={() =>
-												handleSelectCalibratedAddress(item)
+												handleSelectHomeAddress(item)
 											}
 											className="w-full text-left p-2.5 hover:bg-neutral-50 transition-colors text-[13px] text-[#111111] font-medium flex items-start gap-2 cursor-pointer"
 										>
@@ -2787,13 +2898,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							<div className="flex items-center gap-2 pt-1">
 								<button
 									type="button"
-									onClick={handleResetGpsLocation}
+									onClick={handleUseCurrentGpsAsHome}
 									className="w-full py-2.5 px-3 rounded-xl border border-gray-200 text-[#111111] font-bold text-[13px] hover:bg-neutral-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
 								>
 									<span className="material-symbols-outlined text-[18px]">
-										gps_fixed
+										my_location
 									</span>
-									<span>Re-Detect GPS Location</span>
+									<span>Use Current Location as Home</span>
 								</button>
 							</div>
 						</div>

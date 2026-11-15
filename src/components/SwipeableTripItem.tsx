@@ -100,7 +100,9 @@ export const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
 				}
 				style={{ x }}
 				className={`relative z-10 px-4 py-3.5 flex items-center justify-between cursor-pointer transition-colors ${
-					isSelected ? 'bg-neutral-50/70' : 'bg-white hover:bg-neutral-50/40'
+					isSelected
+						? 'bg-neutral-50/70'
+						: 'bg-white hover:bg-neutral-50/40'
 				} ${!isLast ? 'border-b border-gray-100' : ''}`}
 			>
 				{/* Active left indicator bar */}
@@ -119,8 +121,8 @@ export const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
 						</span>
 					</div>
 					<span className="text-[12px] text-[#6B7280] truncate mt-0.5 tabular-nums">
-						{trip.miles.toFixed(1)} mi · {tripLaborMinutes.toFixed(1)}m labor ·{' '}
-						{trip.timestamp}
+						{trip.miles.toFixed(1)} mi ·{' '}
+						{tripLaborMinutes.toFixed(1)}m labor · {trip.timestamp}
 					</span>
 				</div>
 
@@ -130,7 +132,7 @@ export const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
 						${trip.cost.toFixed(2)}
 					</span>
 
-					{trip.status === 'UNLOGGED' ? (
+					{trip.status === 'UNLOGGED' && (
 						<button
 							type="button"
 							data-testid={`log-trip-${trip.id}`}
@@ -138,14 +140,10 @@ export const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
 								e.stopPropagation();
 								onLog(trip);
 							}}
-							className="bg-[#ECFDF5] hover:bg-[#D1FAE5] active:scale-95 text-[#059669] border border-emerald-200/80 px-2.5 py-0.5 rounded-full text-[11.5px] font-bold transition-all cursor-pointer shadow-2xs"
+							className="bg-[#ECFDF5] hover:bg-[#D1FAE5] active:scale-95 text-secondary border border-emerald-200/80 px-2.5 py-0.5 rounded-full text-[11.5px] font-bold transition-all cursor-pointer shadow-2xs"
 						>
-							Unlogged • Log
+							Not Logged
 						</button>
-					) : (
-						<span className="bg-neutral-100 text-neutral-500 px-2.5 py-0.5 rounded-full text-[11.5px] font-medium">
-							Logged ✓
-						</span>
 					)}
 				</div>
 			</motion.div>

@@ -406,6 +406,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 										onSkip={handleSkip}
 										onDotClick={handleDotClick}
 										totalSteps={screens.length}
+										isActive={currentIndex === 5}
 									/>
 								) : idx === 6 ? (
 									<OutroStep

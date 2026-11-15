@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
 	motion,
 	MotionConfig,
@@ -36,8 +36,9 @@ import {
 	SettingsSubpage,
 } from './components/SecondaryTabs';
 import { SmartPromptBanner } from './components/SmartPromptBanner';
-import { RecordedTrip, SmartPrompt } from './types/maps';
-import { DEFAULT_ROAD_ROUTES, fetchRoadRoute } from './utils/mapRouting';
+import { RecordedTrip, SmartPrompt, LiveTrackingStatus } from './types/maps';
+import { fetchRoadRoute } from './utils/mapRouting';
+import { AutomaticTripDetectionService } from './utils/tripTracker';
 
 type ActiveTab = 'dashboard' | 'maps' | 'analytics' | 'presets' | 'settings';
 type ActiveModal = 'none' | 'preset' | 'breakdown';
@@ -59,36 +60,36 @@ const INCOME_CATEGORIES = [
 ];
 
 export const INITIAL_RECORDED_TRIPS: RecordedTrip[] = [
-	{
-		id: 'trip-1',
-		from: 'School',
-		to: 'Rowan',
-		miles: 12.8,
-		cost: 1.79,
-		timestamp: '8:15 AM',
-		status: 'UNLOGGED',
-		coordinates: DEFAULT_ROAD_ROUTES['trip-1'] || [],
-	},
-	{
-		id: 'trip-2',
-		from: 'Home',
-		to: 'ShopRite',
-		miles: 6.4,
-		cost: 0.89,
-		timestamp: 'Yesterday',
-		status: 'UNLOGGED',
-		coordinates: DEFAULT_ROAD_ROUTES['trip-2'] || [],
-	},
-	{
-		id: 'trip-3',
-		from: 'Home',
-		to: 'Sportime VB',
-		miles: 10.0,
-		cost: 1.4,
-		timestamp: 'Nov 12',
-		status: 'LOGGED',
-		coordinates: DEFAULT_ROAD_ROUTES['trip-3'] || [],
-	},
+	// {
+	// 	id: 'trip-1',
+	// 	from: 'School',
+	// 	to: 'Rowan',
+	// 	miles: 12.8,
+	// 	cost: 1.79,
+	// 	timestamp: '8:15 AM',
+	// 	status: 'UNLOGGED',
+	// 	coordinates: DEFAULT_ROAD_ROUTES['trip-1'] || [],
+	// },
+	// {
+	// 	id: 'trip-2',
+	// 	from: 'Home',
+	// 	to: 'ShopRite',
+	// 	miles: 6.4,
+	// 	cost: 0.89,
+	// 	timestamp: 'Yesterday',
+	// 	status: 'UNLOGGED',
+	// 	coordinates: DEFAULT_ROAD_ROUTES['trip-2'] || [],
+	// },
+	// {
+	// 	id: 'trip-3',
+	// 	from: 'Home',
+	// 	to: 'Sportime VB',
+	// 	miles: 10.0,
+	// 	cost: 1.4,
+	// 	timestamp: 'Nov 12',
+	// 	status: 'LOGGED',
+	// 	coordinates: DEFAULT_ROAD_ROUTES['trip-3'] || [],
+	// },
 ];
 
 export const INITIAL_SMART_PROMPTS: SmartPrompt[] = [
@@ -453,14 +454,61 @@ export default function App() {
 	const [autoTripDetection, setAutoTripDetection] = useState<boolean>(() => {
 		if (typeof window !== 'undefined') {
 			try {
-				return (
-					localStorage.getItem('imcheap_auto_trip_detection') ===
-					'true'
+				const saved = localStorage.getItem(
+					'imcheap_auto_trip_detection',
 				);
+				if (saved !== null) {
+					return saved === 'true';
+				}
 			} catch {}
 		}
-		return false;
+		return true;
 	});
+
+	const [trackingStatus, setTrackingStatus] = useState<LiveTrackingStatus>({
+		state: 'AT_HOME',
+	});
+
+	const tripDetectorRef = useRef<AutomaticTripDetectionService | null>(null);
+
+	useEffect(() => {
+		const detector = new AutomaticTripDetectionService({
+			mileageRate: incomeSettings.mileageRate,
+			onTripRecorded: (newTrip) => {
+				setTrips((prev) => [newTrip, ...prev]);
+				setToastMessage(
+					`Trip recorded: ${newTrip.from} → ${newTrip.to} (${newTrip.miles.toFixed(1)} mi)`,
+				);
+
+				const newPrompt: SmartPrompt = {
+					id: `prompt-${newTrip.id}`,
+					type: 'FREQUENT_ROUTE',
+					title: 'Drive Recorded',
+					subtitle: `You just traveled ${newTrip.from} → ${newTrip.to} (${newTrip.miles.toFixed(1)} mi). Save this drive as a preset?`,
+					ctaLabel: 'Save Drive',
+					payload: {
+						name: `${newTrip.from} → ${newTrip.to}`,
+						miles: newTrip.miles,
+						category: 'Driving',
+					},
+				};
+				setCustomPrompts((prev) => [newPrompt, ...prev]);
+			},
+			onStatusChange: (status) => {
+				setTrackingStatus(status);
+			},
+		});
+
+		tripDetectorRef.current = detector;
+
+		if (autoTripDetection) {
+			detector.start();
+		}
+
+		return () => {
+			detector.stop();
+		};
+	}, [autoTripDetection, incomeSettings.mileageRate]);
 
 	// Smart Prompts State & Dismissals
 	const [dismissedPromptIds, setDismissedPromptIds] = useState<string[]>(
@@ -556,63 +604,6 @@ export default function App() {
 
 	const handleDeleteTrip = (id: string) => {
 		setTrips((prev) => prev.filter((t) => t.id !== id));
-	};
-
-	const handleAddRecordedTrip = (newTrip: RecordedTrip) => {
-		setTrips((prev) => [newTrip, ...prev]);
-		setToastMessage(
-			`Drive recorded: ${newTrip.from} → ${newTrip.to} (${newTrip.miles.toFixed(1)} mi)`,
-		);
-
-		const newPrompt: SmartPrompt = {
-			id: `prompt-${newTrip.id}`,
-			type: 'FREQUENT_ROUTE',
-			title: 'Drive Recorded',
-			subtitle: `You just traveled ${newTrip.from} → ${newTrip.to} (${newTrip.miles.toFixed(1)} mi). Save this drive as a preset?`,
-			ctaLabel: 'Save Drive',
-			payload: {
-				name: `${newTrip.from} → ${newTrip.to}`,
-				miles: newTrip.miles,
-				category: 'Driving',
-			},
-		};
-		setSmartPrompts((prev) => [newPrompt, ...prev]);
-	};
-
-	const handleSimulateTrip = async () => {
-		const startCoord = { lat: 39.7099, lng: -75.1188 };
-		const endCoord = { lat: 39.7285, lng: -75.1012 };
-		const roadResult = await fetchRoadRoute(startCoord, endCoord);
-		const newTripMiles = roadResult?.distanceMiles || 8.2;
-		const newTripCost = Number(
-			(newTripMiles * incomeSettings.mileageRate).toFixed(2),
-		);
-		const simulatedId = `trip-sim-${Date.now()}`;
-		const newTrip: RecordedTrip = {
-			id: simulatedId,
-			from: 'Rowan Campus',
-			to: 'Target',
-			miles: newTripMiles,
-			cost: newTripCost,
-			timestamp: 'Just now',
-			status: 'UNLOGGED',
-			coordinates: roadResult?.coordinates || [startCoord, endCoord],
-		};
-		setTrips((prev) => [newTrip, ...prev]);
-
-		const newPrompt: SmartPrompt = {
-			id: `prompt-sim-${Date.now()}`,
-			type: 'MERCHANT_STOP',
-			title: 'Target Stop Detected',
-			subtitle: 'You were just at Target. Track how much you spent?',
-			ctaLabel: 'Log Spend',
-			payload: {
-				name: 'Target',
-				category: 'Other',
-			},
-		};
-		setCustomPrompts((prev) => [newPrompt, ...prev]);
-		setToastMessage('New trip simulated');
 	};
 
 	const handleStartEditTransaction = (tx: Transaction) => {
@@ -1119,7 +1110,7 @@ export default function App() {
 							{activeTab === 'dashboard' &&
 								!isDockExpanded &&
 								currentSmartPrompt && (
-									<div className="fixed bottom-[180px] inset-x-0 z-40">
+									<div className="fixed bottom-45 inset-x-0 z-40">
 										<SmartPromptBanner
 											prompt={currentSmartPrompt}
 											onAction={handlePromptAction}
@@ -1538,6 +1529,7 @@ export default function App() {
 							hourlyWage={incomeSettings.hourlyWage}
 							mileageRate={incomeSettings.mileageRate}
 							autoTripDetection={autoTripDetection}
+							trackingStatus={trackingStatus}
 						/>
 					)}
 

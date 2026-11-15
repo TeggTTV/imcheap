@@ -1,11 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Coordinate, RecordedTrip } from '../types/maps';
-import {
-	fetchRoadRoute,
-	DEFAULT_ROAD_ROUTES,
-} from '../utils/mapRouting';
+import { Coordinate, RecordedTrip, LiveTrackingStatus } from '../types/maps';
+import { fetchRoadRoute, DEFAULT_ROAD_ROUTES } from '../utils/mapRouting';
 import { SwipeableTripItem } from './SwipeableTripItem';
 
 export interface MapsViewProps {
@@ -15,6 +12,7 @@ export interface MapsViewProps {
 	hourlyWage: number;
 	mileageRate: number;
 	autoTripDetection?: boolean;
+	trackingStatus?: LiveTrackingStatus;
 }
 
 const DEFAULT_CENTER: [number, number] = [39.7032, -75.122]; // Glassboro, NJ (Girard Rd area)
@@ -26,6 +24,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	hourlyWage,
 	mileageRate,
 	autoTripDetection = false,
+	trackingStatus,
 }) => {
 	const mapContainerRef = useRef<HTMLDivElement>(null);
 	const mapInstanceRef = useRef<L.Map | null>(null);
@@ -57,24 +56,18 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	useEffect(() => {
 		if (!('geolocation' in navigator)) return;
 
-		const hasCustomLocation = Boolean(
-			localStorage.getItem('imcheap_user_custom_location'),
-		);
-
 		const watchId = navigator.geolocation.watchPosition(
 			(pos) => {
 				const coords = {
 					lat: pos.coords.latitude,
 					lng: pos.coords.longitude,
 				};
-				if (!hasCustomLocation) {
-					setUserLocation(coords);
-					if (!activeTripId && mapInstanceRef.current) {
-						mapInstanceRef.current.setView(
-							[coords.lat, coords.lng],
-							15,
-						);
-					}
+				setUserLocation(coords);
+				if (!activeTripId && mapInstanceRef.current) {
+					mapInstanceRef.current.setView(
+						[coords.lat, coords.lng],
+						mapInstanceRef.current.getZoom() || 15,
+					);
 				}
 			},
 			(err) => {
@@ -231,6 +224,27 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	};
 
 	const handleSelectTrip = (trip: RecordedTrip) => {
+		if (activeTripId === trip.id) {
+			// Deselect and focus back on user position
+			setActiveTripId(null);
+			if (polylineLayerRef.current) {
+				mapInstanceRef.current?.removeLayer(polylineLayerRef.current);
+				polylineLayerRef.current = null;
+			}
+			if (markersLayerRef.current) {
+				markersLayerRef.current.clearLayers();
+			}
+			if (mapInstanceRef.current && userLocation) {
+				mapInstanceRef.current.setView(
+					[userLocation.lat, userLocation.lng],
+					15,
+					{ animate: true },
+				);
+			}
+			return;
+		}
+
+		// Select route
 		setActiveTripId(trip.id);
 		if (mapInstanceRef.current && markersLayerRef.current) {
 			renderTripRoute(
@@ -299,7 +313,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	return (
 		<div className="flex flex-col gap-4 pb-28 pt-2 px-margin-sm max-w-120 mx-auto w-full select-none">
 			{/* Custom Grayscale Map Card */}
-			<div className="relative w-full h-[320px] rounded-3xl overflow-hidden border border-gray-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.04)] bg-white">
+			<div className="relative w-full h-80 rounded-3xl overflow-hidden border border-gray-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.04)] bg-white">
 				<div
 					ref={mapContainerRef}
 					className="w-full h-full z-0"
@@ -312,12 +326,22 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				<div className="absolute top-3.5 left-3.5 z-10 pointer-events-none">
 					<div className="bg-white/95 backdrop-blur-md rounded-full px-3 py-1.5 shadow-md border border-neutral-200/60 flex items-center gap-1.5">
 						<span className="material-symbols-outlined text-[16px] text-[#111111]">
-							directions_car
+							{activeTrip
+								? 'directions_car'
+								: trackingStatus?.state === 'TRACKING_TRIP'
+									? 'navigation'
+									: 'near_me'}
 						</span>
 						<span className="text-[12px] font-bold text-[#111111]">
 							{activeTrip
 								? `${activeTrip.from} → ${activeTrip.to}`
-								: 'Active Commute'}
+								: trackingStatus?.state === 'TRACKING_TRIP'
+									? `Tracking: ${trackingStatus.originName} → ${trackingStatus.currentMiles || 0} mi`
+									: trackingStatus?.state === 'AT_HOME'
+										? 'At Home'
+										: trackingStatus?.state === 'STATIONARY'
+											? `At ${trackingStatus.originName} (${trackingStatus.dwellMinutes || 0}m)`
+											: 'Active Commute'}
 						</span>
 					</div>
 				</div>
@@ -326,14 +350,20 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				<div className="absolute bottom-3.5 left-3.5 z-10 pointer-events-none">
 					<div className="bg-white/95 backdrop-blur-md rounded-full px-3.5 py-1.5 shadow-md border border-neutral-200/60 flex items-center gap-2">
 						<span className="text-[13px] font-black text-[#111111] tabular-nums">
-							{activeMiles.toFixed(1)} mi
+							{activeTrip
+								? `${activeMiles.toFixed(1)} mi`
+								: trackingStatus?.state === 'TRACKING_TRIP'
+									? `${(trackingStatus.currentMiles || 0).toFixed(1)} mi`
+									: `${totalLaborMinutes.toFixed(1)}m burn`}
 						</span>
 						<span className="text-gray-300 font-bold">•</span>
-						<span className="text-[12px] font-bold text-[#059669] flex items-center gap-1 tabular-nums">
+						<span className="text-[12px] font-bold text-secondary flex items-center gap-1 tabular-nums">
 							<span className="material-symbols-outlined text-[14px]">
 								schedule
 							</span>
-							{activeLaborMinutes.toFixed(1)}m
+							{activeTrip
+								? `${activeLaborMinutes.toFixed(1)}m`
+								: 'Auto-Trip Ready'}
 						</span>
 					</div>
 				</div>
@@ -390,31 +420,6 @@ export const MapsView: React.FC<MapsViewProps> = ({
 					)}
 				</div>
 			</section>
-
-			{/* Bottom Transit Mileage Card */}
-			<div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-[0_2px_16px_rgba(0,0,0,0.03)] flex items-center justify-between gap-3">
-				<div className="flex items-center gap-3 min-w-0">
-					<div className="w-10 h-10 rounded-2xl bg-[#ECFDF5] text-[#059669] flex items-center justify-center shrink-0">
-						<span className="material-symbols-outlined text-[22px]">
-							energy_savings_leaf
-						</span>
-					</div>
-					<div className="flex flex-col min-w-0">
-						<span className="text-[14px] font-bold text-[#111111] truncate">
-							Transit Mileage Index
-						</span>
-						<span className="text-[11.5px] text-[#6B7280] truncate tabular-nums">
-							Fuel burn converted into{' '}
-							{totalLaborMinutes.toFixed(1)}m total labor this
-							week
-						</span>
-					</div>
-				</div>
-
-				<div className="bg-[#ECFDF5] text-[#059669] px-2.5 py-1 rounded-xl text-[12px] font-bold shrink-0 tabular-nums">
-					-12% cost
-				</div>
-			</div>
 		</div>
 	);
 };

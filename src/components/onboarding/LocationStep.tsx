@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { reverseGeocode } from '../../utils/mapRouting';
 
 interface LocationStepProps {
 	onNext: () => void;
@@ -6,6 +7,7 @@ interface LocationStepProps {
 	onSkip: () => void;
 	onDotClick: (index: number) => void;
 	totalSteps?: number;
+	isActive?: boolean;
 }
 
 export const LocationStep: React.FC<LocationStepProps> = ({
@@ -13,24 +15,89 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 	onBack,
 	onSkip,
 	onDotClick,
-	totalSteps = 6,
+	totalSteps = 7,
+	isActive = false,
 }) => {
-	const [status, setStatus] = useState<'idle' | 'loading' | 'success'>(
-		'idle',
-	);
+	const [status, setStatus] = useState<
+		'idle' | 'loading' | 'success' | 'error'
+	>(() => {
+		if (typeof window !== 'undefined') {
+			const isEnabled =
+				localStorage.getItem('imcheap_location_enabled') === 'true';
+			return isEnabled ? 'success' : 'idle';
+		}
+		return 'idle';
+	});
 
-	const handleTurnOnLocation = () => {
-		if (status !== 'idle') return;
-		setStatus('loading');
-		try {
-			localStorage.setItem('imcheap_location_enabled', 'true');
-		} catch (err) {
-			console.warn('Failed to save location preference', err);
+	const hasRequestedRef = useRef<boolean>(false);
+
+	const requestLocation = useCallback(() => {
+		if (typeof window === 'undefined' || !('geolocation' in navigator)) {
+			setStatus('error');
+			return;
 		}
 
-		setTimeout(() => {
-			setStatus('success');
-		}, 1000);
+		setStatus('loading');
+
+		navigator.geolocation.getCurrentPosition(
+			(pos) => {
+				const coords = {
+					lat: pos.coords.latitude,
+					lng: pos.coords.longitude,
+				};
+				try {
+					localStorage.setItem('imcheap_location_enabled', 'true');
+					localStorage.setItem(
+						'imcheap_user_custom_location',
+						JSON.stringify(coords),
+					);
+				} catch (err) {
+					console.warn('Failed to save location', err);
+				}
+				setStatus('success');
+
+				const existingHome = localStorage.getItem(
+					'imcheap_home_address',
+				);
+				if (!existingHome) {
+					reverseGeocode(coords)
+						.then((addr) => {
+							localStorage.setItem(
+								'imcheap_home_address',
+								JSON.stringify({
+									address: addr,
+									lat: coords.lat,
+									lng: coords.lng,
+								}),
+							);
+						})
+						.catch((err) =>
+							console.warn('Reverse geocode error', err),
+						);
+				}
+			},
+			(err) => {
+				console.warn('Geolocation permission error or denied', err);
+				setStatus('error');
+			},
+			{
+				enableHighAccuracy: true,
+				timeout: 10000,
+				maximumAge: 0,
+			},
+		);
+	}, []);
+
+	useEffect(() => {
+		if (isActive && !hasRequestedRef.current && status !== 'success') {
+			hasRequestedRef.current = true;
+			requestLocation();
+		}
+	}, [isActive, status, requestLocation]);
+
+	const handleTurnOnLocation = () => {
+		if (status === 'loading') return;
+		requestLocation();
 	};
 
 	return (
@@ -314,11 +381,13 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 					<button
 						type="button"
 						onClick={handleTurnOnLocation}
-						disabled={status !== 'idle'}
+						disabled={status === 'loading'}
 						className={`mt-4 w-full max-w-xs h-12 rounded-2xl font-bold text-[15px] tracking-tight border active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs ${
 							status === 'success'
 								? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-								: 'bg-white hover:bg-neutral-50/90 border-neutral-200 text-secondary'
+								: status === 'error'
+									? 'bg-amber-50/80 border-amber-200 text-amber-900 hover:bg-amber-100'
+									: 'bg-white hover:bg-neutral-50/90 border-neutral-200 text-secondary'
 						}`}
 					>
 						{status === 'loading' && (
@@ -338,6 +407,16 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 								</span>
 								<span className="text-emerald-700">
 									Location Enabled
+								</span>
+							</>
+						)}
+						{status === 'error' && (
+							<>
+								<span className="material-symbols-outlined text-[18px] text-amber-700">
+									near_me_disabled
+								</span>
+								<span className="text-amber-900">
+									Allow Location (Retry)
 								</span>
 							</>
 						)}
@@ -369,22 +448,22 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 
 			{/* Bottom Action Dock */}
 			<div className="relative z-20 flex flex-col items-center w-full gap-3 pt-2">
-				{/* Pagination Stepper Pills (All 6 dots, final active) */}
+				{/* Pagination Stepper Pills */}
 				<div
 					aria-label="Onboarding Progress"
 					className="flex items-center justify-center gap-1.5 py-1"
 				>
 					{Array.from({ length: totalSteps }).map((_, idx) => {
-						const isActive = idx === totalSteps - 1;
+						const isDotActive = idx === 5;
 						return (
 							<button
 								key={idx}
 								type="button"
 								onClick={() => onDotClick(idx)}
 								aria-label={`Go to step ${idx + 1}`}
-								aria-current={isActive ? 'step' : undefined}
+								aria-current={isDotActive ? 'step' : undefined}
 								className={`transition-all duration-280 ease-out cursor-pointer ${
-									isActive
+									isDotActive
 										? 'w-6 h-2 bg-[#111111] rounded-full'
 										: 'w-2 h-2 bg-[#E5E7EB] rounded-full'
 								}`}
