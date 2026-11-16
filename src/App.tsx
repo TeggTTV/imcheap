@@ -36,7 +36,8 @@ import {
 	SettingsSubpage,
 } from './components/SecondaryTabs';
 import { SmartPromptBanner } from './components/SmartPromptBanner';
-import { RecordedTrip, SmartPrompt, LiveTrackingStatus } from './types/maps';
+import { DevTrackingIndicator } from './components/DevTrackingIndicator';
+import { RecordedTrip, SmartPrompt, LiveTrackingStatus, DevTrackingTelemetry, Coordinate } from './types/maps';
 import { fetchRoadRoute } from './utils/mapRouting';
 import { AutomaticTripDetectionService } from './utils/tripTracker';
 
@@ -466,7 +467,47 @@ export default function App() {
 	});
 
 	const [trackingStatus, setTrackingStatus] = useState<LiveTrackingStatus>({
-		state: 'AT_HOME',
+		state: 'LOCATING',
+	});
+
+	// Lifted userLocation for persistent cross-tab alignment
+	const [userLocation, setUserLocation] = useState<Coordinate>(() => {
+		if (typeof window !== 'undefined') {
+			try {
+				const savedGps = localStorage.getItem('imcheap_last_known_gps');
+				if (savedGps) {
+					const parsed = JSON.parse(savedGps);
+					if (parsed?.lat && parsed?.lng) return parsed;
+				}
+				const savedCustom = localStorage.getItem('imcheap_user_custom_location');
+				if (savedCustom) {
+					const parsed = JSON.parse(savedCustom);
+					if (parsed?.lat && parsed?.lng) return parsed;
+				}
+			} catch {}
+		}
+		return { lat: 39.7032, lng: -75.122 };
+	});
+
+	// Dev Tracking Telemetry & Overlay State
+	const [devTelemetry, setDevTelemetry] = useState<DevTrackingTelemetry | null>(null);
+	const [devTrackingOverlay, setDevTrackingOverlay] = useState<boolean>(() => {
+		if (typeof window !== 'undefined') {
+			try {
+				return localStorage.getItem('imcheap_dev_tracking_overlay') === 'true';
+			} catch {}
+		}
+		return false;
+	});
+
+	// Location Permission State (defaults to false until user turns on in Onboarding or Maps overlay)
+	const [isLocationEnabled, setIsLocationEnabled] = useState<boolean>(() => {
+		if (typeof window !== 'undefined') {
+			try {
+				return localStorage.getItem('imcheap_location_enabled') === 'true';
+			} catch {}
+		}
+		return false;
 	});
 
 	const tripDetectorRef = useRef<AutomaticTripDetectionService | null>(null);
@@ -474,6 +515,7 @@ export default function App() {
 	useEffect(() => {
 		const detector = new AutomaticTripDetectionService({
 			mileageRate: incomeSettings.mileageRate,
+			hourlyWage: incomeSettings.hourlyWage,
 			onTripRecorded: (newTrip) => {
 				setTrips((prev) => [newTrip, ...prev]);
 				setToastMessage(
@@ -496,19 +538,26 @@ export default function App() {
 			},
 			onStatusChange: (status) => {
 				setTrackingStatus(status);
+				if (status.liveLocation) {
+					setUserLocation(status.liveLocation);
+				}
+			},
+			onTelemetryUpdate: (telemetry) => {
+				setDevTelemetry(telemetry);
 			},
 		});
 
 		tripDetectorRef.current = detector;
 
-		if (autoTripDetection) {
+		// Only start engine when both autoTripDetection AND isLocationEnabled are true
+		if (autoTripDetection && isLocationEnabled) {
 			detector.start();
 		}
 
 		return () => {
 			detector.stop();
 		};
-	}, [autoTripDetection, incomeSettings.mileageRate]);
+	}, [autoTripDetection, isLocationEnabled, incomeSettings.mileageRate, incomeSettings.hourlyWage]);
 
 	// Smart Prompts State & Dismissals
 	const [dismissedPromptIds, setDismissedPromptIds] = useState<string[]>(
@@ -1530,6 +1579,15 @@ export default function App() {
 							mileageRate={incomeSettings.mileageRate}
 							autoTripDetection={autoTripDetection}
 							trackingStatus={trackingStatus}
+							userLocation={userLocation}
+							onUserLocationChange={setUserLocation}
+							isLocationEnabled={isLocationEnabled}
+							onEnableLocation={(coords) => {
+								setIsLocationEnabled(true);
+								if (coords) {
+									setUserLocation(coords);
+								}
+							}}
 						/>
 					)}
 
@@ -1585,6 +1643,11 @@ export default function App() {
 								onToggleAnimations={handleToggleAnimations}
 								autoTripDetection={autoTripDetection}
 								onToggleAutoTripDetection={setAutoTripDetection}
+								devTrackingOverlay={devTrackingOverlay}
+								onToggleDevTrackingOverlay={setDevTrackingOverlay}
+								onUpdateHomeAddress={(home) =>
+									tripDetectorRef.current?.updateHomeAddress(home)
+								}
 								onOpenSheet={(sheet) => {
 									if (sheet === 'log') {
 										setActiveTab('dashboard');
@@ -1744,13 +1807,21 @@ export default function App() {
 				{/* Interactive Multi-Screen Onboarding Walkthrough */}
 				<OnboardingModal
 					isOpen={isOnboardingOpen}
-					onClose={() => setIsOnboardingOpen(false)}
+					onClose={() => {
+						setIsOnboardingOpen(false);
+						if (typeof window !== 'undefined') {
+							setIsLocationEnabled(localStorage.getItem('imcheap_location_enabled') === 'true');
+						}
+					}}
 					onComplete={({
 						wage,
 						vehicle,
 						netpay,
 						presets: initialPresets,
 					}) => {
+						if (typeof window !== 'undefined') {
+							setIsLocationEnabled(localStorage.getItem('imcheap_location_enabled') === 'true');
+						}
 						const mileageRate = Number(
 							(vehicle.gasPrice / vehicle.mpg).toFixed(2),
 						);
@@ -1766,6 +1837,18 @@ export default function App() {
 						setPresets(initialPresets);
 					}}
 				/>
+
+				{/* Dev Tracking Telemetry Overlay */}
+				{devTrackingOverlay && (
+					<DevTrackingIndicator
+						telemetry={devTelemetry}
+						onSimulateDeparture={() => tripDetectorRef.current?.simulateDeparture(26)}
+						onSimulateMicroStop={() => tripDetectorRef.current?.simulateMicroStop()}
+						onSimulateResumeDriving={() => tripDetectorRef.current?.simulateResumeDriving(30)}
+						onSimulateDestination={() => tripDetectorRef.current?.simulateDestinationReached()}
+						onResetToIdle={() => tripDetectorRef.current?.resetToIdle()}
+					/>
+				)}
 			</div>
 		</MotionConfig>
 	);

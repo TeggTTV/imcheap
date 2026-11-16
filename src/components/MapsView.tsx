@@ -13,6 +13,10 @@ export interface MapsViewProps {
 	mileageRate: number;
 	autoTripDetection?: boolean;
 	trackingStatus?: LiveTrackingStatus;
+	userLocation?: Coordinate;
+	onUserLocationChange?: (coords: Coordinate) => void;
+	isLocationEnabled?: boolean;
+	onEnableLocation?: (coords?: Coordinate) => void;
 }
 
 const DEFAULT_CENTER: [number, number] = [39.7032, -75.122]; // Glassboro, NJ (Girard Rd area)
@@ -25,22 +29,34 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	mileageRate,
 	autoTripDetection = false,
 	trackingStatus,
+	userLocation: externalUserLocation,
+	onUserLocationChange,
+	isLocationEnabled = true,
+	onEnableLocation,
 }) => {
 	const mapContainerRef = useRef<HTMLDivElement>(null);
 	const mapInstanceRef = useRef<L.Map | null>(null);
 	const polylineLayerRef = useRef<L.Polyline | null>(null);
 	const markersLayerRef = useRef<L.LayerGroup | null>(null);
 	const userMarkerRef = useRef<L.Marker | null>(null);
+	const [isRequestingPermission, setIsRequestingPermission] = useState<boolean>(false);
+	const [permissionError, setPermissionError] = useState<string | null>(null);
 
-	// User location state, prioritizing calibrated address if saved in Settings
+	// User location state, prioritizing external live location, then last known GPS
 	const [userLocation, setUserLocation] = useState<Coordinate>(() => {
+		if (externalUserLocation?.lat && externalUserLocation?.lng) {
+			return externalUserLocation;
+		}
 		if (typeof window !== 'undefined') {
 			try {
-				const saved = localStorage.getItem(
-					'imcheap_user_custom_location',
-				);
-				if (saved) {
-					const parsed = JSON.parse(saved);
+				const savedGps = localStorage.getItem('imcheap_last_known_gps');
+				if (savedGps) {
+					const parsed = JSON.parse(savedGps);
+					if (parsed?.lat && parsed?.lng) return parsed;
+				}
+				const savedCustom = localStorage.getItem('imcheap_user_custom_location');
+				if (savedCustom) {
+					const parsed = JSON.parse(savedCustom);
 					if (parsed?.lat && parsed?.lng) return parsed;
 				}
 			} catch {}
@@ -48,42 +64,76 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		return { lat: DEFAULT_CENTER[0], lng: DEFAULT_CENTER[1] };
 	});
 
-	const [activeTripId, setActiveTripId] = useState<string | null>(() => {
-		return trips[0]?.id || null;
-	});
-
-	// High accuracy GPS detection
+	// Synchronize when external user location changes from tracker
 	useEffect(() => {
-		if (!('geolocation' in navigator)) return;
+		if (
+			externalUserLocation?.lat &&
+			externalUserLocation?.lng &&
+			(externalUserLocation.lat !== userLocation.lat ||
+				externalUserLocation.lng !== userLocation.lng)
+		) {
+			setUserLocation(externalUserLocation);
+		}
+	}, [externalUserLocation]);
 
+	const [activeTripId, setActiveTripId] = useState<string | null>(null);
+
+	// High accuracy GPS detection with smooth fallback (only runs if location is enabled)
+	useEffect(() => {
+		if (!isLocationEnabled || !('geolocation' in navigator)) return;
+
+		const handleSuccess = (pos: GeolocationPosition) => {
+			const coords = {
+				lat: pos.coords.latitude,
+				lng: pos.coords.longitude,
+			};
+			setUserLocation(coords);
+			if (onUserLocationChange) {
+				onUserLocationChange(coords);
+			}
+			if (typeof window !== 'undefined') {
+				try {
+					localStorage.setItem('imcheap_last_known_gps', JSON.stringify(coords));
+				} catch {}
+			}
+			if (!activeTripId && mapInstanceRef.current) {
+				mapInstanceRef.current.setView(
+					[coords.lat, coords.lng],
+					mapInstanceRef.current.getZoom() || 15,
+				);
+			}
+		};
+
+		let fallbackWatchId: number | null = null;
 		const watchId = navigator.geolocation.watchPosition(
-			(pos) => {
-				const coords = {
-					lat: pos.coords.latitude,
-					lng: pos.coords.longitude,
-				};
-				setUserLocation(coords);
-				if (!activeTripId && mapInstanceRef.current) {
-					mapInstanceRef.current.setView(
-						[coords.lat, coords.lng],
-						mapInstanceRef.current.getZoom() || 15,
+			handleSuccess,
+			(err) => {
+				if (err.code === 3 && typeof window !== 'undefined' && 'geolocation' in navigator) {
+					fallbackWatchId = navigator.geolocation.watchPosition(
+						handleSuccess,
+						() => {},
+						{
+							enableHighAccuracy: false,
+							timeout: 30000,
+							maximumAge: 30000,
+						},
 					);
 				}
 			},
-			(err) => {
-				console.warn('Geolocation error / high accuracy fallback', err);
-			},
 			{
 				enableHighAccuracy: true,
-				timeout: 15000,
-				maximumAge: 0,
+				timeout: 10000,
+				maximumAge: 10000,
 			},
 		);
 
 		return () => {
 			navigator.geolocation.clearWatch(watchId);
+			if (fallbackWatchId !== null) {
+				navigator.geolocation.clearWatch(fallbackWatchId);
+			}
 		};
-	}, [autoTripDetection, activeTripId]);
+	}, [isLocationEnabled, autoTripDetection, activeTripId, onUserLocationChange]);
 
 	// Initialize Leaflet map
 	useEffect(() => {
@@ -126,11 +176,12 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		userMarkerRef.current = userMarker;
 		mapInstanceRef.current = map;
 
-		// Auto fit to initial active trip if any
-		const initialTrip =
-			trips.find((t) => t.id === activeTripId) || trips[0];
-		if (initialTrip) {
-			renderTripRoute(map, markersGroup, initialTrip);
+		// Auto fit to initial active trip only if one is explicitly selected
+		if (activeTripId) {
+			const initialTrip = trips.find((t) => t.id === activeTripId);
+			if (initialTrip) {
+				renderTripRoute(map, markersGroup, initialTrip);
+			}
 		}
 
 		return () => {
@@ -138,6 +189,54 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			mapInstanceRef.current = null;
 		};
 	}, []);
+
+	const handleRequestLocationAccess = () => {
+		if (typeof window === 'undefined' || !('geolocation' in navigator)) {
+			setPermissionError('Geolocation is not supported by your browser.');
+			return;
+		}
+
+		setIsRequestingPermission(true);
+		setPermissionError(null);
+
+		navigator.geolocation.getCurrentPosition(
+			(pos) => {
+				const coords = {
+					lat: pos.coords.latitude,
+					lng: pos.coords.longitude,
+				};
+				setIsRequestingPermission(false);
+				setUserLocation(coords);
+				try {
+					localStorage.setItem('imcheap_location_enabled', 'true');
+					localStorage.setItem('imcheap_last_known_gps', JSON.stringify(coords));
+				} catch {}
+				if (userMarkerRef.current) {
+					userMarkerRef.current.setLatLng([coords.lat, coords.lng]);
+				}
+				mapInstanceRef.current?.setView([coords.lat, coords.lng], 16, { animate: true });
+				if (onEnableLocation) {
+					onEnableLocation(coords);
+				}
+				if (onUserLocationChange) {
+					onUserLocationChange(coords);
+				}
+			},
+			(err) => {
+				setIsRequestingPermission(false);
+				if (err.code === 1) {
+					setPermissionError('Location permission denied. Please enable it in browser settings.');
+				} else {
+					setPermissionError('Could not retrieve location. Please try again.');
+				}
+			},
+			{
+				enableHighAccuracy: true,
+				timeout: 10000,
+				maximumAge: 10000,
+			},
+		);
+	};
 
 	// Update user marker when userLocation changes
 	useEffect(() => {
@@ -267,29 +366,58 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		}
 
 		if ('geolocation' in navigator) {
+			const applyCenteredCoords = (coords: Coordinate) => {
+				setUserLocation(coords);
+				if (onUserLocationChange) {
+					onUserLocationChange(coords);
+				}
+				if (typeof window !== 'undefined') {
+					try {
+						localStorage.setItem('imcheap_last_known_gps', JSON.stringify(coords));
+					} catch {}
+				}
+				if (userMarkerRef.current) {
+					userMarkerRef.current.setLatLng([
+						coords.lat,
+						coords.lng,
+					]);
+				}
+				mapInstanceRef.current?.setView(
+					[coords.lat, coords.lng],
+					16,
+					{
+						animate: true,
+					},
+				);
+			};
+
 			navigator.geolocation.getCurrentPosition(
 				(pos) => {
-					const coords = {
+					applyCenteredCoords({
 						lat: pos.coords.latitude,
 						lng: pos.coords.longitude,
-					};
-					setUserLocation(coords);
-					mapInstanceRef.current?.setView(
-						[coords.lat, coords.lng],
-						16,
-						{
-							animate: true,
-						},
-					);
+					});
 				},
-				() => {
-					mapInstanceRef.current?.setView(
-						[userLocation.lat, userLocation.lng],
-						16,
-						{ animate: true },
-					);
+				(err) => {
+					// Fallback to low-power / cached position on timeout
+					if (err.code === 3 && 'geolocation' in navigator) {
+						navigator.geolocation.getCurrentPosition(
+							(fallbackPos) => {
+								applyCenteredCoords({
+									lat: fallbackPos.coords.latitude,
+									lng: fallbackPos.coords.longitude,
+								});
+							},
+							() => {
+								applyCenteredCoords(userLocation);
+							},
+							{ enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 },
+						);
+					} else {
+						applyCenteredCoords(userLocation);
+					}
 				},
-				{ enableHighAccuracy: true, timeout: 8000, maximumAge: 0 },
+				{ enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 },
 			);
 		} else {
 			mapInstanceRef.current.setView(
@@ -341,7 +469,9 @@ export const MapsView: React.FC<MapsViewProps> = ({
 										? 'At Home'
 										: trackingStatus?.state === 'STATIONARY'
 											? `At ${trackingStatus.originName} (${trackingStatus.dwellMinutes || 0}m)`
-											: 'Active Commute'}
+											: trackingStatus?.state === 'LOCATING'
+												? 'Locating GPS...'
+												: 'Active Commute'}
 						</span>
 					</div>
 				</div>
@@ -379,6 +509,50 @@ export const MapsView: React.FC<MapsViewProps> = ({
 						my_location
 					</span>
 				</button>
+
+				{/* Location Access Disabled Dimmed Overlay */}
+				{!isLocationEnabled && (
+					<div className="absolute inset-0 z-30 backdrop-blur-xs bg-[#F5F6F8]/85 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+						<div className="w-12 h-12 rounded-2xl bg-white border border-gray-200/80 shadow-xs flex items-center justify-center text-[#111111] mb-3">
+							<span className="material-symbols-outlined text-[24px]">
+								location_off
+							</span>
+						</div>
+						<h3 className="text-[17px] font-black text-[#111111] tracking-tight mb-1">
+							Location Access Required
+						</h3>
+						<p className="text-[13px] text-[#6B7280] font-medium leading-relaxed max-w-[280px] mb-4">
+							Maps and automatic commute tracking require location permissions to record your trips and live position.
+						</p>
+						<button
+							type="button"
+							onClick={handleRequestLocationAccess}
+							disabled={isRequestingPermission}
+							className="h-11 px-6 rounded-xl bg-[#111111] hover:bg-neutral-800 active:scale-[0.98] text-white font-bold text-[14px] flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+						>
+							{isRequestingPermission ? (
+								<>
+									<span className="material-symbols-outlined animate-spin text-[16px]">
+										progress_activity
+									</span>
+									<span>Requesting...</span>
+								</>
+							) : (
+								<>
+									<span className="material-symbols-outlined text-[16px]">
+										near_me
+									</span>
+									<span>Enable Location</span>
+								</>
+							)}
+						</button>
+						{permissionError && (
+							<p className="text-[11px] text-amber-700 font-semibold mt-2.5 max-w-[280px]">
+								{permissionError}
+							</p>
+						)}
+					</div>
+				)}
 			</div>
 
 			{/* Recorded Trips Section */}

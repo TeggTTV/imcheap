@@ -15,7 +15,11 @@ import {
 } from './SwipeableShiftItem';
 import { reverseGeocode, searchAddresses } from '../utils/mapRouting';
 import { SavedHomeAddress } from '../types/maps';
-import { getSavedHomeAddress, saveHomeAddress } from '../utils/tripTracker';
+import {
+	getSavedHomeAddress,
+	saveHomeAddress,
+	saveTripEngineConfig,
+} from '../utils/tripTracker';
 
 export type SettingsSubpage =
 	| 'main'
@@ -106,6 +110,9 @@ export interface SettingsViewProps {
 	onToggleAnimations?: (enabled: boolean) => void;
 	autoTripDetection?: boolean;
 	onToggleAutoTripDetection?: (enabled: boolean) => void;
+	devTrackingOverlay?: boolean;
+	onToggleDevTrackingOverlay?: (enabled: boolean) => void;
+	onUpdateHomeAddress?: (home: SavedHomeAddress) => void;
 }
 
 const slideVariants = {
@@ -141,6 +148,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	onToggleAnimations,
 	autoTripDetection: propsAutoTripDetection,
 	onToggleAutoTripDetection,
+	devTrackingOverlay: propsDevTrackingOverlay,
+	onToggleDevTrackingOverlay,
+	onUpdateHomeAddress,
 }) => {
 	const [currentSubpage, setCurrentSubpage] =
 		useState<SettingsSubpage>(initialSubpage);
@@ -209,6 +219,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 		};
 		setHomeAddress(newHome);
 		saveHomeAddress(newHome);
+		onUpdateHomeAddress?.(newHome);
 		setIsLocationModalOpen(false);
 		setAddressQuery('');
 		setAddressResults([]);
@@ -232,6 +243,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 					};
 					setHomeAddress(newHome);
 					saveHomeAddress(newHome);
+					onUpdateHomeAddress?.(newHome);
 					setIsLocationModalOpen(false);
 				},
 				() => {
@@ -533,6 +545,57 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 		if (onToggleAutoTripDetection) {
 			onToggleAutoTripDetection(next);
 		}
+	};
+
+	// Dev Tracking Overlay & Dwell Threshold State
+	const [devTrackingOverlay, setDevTrackingOverlay] = useState<boolean>(() => {
+		if (typeof propsDevTrackingOverlay === 'boolean') {
+			return propsDevTrackingOverlay;
+		}
+		if (typeof window !== 'undefined') {
+			try {
+				return (
+					localStorage.getItem('imcheap_dev_tracking_overlay') ===
+					'true'
+				);
+			} catch {}
+		}
+		return false;
+	});
+
+	const [destinationDwellMins, setDestinationDwellMins] = useState<number>(
+		() => {
+			if (typeof window !== 'undefined') {
+				try {
+					const saved = localStorage.getItem(
+						'imcheap_trip_engine_config',
+					);
+					if (saved) {
+						const cfg = JSON.parse(saved);
+						if (cfg?.destinationDwellMinutes) {
+							return cfg.destinationDwellMinutes;
+						}
+					}
+				} catch {}
+			}
+			return 5;
+		},
+	);
+
+	const handleToggleDevTrackingOverlay = () => {
+		const next = !devTrackingOverlay;
+		setDevTrackingOverlay(next);
+		try {
+			localStorage.setItem('imcheap_dev_tracking_overlay', String(next));
+		} catch {}
+		if (onToggleDevTrackingOverlay) {
+			onToggleDevTrackingOverlay(next);
+		}
+	};
+
+	const handleChangeDestinationDwell = (mins: number) => {
+		setDestinationDwellMins(mins);
+		saveTripEngineConfig({ destinationDwellMinutes: mins });
 	};
 
 	// Export State
@@ -1860,8 +1923,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						</section>
 
 						{/* Automatic Trip Detection Section */}
-						<section className="mb-5">
-							<div className="flex items-center justify-between mb-2 px-1">
+						<section className="mb-5 flex flex-col gap-3">
+							<div className="flex items-center justify-between px-1">
 								<h3 className="text-[10px] font-bold uppercase tracking-wider text-outline">
 									Automated Tracking
 								</h3>
@@ -1904,6 +1967,80 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										}`}
 									/>
 								</button>
+							</div>
+
+							{/* Dev Tracking Overlay Toggle */}
+							<div className="bg-white rounded-xl shadow-sm border border-[#F3F4F6] p-4 flex items-center justify-between">
+								<div className="flex items-center gap-3 pr-2 min-w-0">
+									<div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center text-[#059669] shrink-0">
+										<span className="material-symbols-outlined text-[18px]">
+											terminal
+										</span>
+									</div>
+									<div className="flex flex-col min-w-0">
+										<span className="text-sm font-semibold text-on-surface truncate">
+											Dev Tracking Overlay
+										</span>
+										<span className="text-xs text-outline leading-snug">
+											Shows live 4-state engine telemetry and desk test triggers
+										</span>
+									</div>
+								</div>
+
+								<button
+									type="button"
+									role="switch"
+									aria-checked={devTrackingOverlay}
+									onClick={handleToggleDevTrackingOverlay}
+									data-testid="dev-tracking-overlay-toggle"
+									className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
+										devTrackingOverlay
+											? 'bg-[#10B981]'
+											: 'bg-[#E5E7EB]'
+									}`}
+								>
+									<span
+										className={`pointer-events-none inline-block h-[24px] w-[24px] transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+											devTrackingOverlay
+												? 'translate-x-5'
+												: 'translate-x-0'
+										}`}
+									/>
+								</button>
+							</div>
+
+							{/* Destination Dwell Threshold Selector */}
+							<div className="bg-white rounded-xl shadow-sm border border-[#F3F4F6] p-4 flex flex-col gap-2.5">
+								<div className="flex items-center justify-between">
+									<div className="flex flex-col">
+										<span className="text-sm font-semibold text-on-surface">
+											Destination Dwell Time
+										</span>
+										<span className="text-xs text-outline leading-snug">
+											Stationary duration before declaring a destination
+										</span>
+									</div>
+									<span className="text-xs font-mono font-bold text-[#059669] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+										{destinationDwellMins}m
+									</span>
+								</div>
+
+								<div className="grid grid-cols-4 gap-2 pt-1">
+									{[3, 5, 10, 15].map((mins) => (
+										<button
+											key={mins}
+											type="button"
+											onClick={() => handleChangeDestinationDwell(mins)}
+											className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+												destinationDwellMins === mins
+													? 'bg-[#111111] text-white shadow-xs'
+													: 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+											}`}
+										>
+											{mins} min
+										</button>
+									))}
+								</div>
 							</div>
 						</section>
 

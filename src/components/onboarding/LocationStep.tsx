@@ -29,8 +29,6 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 		return 'idle';
 	});
 
-	const hasRequestedRef = useRef<boolean>(false);
-
 	const requestLocation = useCallback(() => {
 		if (typeof window === 'undefined' || !('geolocation' in navigator)) {
 			setStatus('error');
@@ -47,6 +45,10 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 				};
 				try {
 					localStorage.setItem('imcheap_location_enabled', 'true');
+					localStorage.setItem(
+						'imcheap_last_known_gps',
+						JSON.stringify(coords),
+					);
 					localStorage.setItem(
 						'imcheap_user_custom_location',
 						JSON.stringify(coords),
@@ -83,21 +85,25 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 			{
 				enableHighAccuracy: true,
 				timeout: 10000,
-				maximumAge: 0,
+				maximumAge: 10000,
 			},
 		);
 	}, []);
 
-	useEffect(() => {
-		if (isActive && !hasRequestedRef.current && status !== 'success') {
-			hasRequestedRef.current = true;
-			requestLocation();
-		}
-	}, [isActive, status, requestLocation]);
-
 	const handleTurnOnLocation = () => {
 		if (status === 'loading') return;
 		requestLocation();
+	};
+
+	const handleSkip = () => {
+		if (typeof window !== 'undefined') {
+			const isAlreadyEnabled =
+				localStorage.getItem('imcheap_location_enabled') === 'true';
+			if (!isAlreadyEnabled) {
+				localStorage.setItem('imcheap_location_enabled', 'false');
+			}
+		}
+		onSkip();
 	};
 
 	return (
@@ -115,11 +121,10 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 					<span className="text-[18px] font-extrabold tracking-tight text-[#1c1b1b] font-sans">
 						ImCheap
 					</span>
-					<span className="w-1.5 h-1.5 rounded-full bg-[#006948] mt-0.5 animate-pulse" />
 				</div>
 				<button
 					type="button"
-					onClick={onSkip}
+					onClick={handleSkip}
 					className="text-[14px] text-neutral-500 hover:text-neutral-900 transition-colors py-1.5 px-3 rounded-full hover:bg-neutral-100 active:scale-95 cursor-pointer font-medium"
 				>
 					Skip
