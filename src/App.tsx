@@ -37,7 +37,13 @@ import {
 } from './components/SecondaryTabs';
 import { SmartPromptBanner } from './components/SmartPromptBanner';
 import { DevTrackingIndicator } from './components/DevTrackingIndicator';
-import { RecordedTrip, SmartPrompt, LiveTrackingStatus, DevTrackingTelemetry, Coordinate } from './types/maps';
+import {
+	RecordedTrip,
+	SmartPrompt,
+	LiveTrackingStatus,
+	DevTrackingTelemetry,
+	Coordinate,
+} from './types/maps';
 import { fetchRoadRoute } from './utils/mapRouting';
 import { AutomaticTripDetectionService } from './utils/tripTracker';
 
@@ -198,12 +204,52 @@ export default function App() {
 	const bgDimOpacity = useTransform(dockY, [COLLAPSED_DOCK_Y, 0], [0, 0.4]);
 	const navY = useTransform(dockY, [COLLAPSED_DOCK_Y, 160], [0, 80]);
 
-	const [txManager] = useState<TransactionManager>(
-		() => new TransactionManager(INITIAL_TRANSACTIONS),
-	);
+	const [txManager] = useState<TransactionManager>(() => {
+		let initialTxs: Transaction[] = INITIAL_TRANSACTIONS;
+		if (typeof window !== 'undefined') {
+			try {
+				const saved = localStorage.getItem('imcheap_transactions');
+				if (saved) {
+					const parsed = JSON.parse(saved);
+					if (Array.isArray(parsed) && parsed.length > 0) {
+						// Check if historical October data exists; if not, merge seeds so month 2 testing works
+						const hasOct = parsed.some((t: Transaction) =>
+							t.timestamp?.includes('2026-10'),
+						);
+						if (!hasOct) {
+							const octTxs = INITIAL_TRANSACTIONS.filter((t) =>
+								t.timestamp?.includes('2026-10'),
+							);
+							initialTxs = [...parsed, ...octTxs];
+						} else {
+							initialTxs = parsed;
+						}
+					}
+				}
+			} catch (e) {
+				console.warn(
+					'Failed to parse transactions from localStorage',
+					e,
+				);
+			}
+		}
+		return new TransactionManager(initialTxs);
+	});
 	const [transactions, setTransactions] = useState<Transaction[]>(() =>
 		txManager.getAll(),
 	);
+
+	// Persist transactions to localStorage
+	useEffect(() => {
+		try {
+			localStorage.setItem(
+				'imcheap_transactions',
+				JSON.stringify(transactions),
+			);
+		} catch (e) {
+			console.warn('Failed to save transactions to localStorage', e);
+		}
+	}, [transactions]);
 	const [presets, setPresets] = useState<PresetItem[]>(() => {
 		if (typeof window !== 'undefined') {
 			try {
@@ -479,7 +525,9 @@ export default function App() {
 					const parsed = JSON.parse(savedGps);
 					if (parsed?.lat && parsed?.lng) return parsed;
 				}
-				const savedCustom = localStorage.getItem('imcheap_user_custom_location');
+				const savedCustom = localStorage.getItem(
+					'imcheap_user_custom_location',
+				);
 				if (savedCustom) {
 					const parsed = JSON.parse(savedCustom);
 					if (parsed?.lat && parsed?.lng) return parsed;
@@ -490,21 +538,29 @@ export default function App() {
 	});
 
 	// Dev Tracking Telemetry & Overlay State
-	const [devTelemetry, setDevTelemetry] = useState<DevTrackingTelemetry | null>(null);
-	const [devTrackingOverlay, setDevTrackingOverlay] = useState<boolean>(() => {
-		if (typeof window !== 'undefined') {
-			try {
-				return localStorage.getItem('imcheap_dev_tracking_overlay') === 'true';
-			} catch {}
-		}
-		return false;
-	});
+	const [devTelemetry, setDevTelemetry] =
+		useState<DevTrackingTelemetry | null>(null);
+	const [devTrackingOverlay, setDevTrackingOverlay] = useState<boolean>(
+		() => {
+			if (typeof window !== 'undefined') {
+				try {
+					return (
+						localStorage.getItem('imcheap_dev_tracking_overlay') ===
+						'true'
+					);
+				} catch {}
+			}
+			return false;
+		},
+	);
 
 	// Location Permission State (defaults to false until user turns on in Onboarding or Maps overlay)
 	const [isLocationEnabled, setIsLocationEnabled] = useState<boolean>(() => {
 		if (typeof window !== 'undefined') {
 			try {
-				return localStorage.getItem('imcheap_location_enabled') === 'true';
+				return (
+					localStorage.getItem('imcheap_location_enabled') === 'true'
+				);
 			} catch {}
 		}
 		return false;
@@ -557,7 +613,12 @@ export default function App() {
 		return () => {
 			detector.stop();
 		};
-	}, [autoTripDetection, isLocationEnabled, incomeSettings.mileageRate, incomeSettings.hourlyWage]);
+	}, [
+		autoTripDetection,
+		isLocationEnabled,
+		incomeSettings.mileageRate,
+		incomeSettings.hourlyWage,
+	]);
 
 	// Smart Prompts State & Dismissals
 	const [dismissedPromptIds, setDismissedPromptIds] = useState<string[]>(
@@ -977,9 +1038,6 @@ export default function App() {
 												/day
 											</span>
 										</div>
-										<div className="text-[#6B7280]">
-											4 days to payday
-										</div>
 									</div>
 								</div>
 							</section>
@@ -1097,9 +1155,8 @@ export default function App() {
 										</div>
 									) : (
 										<div className="divide-y divide-gray-100">
-											{filteredTransactions
-												.slice(0, 5)
-												.map((tx, idx) => (
+											{filteredTransactions.map(
+												(tx, idx) => (
 													<SwipeableTransactionItem
 														key={tx.id}
 														tx={tx}
@@ -1130,7 +1187,8 @@ export default function App() {
 															);
 														}}
 													/>
-												))}
+												),
+											)}
 										</div>
 									)}
 								</div>
@@ -1644,9 +1702,13 @@ export default function App() {
 								autoTripDetection={autoTripDetection}
 								onToggleAutoTripDetection={setAutoTripDetection}
 								devTrackingOverlay={devTrackingOverlay}
-								onToggleDevTrackingOverlay={setDevTrackingOverlay}
+								onToggleDevTrackingOverlay={
+									setDevTrackingOverlay
+								}
 								onUpdateHomeAddress={(home) =>
-									tripDetectorRef.current?.updateHomeAddress(home)
+									tripDetectorRef.current?.updateHomeAddress(
+										home,
+									)
 								}
 								onOpenSheet={(sheet) => {
 									if (sheet === 'log') {
@@ -1810,7 +1872,11 @@ export default function App() {
 					onClose={() => {
 						setIsOnboardingOpen(false);
 						if (typeof window !== 'undefined') {
-							setIsLocationEnabled(localStorage.getItem('imcheap_location_enabled') === 'true');
+							setIsLocationEnabled(
+								localStorage.getItem(
+									'imcheap_location_enabled',
+								) === 'true',
+							);
 						}
 					}}
 					onComplete={({
@@ -1820,7 +1886,11 @@ export default function App() {
 						presets: initialPresets,
 					}) => {
 						if (typeof window !== 'undefined') {
-							setIsLocationEnabled(localStorage.getItem('imcheap_location_enabled') === 'true');
+							setIsLocationEnabled(
+								localStorage.getItem(
+									'imcheap_location_enabled',
+								) === 'true',
+							);
 						}
 						const mileageRate = Number(
 							(vehicle.gasPrice / vehicle.mpg).toFixed(2),
@@ -1842,11 +1912,21 @@ export default function App() {
 				{devTrackingOverlay && (
 					<DevTrackingIndicator
 						telemetry={devTelemetry}
-						onSimulateDeparture={() => tripDetectorRef.current?.simulateDeparture(26)}
-						onSimulateMicroStop={() => tripDetectorRef.current?.simulateMicroStop()}
-						onSimulateResumeDriving={() => tripDetectorRef.current?.simulateResumeDriving(30)}
-						onSimulateDestination={() => tripDetectorRef.current?.simulateDestinationReached()}
-						onResetToIdle={() => tripDetectorRef.current?.resetToIdle()}
+						onSimulateDeparture={() =>
+							tripDetectorRef.current?.simulateDeparture(26)
+						}
+						onSimulateMicroStop={() =>
+							tripDetectorRef.current?.simulateMicroStop()
+						}
+						onSimulateResumeDriving={() =>
+							tripDetectorRef.current?.simulateResumeDriving(30)
+						}
+						onSimulateDestination={() =>
+							tripDetectorRef.current?.simulateDestinationReached()
+						}
+						onResetToIdle={() =>
+							tripDetectorRef.current?.resetToIdle()
+						}
 					/>
 				)}
 			</div>

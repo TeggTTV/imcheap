@@ -186,8 +186,8 @@ export const SwipeableTransactionItem: React.FC<
 					<span
 						className={`font-bold text-[15px] tracking-tight tabular-nums ${
 							tx.type === 'income'
-								? 'text-[#059669]'
-								: 'text-[#111111]'
+								? 'text-secondary'
+								: 'text-error'
 						}`}
 					>
 						{tx.type === 'income' ? '+' : '-'}$
@@ -195,7 +195,9 @@ export const SwipeableTransactionItem: React.FC<
 					</span>
 
 					{/* Labor pill badge */}
-					<div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#ECFDF5] text-[#059669] text-[11px] font-semibold tracking-tight tabular-nums">
+					<div
+						className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${tx.type === 'income' ? 'bg-[#ECFCF5]' : 'bg-[#FFE4E6]'} ${tx.type === 'income' ? 'text-secondary' : 'text-error'} text-[11px] font-semibold tracking-tight tabular-nums`}
+					>
 						<span className="material-symbols-outlined text-[12px] leading-none">
 							schedule
 						</span>

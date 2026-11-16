@@ -1,17 +1,34 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
 	Transaction,
 	BalanceSummary,
 	IncomeSettings,
 } from '../utils/expenseMath';
 import { parseTransactionDate } from '../utils/dateUtils';
-import { format, startOfWeek, addDays, isValid } from 'date-fns';
+import {
+	format,
+	startOfWeek,
+	addDays,
+	isValid,
+	subMonths,
+	startOfMonth,
+	endOfMonth,
+	isSameMonth,
+} from 'date-fns';
 
 export interface AnalyticsViewProps {
 	transactions: Transaction[];
 	summary: BalanceSummary;
 	settings: IncomeSettings;
 	onOpenBreakdown?: () => void;
+}
+
+interface MonthOption {
+	key: string; // 'yyyy-MM'
+	label: string; // e.g. 'November 2026'
+	shortLabel: string; // e.g. 'Nov 2026'
+	isCurrent: boolean;
+	dateObj: Date;
 }
 
 interface HabitSummaryItem {
@@ -96,12 +113,152 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 	onOpenBreakdown,
 }) => {
 	const [timeframe, setTimeframe] = useState<'week' | 'month'>('month');
-	const [selectedDayIndex, setSelectedDayIndex] = useState<number>(() => new Date().getDay()); // Default to today's day of week (0 = Sunday ... 6 = Saturday)
+	const [selectedDayIndex, setSelectedDayIndex] = useState<number>(() =>
+		new Date().getDay(),
+	); // Default to today's day of week (0 = Sunday ... 6 = Saturday)
+	const [isMonthDropdownOpen, setIsMonthDropdownOpen] =
+		useState<boolean>(false);
+	const dropdownRef = useRef<HTMLDivElement | null>(null);
 
+	// Generate last 4 active months dynamically based on current date
+	const activeMonths: MonthOption[] = useMemo(() => {
+		const now = new Date();
+		const months: MonthOption[] = [];
+		for (let i = 0; i < 4; i++) {
+			const d = subMonths(now, i);
+			months.push({
+				key: format(d, 'yyyy-MM'),
+				label: format(d, 'MMMM yyyy'),
+				shortLabel: format(d, 'MMM yyyy'),
+				isCurrent: i === 0,
+				dateObj: d,
+			});
+		}
+		return months;
+	}, []);
+
+	const [selectedMonthKey, setSelectedMonthKey] = useState<string>(() => {
+		return activeMonths[0]?.key || format(new Date(), 'yyyy-MM');
+	});
+
+	// Dismiss dropdown when clicking outside
+	useEffect(() => {
+		if (!isMonthDropdownOpen) return;
+		const handleClickOutside = (e: MouseEvent) => {
+			if (
+				dropdownRef.current &&
+				!dropdownRef.current.contains(e.target as Node)
+			) {
+				setIsMonthDropdownOpen(false);
+			}
+		};
+		document.addEventListener('mousedown', handleClickOutside);
+		return () =>
+			document.removeEventListener('mousedown', handleClickOutside);
+	}, [isMonthDropdownOpen]);
+
+	const currentMonthObj = activeMonths[0];
+	const selectedMonthObj =
+		activeMonths.find((m) => m.key === selectedMonthKey) || activeMonths[0];
+	const isViewingCurrentMonth = selectedMonthObj.key === currentMonthObj.key;
+
+	// Transactions partitioned by month
+	const selectedMonthTransactions = useMemo(() => {
+		return transactions.filter((t) => {
+			const d = parseTransactionDate(t.timestamp);
+			return isValid(d) && isSameMonth(d, selectedMonthObj.dateObj);
+		});
+	}, [transactions, selectedMonthObj.dateObj]);
+
+	const currentMonthTransactions = useMemo(() => {
+		return transactions.filter((t) => {
+			const d = parseTransactionDate(t.timestamp);
+			return isValid(d) && isSameMonth(d, currentMonthObj.dateObj);
+		});
+	}, [transactions, currentMonthObj.dateObj]);
+
+	const previousMonthTransactions = useMemo(() => {
+		const prevMonthDate = subMonths(currentMonthObj.dateObj, 1);
+		return transactions.filter((t) => {
+			const d = parseTransactionDate(t.timestamp);
+			return isValid(d) && isSameMonth(d, prevMonthDate);
+		});
+	}, [transactions, currentMonthObj.dateObj]);
+
+	// Wage & core calculations
 	const wage = settings.hourlyWage > 0 ? settings.hourlyWage : 17;
-	const totalSpent = summary.loggedExpenses;
+
+	// Spend totals
+	const selectedMonthSpent = useMemo(() => {
+		return selectedMonthTransactions
+			.filter((t) => t.type === 'expense')
+			.reduce((sum, t) => sum + t.amount, 0);
+	}, [selectedMonthTransactions]);
+
+	const selectedMonthIncome = useMemo(() => {
+		return selectedMonthTransactions
+			.filter((t) => t.type === 'income')
+			.reduce((sum, t) => sum + t.amount, 0);
+	}, [selectedMonthTransactions]);
+
+	const currentMonthSpent = useMemo(() => {
+		return currentMonthTransactions
+			.filter((t) => t.type === 'expense')
+			.reduce((sum, t) => sum + t.amount, 0);
+	}, [currentMonthTransactions]);
+
+	const previousMonthSpent = useMemo(() => {
+		return previousMonthTransactions
+			.filter((t) => t.type === 'expense')
+			.reduce((sum, t) => sum + t.amount, 0);
+	}, [previousMonthTransactions]);
+
+	// When viewing current month, compare against previous month (Oct)
+	// When viewing a past month, compare against current month (Nov)
+	const comparisonDelta = useMemo(() => {
+		if (isViewingCurrentMonth) {
+			const baseline = previousMonthSpent;
+			const diff = selectedMonthSpent - baseline;
+			const hoursDiff = wage > 0 ? diff / wage : 0;
+			const percentDiff = baseline > 0 ? (diff / baseline) * 100 : null;
+			return {
+				baselineName: 'last month',
+				diff,
+				hoursDiff,
+				percentDiff,
+				isHigher: diff > 0,
+				hasBaseline: previousMonthTransactions.length > 0,
+			};
+		} else {
+			// Viewing past month: show difference compared to current month
+			const baseline = currentMonthSpent;
+			const diff = selectedMonthSpent - baseline;
+			const hoursDiff = wage > 0 ? diff / wage : 0;
+			const percentDiff = baseline > 0 ? (diff / baseline) * 100 : null;
+			return {
+				baselineName: 'current month',
+				diff,
+				hoursDiff,
+				percentDiff,
+				isHigher: diff > 0,
+				hasBaseline: currentMonthTransactions.length > 0,
+			};
+		}
+	}, [
+		isViewingCurrentMonth,
+		previousMonthSpent,
+		selectedMonthSpent,
+		currentMonthSpent,
+		wage,
+		previousMonthTransactions.length,
+		currentMonthTransactions.length,
+	]);
+
+	const totalSpent = selectedMonthSpent;
 	const totalCycleBudget =
-		summary.basePaycheck + (summary.totalIncome || 0) || 238;
+		selectedMonthIncome > 0
+			? selectedMonthIncome
+			: summary.basePaycheck + (summary.totalIncome || 0) || 238;
 	const hoursBurned =
 		wage > 0
 			? (totalSpent / wage).toFixed(1)
@@ -113,7 +270,6 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 			: 0;
 
 	// Calculate daily burn pace based on actual spent
-	// If month: 30 days divisor; if week: 7 days divisor
 	const daysInPeriod = timeframe === 'week' ? 7 : 30;
 	const burnPaceVal = totalSpent > 0 ? totalSpent / daysInPeriod : 0;
 	const burnPacePerDay = burnPaceVal.toFixed(2);
@@ -121,25 +277,31 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 
 	// Safe spend and runway calculations
 	const safeTargetPerDay = (totalCycleBudget / daysInPeriod).toFixed(2);
+	const availableBal = Math.max(0, totalCycleBudget - totalSpent);
 	const daysSafe =
-		summary.availableBalance > 0
+		availableBal > 0
 			? burnPaceVal > 0
-				? Math.round(summary.availableBalance / burnPaceVal)
-				: Math.round(
-						summary.availableBalance /
-							(parseFloat(safeTargetPerDay) || 1),
-					)
+				? Math.round(availableBal / burnPaceVal)
+				: Math.round(availableBal / (parseFloat(safeTargetPerDay) || 1))
 			: 0;
 
-	// Parse transaction dates and aggregate into the current week (Sunday to Saturday) using date-fns
+	// Parse transaction dates and aggregate spend velocity
+	// If viewing current month: maps to current week (Sunday to Saturday)
+	// If viewing an archived month: maps to the first full week of that month
 	const velocityDays: VelocityDay[] = useMemo(() => {
-		const now = new Date();
-		const dayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S']; // Sunday to Saturday single letters
-		const weekStart = startOfWeek(now, { weekStartsOn: 0 }); // Sunday as start of week
+		const dayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+		const referenceDate = isViewingCurrentMonth
+			? new Date()
+			: selectedMonthObj.dateObj;
+		const weekStart = startOfWeek(referenceDate, { weekStartsOn: 0 });
 
 		// Build array for Sunday through Saturday
-		const days: { dateKey: string; dayLetter: string; amount: number; dateObj: Date }[] =
-			[];
+		const days: {
+			dateKey: string;
+			dayLetter: string;
+			amount: number;
+			dateObj: Date;
+		}[] = [];
 		for (let i = 0; i < 7; i++) {
 			const d = addDays(weekStart, i);
 			const dateKey = format(d, 'yyyy-MM-dd');
@@ -151,8 +313,10 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 			});
 		}
 
-		// Aggregate real expense transactions into their corresponding day of this week
-		const expenseTxs = transactions.filter((t) => t.type === 'expense');
+		// Aggregate selected month expense transactions
+		const expenseTxs = selectedMonthTransactions.filter(
+			(t) => t.type === 'expense',
+		);
 		expenseTxs.forEach((tx) => {
 			const txDate = parseTransactionDate(tx.timestamp);
 			if (isValid(txDate)) {
@@ -169,11 +333,10 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 
 		return days.map((d) => {
 			const hours = wage > 0 ? Number((d.amount / wage).toFixed(1)) : 0;
-			// Scale between 8px and 84px
 			const height =
 				d.amount > 0
 					? Math.max(14, Math.round((d.amount / maxAmt) * 84))
-					: 8;
+					: 0;
 			return {
 				day: d.dayLetter,
 				dateKey: d.dateKey,
@@ -182,15 +345,22 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 				height,
 			};
 		});
-	}, [transactions, wage]);
+	}, [
+		isViewingCurrentMonth,
+		selectedMonthObj.dateObj,
+		selectedMonthTransactions,
+		wage,
+	]);
 
 	// Calculate 7-day average spend from real velocity days
 	const sevenDayTotal = velocityDays.reduce((acc, d) => acc + d.amount, 0);
 	const sevenDayAvg = (sevenDayTotal / 7).toFixed(2);
 
-	// Group transactions into real habit categories
+	// Group transactions into real habit categories for the selected month
 	const habitItems: HabitSummaryItem[] = useMemo(() => {
-		const expenseTxs = transactions.filter((t) => t.type === 'expense');
+		const expenseTxs = selectedMonthTransactions.filter(
+			(t) => t.type === 'expense',
+		);
 		const totalExp = expenseTxs.reduce((sum, t) => sum + t.amount, 0);
 
 		if (totalExp === 0 || expenseTxs.length === 0) {
@@ -260,50 +430,109 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 				percentOfSpent,
 			};
 		});
-	}, [transactions, wage]);
+	}, [selectedMonthTransactions, wage]);
 
 	return (
 		<div className="flex flex-col relative w-full pt-2 pb-24 max-w-[480px] mx-auto min-h-screen px-4 font-sans">
 			{/* Period & Filter Selector Row */}
-			<div className="flex items-center justify-between mt-2 mb-5">
-				{/* Cycle dropdown selector */}
-				<button
-					className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#E5E7EB] shadow-[0_1px_3px_rgba(0,0,0,0.04)] text-[13px] font-semibold text-[#111111] active:scale-95 transition-all cursor-pointer"
-					type="button"
-					onClick={onOpenBreakdown}
-				>
-					<span>{settings.cycleLabel || 'Current Cycle'}</span>
-					<span className="material-symbols-outlined text-[16px] text-[#6B7280]">
-						expand_more
-					</span>
-				</button>
+			<div className="flex items-center justify-between mt-2 mb-4 relative z-30">
+				{/* Cycle & Month dropdown selector pill */}
+				<div className="relative" ref={dropdownRef}>
+					<button
+						className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#E5E7EB] shadow-[0_1px_3px_rgba(0,0,0,0.04)] text-[13px] font-semibold text-[#111111] active:scale-95 transition-all cursor-pointer"
+						type="button"
+						onClick={() => setIsMonthDropdownOpen((prev) => !prev)}
+						aria-expanded={isMonthDropdownOpen}
+						aria-haspopup="listbox"
+					>
+						<span>{selectedMonthObj.shortLabel}</span>
+						{isViewingCurrentMonth && (
+							<span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+						)}
+						<span
+							className={`material-symbols-outlined text-[16px] text-[#6B7280] transition-transform duration-200 ${
+								isMonthDropdownOpen ? 'rotate-180' : ''
+							}`}
+						>
+							expand_more
+						</span>
+					</button>
 
-				{/* Segmented toggle */}
-				<div className="inline-flex p-1 bg-[#E5E7EB]/60 rounded-full">
-					<button
-						className={`px-3.5 py-1 text-[12px] rounded-full transition-all cursor-pointer ${
-							timeframe === 'week'
-								? 'bg-[#111111] text-white font-semibold shadow-sm'
-								: 'font-medium text-[#6B7280] hover:text-[#111111]'
-						}`}
-						type="button"
-						onClick={() => setTimeframe('week')}
-					>
-						Week
-					</button>
-					<button
-						className={`px-3.5 py-1 text-[12px] rounded-full transition-all cursor-pointer ${
-							timeframe === 'month'
-								? 'bg-[#111111] text-white font-semibold shadow-sm'
-								: 'font-medium text-[#6B7280] hover:text-[#111111]'
-						}`}
-						type="button"
-						onClick={() => setTimeframe('month')}
-					>
-						Month
-					</button>
+					{/* Dropdown Menu listing last 4 active months */}
+					{isMonthDropdownOpen && (
+						<div
+							className="absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+							role="listbox"
+						>
+							<div className="px-3.5 py-1.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100">
+								Active Months
+							</div>
+							{activeMonths.map((month) => {
+								const isSelected =
+									month.key === selectedMonthKey;
+								return (
+									<button
+										key={month.key}
+										type="button"
+										role="option"
+										aria-selected={isSelected}
+										onClick={() => {
+											setSelectedMonthKey(month.key);
+											setIsMonthDropdownOpen(false);
+										}}
+										className={`w-full px-3.5 py-2.5 text-left flex items-center justify-between cursor-pointer transition-colors ${
+											isSelected
+												? 'bg-gray-50 text-[#111111] font-bold'
+												: 'text-[#4B5563] font-medium hover:bg-gray-50/60'
+										}`}
+									>
+										<div className="flex flex-col">
+											<span className="text-[13px]">
+												{month.label}
+											</span>
+											{month.isCurrent ? (
+												<span className="text-[11px] text-[#10B981] font-semibold">
+													Current Month
+												</span>
+											) : (
+												<span className="text-[11px] text-[#9CA3AF]">
+													Archived History
+												</span>
+											)}
+										</div>
+										{isSelected && (
+											<span className="material-symbols-outlined text-[18px] text-[#111111]">
+												check
+											</span>
+										)}
+									</button>
+								);
+							})}
+						</div>
+					)}
 				</div>
 			</div>
+
+			{/* Archive Viewing Banner if not on current month */}
+			{!isViewingCurrentMonth && (
+				<div className="mb-4 px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200/60 flex items-center justify-between">
+					<div className="flex items-center gap-2">
+						<span className="material-symbols-outlined text-[18px] text-amber-700">
+							history
+						</span>
+						<span className="text-[12px] font-semibold text-amber-900">
+							Viewing Archive: {selectedMonthObj.label}
+						</span>
+					</div>
+					<button
+						type="button"
+						onClick={() => setSelectedMonthKey(currentMonthObj.key)}
+						className="text-[11px] font-bold text-amber-800 underline cursor-pointer hover:text-amber-950"
+					>
+						Back to Now
+					</button>
+				</div>
+			)}
 
 			{/* Card 1: CYCLE RUNWAY & LABOR DEPRECIATION */}
 			<div className="mb-4">
@@ -317,24 +546,24 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 					{/* Side-by-side core anchor */}
 					<div className="flex items-start justify-between">
 						<div>
-							<div className="text-[24px] font-bold text-[#111111] leading-tight">
+							<div className="text-[24px] font-bold text-[#111111] leading-tight tabular-nums">
 								${totalSpent.toFixed(2)}{' '}
 								<span className="font-normal text-[20px]">
 									spent
 								</span>
 							</div>
-							<div className="text-[13px] text-[#6B7280] mt-0.5">
+							<div className="text-[13px] text-[#6B7280] mt-0.5 tabular-nums">
 								of ${totalCycleBudget.toFixed(2)} cycle budget
 							</div>
 						</div>
 						<div className="text-right">
-							<div className="text-[22px] font-bold text-[#111111] leading-tight">
+							<div className="text-[22px] font-bold text-[#111111] leading-tight tabular-nums">
 								{hoursBurned} hrs{' '}
 								<span className="font-normal text-[18px]">
 									burned
 								</span>
 							</div>
-							<div className="text-[13px] text-[#6B7280] mt-0.5">
+							<div className="text-[13px] text-[#6B7280] mt-0.5 tabular-nums">
 								@ ${wage.toFixed(2)}/hr wage
 							</div>
 						</div>
@@ -371,7 +600,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 					</div>
 
 					{/* Card Footnote */}
-					<div className="pt-2 border-t border-[#F3F4F6] flex items-center justify-between text-[12px] text-[#6B7280]">
+					{/* <div className="pt-2 border-t border-[#F3F4F6] flex items-center justify-between text-[12px] text-[#6B7280]">
 						<span>
 							Burn Pace:{' '}
 							<strong className="text-[#111111] font-semibold">
@@ -391,7 +620,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 								? `${daysSafe} days safe`
 								: '0 days safe'}
 						</span>
-					</div>
+					</div> */}
 				</section>
 			</div>
 
