@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Coordinate, RecordedTrip, LiveTrackingStatus } from '../types/maps';
-import { fetchRoadRoute, DEFAULT_ROAD_ROUTES } from '../utils/mapRouting';
+import { DEFAULT_ROAD_ROUTES } from '../utils/mapRouting';
+import { chaikinSmooth, lerpCoordinate } from '../utils/geoSmoothing';
 import { SwipeableTripItem } from './SwipeableTripItem';
 
 export interface MapsViewProps {
@@ -34,14 +35,6 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	isLocationEnabled = true,
 	onEnableLocation,
 }) => {
-	const mapContainerRef = useRef<HTMLDivElement>(null);
-	const mapInstanceRef = useRef<L.Map | null>(null);
-	const polylineLayerRef = useRef<L.Polyline | null>(null);
-	const markersLayerRef = useRef<L.LayerGroup | null>(null);
-	const userMarkerRef = useRef<L.Marker | null>(null);
-	const [isRequestingPermission, setIsRequestingPermission] = useState<boolean>(false);
-	const [permissionError, setPermissionError] = useState<string | null>(null);
-
 	// User location state, prioritizing external live location, then last known GPS
 	const [userLocation, setUserLocation] = useState<Coordinate>(() => {
 		if (externalUserLocation?.lat && externalUserLocation?.lng) {
@@ -63,6 +56,20 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		}
 		return { lat: DEFAULT_CENTER[0], lng: DEFAULT_CENTER[1] };
 	});
+
+	const mapContainerRef = useRef<HTMLDivElement>(null);
+	const mapInstanceRef = useRef<L.Map | null>(null);
+	const polylineLayerRef = useRef<L.Polyline | null>(null);
+	const livePolylineLayerRef = useRef<L.Polyline | null>(null);
+	const markersLayerRef = useRef<L.LayerGroup | null>(null);
+	const userMarkerRef = useRef<L.Marker | null>(null);
+	const animFrameRef = useRef<number | null>(null);
+	const currentAnimPosRef = useRef<Coordinate>(userLocation);
+	const targetAnimPosRef = useRef<Coordinate>(userLocation);
+	const animStartTimeRef = useRef<number>(0);
+	const animDurationRef = useRef<number>(1000);
+	const [isRequestingPermission, setIsRequestingPermission] = useState<boolean>(false);
+	const [permissionError, setPermissionError] = useState<string | null>(null);
 
 	// Synchronize when external user location changes from tracker
 	useEffect(() => {
@@ -238,15 +245,80 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		);
 	};
 
-	// Update user marker when userLocation changes
+	// Animate user marker and live route smoothly via 60fps lerp
 	useEffect(() => {
-		if (userMarkerRef.current) {
-			userMarkerRef.current.setLatLng([
-				userLocation.lat,
-				userLocation.lng,
-			]);
+		const startPos = currentAnimPosRef.current;
+		const endPos = userLocation;
+		targetAnimPosRef.current = endPos;
+		animStartTimeRef.current = performance.now();
+		animDurationRef.current = 1000;
+
+		if (animFrameRef.current) {
+			cancelAnimationFrame(animFrameRef.current);
 		}
+
+		const step = (time: number) => {
+			const elapsed = time - animStartTimeRef.current;
+			const progress = Math.min(1, elapsed / animDurationRef.current);
+			const interpolated = lerpCoordinate(startPos, endPos, progress);
+			currentAnimPosRef.current = interpolated;
+
+			if (userMarkerRef.current) {
+				userMarkerRef.current.setLatLng([interpolated.lat, interpolated.lng]);
+			}
+
+			if (progress < 1) {
+				animFrameRef.current = requestAnimationFrame(step);
+			}
+		};
+
+		animFrameRef.current = requestAnimationFrame(step);
+
+		return () => {
+			if (animFrameRef.current) {
+				cancelAnimationFrame(animFrameRef.current);
+			}
+		};
 	}, [userLocation]);
+
+	// Draw real-time live route behind the user when driving
+	useEffect(() => {
+		if (!mapInstanceRef.current) return;
+		const map = mapInstanceRef.current;
+
+		const liveBreadcrumbs = trackingStatus?.liveBreadcrumbs || [];
+		const isDriving =
+			trackingStatus?.isDriving || trackingStatus?.state === 'TRACKING_TRIP';
+
+		if (!isDriving || liveBreadcrumbs.length < 2) {
+			if (livePolylineLayerRef.current) {
+				map.removeLayer(livePolylineLayerRef.current);
+				livePolylineLayerRef.current = null;
+			}
+			return;
+		}
+
+		// Smooth points using Chaikin algorithm
+		const smoothedCoords =
+			liveBreadcrumbs.length >= 3
+				? chaikinSmooth(liveBreadcrumbs, 2)
+				: liveBreadcrumbs;
+
+		const latLngs: [number, number][] = smoothedCoords.map((c) => [c.lat, c.lng]);
+
+		if (livePolylineLayerRef.current) {
+			livePolylineLayerRef.current.setLatLngs(latLngs);
+		} else {
+			const livePolyline = L.polyline(latLngs, {
+				color: '#059669', // Emerald driving trail
+				weight: 5,
+				opacity: 0.9,
+				lineCap: 'round',
+				lineJoin: 'round',
+			}).addTo(map);
+			livePolylineLayerRef.current = livePolyline;
+		}
+	}, [trackingStatus?.liveBreadcrumbs, trackingStatus?.isDriving, trackingStatus?.state]);
 
 	const renderTripRoute = async (
 		map: L.Map,
@@ -263,22 +335,16 @@ export const MapsView: React.FC<MapsViewProps> = ({
 
 		if (DEFAULT_ROAD_ROUTES[trip.id]) {
 			coords = DEFAULT_ROAD_ROUTES[trip.id];
-		} else if (!coords || coords.length < 20) {
-			if (coords && coords.length >= 2) {
-				const start = coords[0];
-				const end = coords[coords.length - 1];
-				const roadData = await fetchRoadRoute(start, end);
-				if (roadData && roadData.coordinates.length > 0) {
-					coords = roadData.coordinates;
-				}
-			}
+		} else if (coords && coords.length >= 3) {
+			// Apply corner smoothing to the user's manual route
+			coords = chaikinSmooth(coords, 2);
 		}
 
 		if (!coords || coords.length === 0) return;
 
 		const latLngs: [number, number][] = coords.map((c) => [c.lat, c.lng]);
 
-		// Polyline snapped to real streets
+		// Polyline showing the user's manual route
 		const polyline = L.polyline(latLngs, {
 			color: '#111111',
 			weight: 4.5,

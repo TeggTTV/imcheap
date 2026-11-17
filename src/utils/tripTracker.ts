@@ -13,6 +13,7 @@ import {
 	fetchRoadRoute,
 	reverseGeocode,
 } from './mapRouting';
+import { chaikinSmooth } from './geoSmoothing';
 
 export type { SavedHomeAddress };
 
@@ -126,6 +127,7 @@ export class AutomaticTripDetectionService {
 
 	// Driving state
 	private activeTrip: ActiveTripInternal | null = null;
+	private wakeLockSentinel: any = null;
 
 	// Stop state
 	private currentStop: StopEvaluationInternal | null = null;
@@ -325,6 +327,28 @@ export class AutomaticTripDetectionService {
 				this.handleVisibilityChange,
 			);
 		}
+		this.releaseWakeLock();
+	}
+
+	private async requestWakeLock() {
+		if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
+			try {
+				if (!this.wakeLockSentinel) {
+					this.wakeLockSentinel = await (navigator as any).wakeLock.request('screen');
+				}
+			} catch (e) {
+				console.warn('Wake Lock request not granted', e);
+			}
+		}
+	}
+
+	private releaseWakeLock() {
+		if (this.wakeLockSentinel) {
+			try {
+				this.wakeLockSentinel.release();
+			} catch {}
+			this.wakeLockSentinel = null;
+		}
 	}
 
 	private handleVisibilityChange = () => {
@@ -423,17 +447,9 @@ export class AutomaticTripDetectionService {
 
 		switch (this.engineState) {
 			case 'IDLE_ANCHORED': {
-				// Check anchor qualification
-				const dwellMinutes = (now - this.anchorStartTime) / 60000;
-				const requiredMinutes = this.isHomeAnchor
-					? this.config.homeDepartureDwellMinutes
-					: this.config.standardOriginDwellMinutes;
-
-				if (dwellMinutes >= requiredMinutes) {
-					this.isAnchorQualified = true;
-				}
-
-				// Check departure condition: distance displacement > 100m AND speed > 12 mph
+				// Immediate departure check:
+				// 1. Moving faster than driving threshold (12 mph)
+				// 2. OR exited the geofence radius (100m) around the anchor
 				const isExitingGeofence =
 					distFromAnchorMeters > this.config.geofenceExitRadiusMeters;
 				const isDrivingSpeed =
@@ -445,10 +461,7 @@ export class AutomaticTripDetectionService {
 					this.consecutiveDrivingReadings = 0;
 				}
 
-				if (
-					isExitingGeofence &&
-					(isDrivingSpeed || this.consecutiveDrivingReadings >= 2)
-				) {
+				if (isDrivingSpeed || isExitingGeofence) {
 					// TRANSITION: IDLE_ANCHORED -> DRIVING
 					this.transitionToDriving(coord, now);
 				}
@@ -458,6 +471,20 @@ export class AutomaticTripDetectionService {
 			case 'DRIVING': {
 				if (!this.activeTrip) return;
 
+				// 3-Minute Sanity Check: If driving for 3+ minutes, check if displacement from anchor is too small
+				const elapsedSeconds = (now - this.activeTrip.startTime) / 1000;
+				if (elapsedSeconds >= 180) {
+					const distFromOrigin = haversineDistanceMiles(
+						this.activeTrip.originCoord,
+						coord,
+					);
+					if (distFromOrigin < 0.2 && this.activeTrip.accumulatedMiles < 0.2) {
+						// Abandon invalid trip - user is just walking or idling near anchor
+						this.resetToIdleState(this.activeTrip.originName, coord);
+						return;
+					}
+				}
+
 				const stepDistMiles = haversineDistanceMiles(
 					this.activeTrip.lastBreadcrumbCoord,
 					coord,
@@ -466,9 +493,9 @@ export class AutomaticTripDetectionService {
 				const timeSinceLastBreadcrumb =
 					now - this.activeTrip.lastBreadcrumbTime;
 
-				// Record breadcrumb every 5 seconds or 25 meters (filter jitter)
-				if (stepDistMeters >= 25 || timeSinceLastBreadcrumb >= 5000) {
-					if (stepDistMiles > 0.003) {
+				// Record breadcrumb every 3 seconds or 15 meters for continuous tracking
+				if (stepDistMeters >= 15 || timeSinceLastBreadcrumb >= 3000) {
+					if (stepDistMiles > 0.002) {
 						this.activeTrip.accumulatedMiles += stepDistMiles;
 					}
 					this.activeTrip.path.push({
@@ -480,6 +507,11 @@ export class AutomaticTripDetectionService {
 					this.activeTrip.lastBreadcrumbTime = now;
 					this.persistState();
 
+					const rawBreadcrumbs = this.activeTrip.path.map((p) => ({
+						lat: p.lat,
+						lng: p.lng,
+					}));
+
 					this.onStatusChange({
 						state: 'TRACKING_TRIP',
 						originName: this.activeTrip.originName,
@@ -489,6 +521,8 @@ export class AutomaticTripDetectionService {
 						),
 						startTime: this.activeTrip.startTime,
 						liveLocation: coord,
+						liveBreadcrumbs: rawBreadcrumbs,
+						isDriving: true,
 					});
 				}
 
@@ -613,6 +647,7 @@ export class AutomaticTripDetectionService {
 
 	private transitionToDriving(coord: Coordinate, now: number) {
 		this.engineState = 'DRIVING';
+		this.requestWakeLock();
 		this.activeTrip = {
 			originName: this.anchorName,
 			originCoord: this.anchorCoord,
@@ -633,12 +668,20 @@ export class AutomaticTripDetectionService {
 		this.currentStop = null;
 		this.persistState();
 
+		const initialBreadcrumbs = [
+			{ lat: this.anchorCoord.lat, lng: this.anchorCoord.lng },
+			{ lat: coord.lat, lng: coord.lng },
+		];
+
 		this.onStatusChange({
 			state: 'TRACKING_TRIP',
 			originName: this.activeTrip.originName,
 			destinationName: 'Moving...',
 			currentMiles: Number(this.activeTrip.accumulatedMiles.toFixed(1)),
 			startTime: this.activeTrip.startTime,
+			liveLocation: coord,
+			liveBreadcrumbs: initialBreadcrumbs,
+			isDriving: true,
 		});
 	}
 
@@ -669,25 +712,16 @@ export class AutomaticTripDetectionService {
 		const fromName = this.activeTrip.originName;
 		const toName = destName;
 
-		let finalCoords: Coordinate[] = (this.activeTrip.path || []).map(
+		const rawCoords: Coordinate[] = (this.activeTrip.path || []).map(
 			(p) => ({
 				lat: p.lat,
 				lng: p.lng,
 			}),
 		);
+		// Apply Chaikin corner smoothing directly on the user's manual route without snapping to OSRM
+		const finalCoords: Coordinate[] =
+			rawCoords.length >= 3 ? chaikinSmooth(rawCoords, 2) : rawCoords;
 		let finalMiles = Math.round(this.activeTrip.accumulatedMiles * 10) / 10;
-
-		try {
-			const roadResult = await fetchRoadRoute(startCoord, endCoord);
-			if (roadResult && roadResult.coordinates.length > 0) {
-				finalCoords = roadResult.coordinates;
-				if (roadResult.distanceMiles > 0) {
-					finalMiles = roadResult.distanceMiles;
-				}
-			}
-		} catch (e) {
-			console.warn('Road snap fallback', e);
-		}
 
 		if (finalMiles < 0.3) {
 			finalMiles = 0.3;
@@ -739,6 +773,7 @@ export class AutomaticTripDetectionService {
 	}
 
 	private resetToIdleState(anchorName: string, anchorCoord: Coordinate) {
+		this.releaseWakeLock();
 		const isHome =
 			haversineDistanceMiles(anchorCoord, {
 				lat: this.homeAddress.lat,

@@ -73,6 +73,8 @@ export interface LiveTrackingStatus {
 	currentMiles?: number;
 	startTime?: number;
 	liveLocation?: Coordinate;
+	liveBreadcrumbs?: Coordinate[];
+	isDriving?: boolean;
 }
 
 export interface TripEngineConfig {
