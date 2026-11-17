@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
 	IncomeSettings,
@@ -194,16 +194,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 		Array<{ label: string; lat: number; lng: number }>
 	>([]);
 	const [isSearchingAddress, setIsSearchingAddress] = useState(false);
+	const addressSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-	const handleSearchAddressChange = async (val: string) => {
+	const handleSearchAddressChange = (val: string) => {
 		setAddressQuery(val);
+
+		if (addressSearchTimeoutRef.current) {
+			clearTimeout(addressSearchTimeoutRef.current);
+		}
+
 		if (val.trim().length >= 3) {
 			setIsSearchingAddress(true);
-			const results = await searchAddresses(val);
-			setAddressResults(results);
-			setIsSearchingAddress(false);
+			addressSearchTimeoutRef.current = setTimeout(async () => {
+				const results = await searchAddresses(val);
+				setAddressResults(results);
+				setIsSearchingAddress(false);
+			}, 400);
 		} else {
 			setAddressResults([]);
+			setIsSearchingAddress(false);
 		}
 	};
 

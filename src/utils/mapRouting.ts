@@ -94,31 +94,74 @@ export async function reverseGeocode(coord: Coordinate): Promise<string> {
 	return `${coord.lat.toFixed(4)}, ${coord.lng.toFixed(4)}`;
 }
 
+const addressCache = new Map<string, Array<{ label: string; lat: number; lng: number }>>();
+
 /**
- * Searches for addresses in the US using OpenStreetMap Nominatim.
+ * Searches for addresses in the US with Nominatim + Photon fallback and in-memory caching.
  */
 export async function searchAddresses(
 	query: string,
 ): Promise<Array<{ label: string; lat: number; lng: number }>> {
-	if (!query || query.trim().length < 3) return [];
+	const trimmed = query ? query.trim() : '';
+	if (trimmed.length < 3) return [];
+
+	const cacheKey = trimmed.toLowerCase();
+	if (addressCache.has(cacheKey)) {
+		return addressCache.get(cacheKey)!;
+	}
+
+	// 1. Try OpenStreetMap Nominatim
 	try {
 		const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
-			query,
+			trimmed,
 		)}&format=json&limit=5&countrycodes=us`;
 		const res = await fetch(url, {
 			headers: { 'User-Agent': 'ImCheap-ExpenseTracker/1.0' },
 		});
-		if (!res.ok) return [];
-		const data = await res.json();
-		if (Array.isArray(data)) {
-			return data.map((item) => ({
-				label: item.display_name.split(',').slice(0, 4).join(', '),
-				lat: parseFloat(item.lat),
-				lng: parseFloat(item.lon),
-			}));
+		if (res.ok) {
+			const data = await res.json();
+			if (Array.isArray(data) && data.length > 0) {
+				const results = data.map((item) => ({
+					label: item.display_name.split(',').slice(0, 4).join(', '),
+					lat: parseFloat(item.lat),
+					lng: parseFloat(item.lon),
+				}));
+				addressCache.set(cacheKey, results);
+				return results;
+			}
 		}
 	} catch (e) {
-		console.warn('Address search failed', e);
+		console.warn('Nominatim search failed, trying Photon fallback', e);
 	}
+
+	// 2. Fallback to Photon (Komoot) which is fast, OSM-based, and has higher rate limits
+	try {
+		const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(
+			trimmed,
+		)}&limit=5`;
+		const res = await fetch(photonUrl);
+		if (res.ok) {
+			const data = await res.json();
+			if (data && Array.isArray(data.features)) {
+				const results = data.features.map((f: any) => {
+					const p = f.properties || {};
+					const parts = [
+						p.housenumber ? `${p.housenumber} ${p.street || ''}` : p.street,
+						p.city || p.locality || p.district,
+						p.state,
+						p.postcode,
+					].filter(Boolean);
+					const label = parts.length > 0 ? parts.join(', ') : (p.name || 'Unknown Location');
+					const [lng, lat] = f.geometry.coordinates;
+					return { label, lat, lng };
+				});
+				addressCache.set(cacheKey, results);
+				return results;
+			}
+		}
+	} catch (fallbackErr) {
+		console.warn('Photon fallback address search failed', fallbackErr);
+	}
+
 	return [];
 }

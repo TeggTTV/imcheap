@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Coordinate, RecordedTrip, LiveTrackingStatus } from '../types/maps';
+import { Coordinate, RecordedTrip, LiveTrackingStatus, DevTrackingTelemetry } from '../types/maps';
 import { DEFAULT_ROAD_ROUTES } from '../utils/mapRouting';
 import { chaikinSmooth, lerpCoordinate } from '../utils/geoSmoothing';
 import { SwipeableTripItem } from './SwipeableTripItem';
@@ -18,6 +18,8 @@ export interface MapsViewProps {
 	onUserLocationChange?: (coords: Coordinate) => void;
 	isLocationEnabled?: boolean;
 	onEnableLocation?: (coords?: Coordinate) => void;
+	devTrackingOverlay?: boolean;
+	devTelemetry?: DevTrackingTelemetry | null;
 }
 
 const DEFAULT_CENTER: [number, number] = [39.7032, -75.122]; // Glassboro, NJ (Girard Rd area)
@@ -32,8 +34,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	trackingStatus,
 	userLocation: externalUserLocation,
 	onUserLocationChange,
-	isLocationEnabled = true,
+	isLocationEnabled = false,
 	onEnableLocation,
+	devTrackingOverlay = false,
+	devTelemetry,
 }) => {
 	// User location state, prioritizing external live location, then last known GPS
 	const [userLocation, setUserLocation] = useState<Coordinate>(() => {
@@ -61,6 +65,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	const mapInstanceRef = useRef<L.Map | null>(null);
 	const polylineLayerRef = useRef<L.Polyline | null>(null);
 	const livePolylineLayerRef = useRef<L.Polyline | null>(null);
+	const devRadiusCircleRef = useRef<L.Circle | null>(null);
 	const markersLayerRef = useRef<L.LayerGroup | null>(null);
 	const userMarkerRef = useRef<L.Marker | null>(null);
 	const animFrameRef = useRef<number | null>(null);
@@ -319,6 +324,37 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			livePolylineLayerRef.current = livePolyline;
 		}
 	}, [trackingStatus?.liveBreadcrumbs, trackingStatus?.isDriving, trackingStatus?.state]);
+
+	// Draw 100m geofence departure radius circle when dev indicator is active
+	useEffect(() => {
+		if (!mapInstanceRef.current) return;
+		const map = mapInstanceRef.current;
+
+		if (!devTrackingOverlay) {
+			if (devRadiusCircleRef.current) {
+				map.removeLayer(devRadiusCircleRef.current);
+				devRadiusCircleRef.current = null;
+			}
+			return;
+		}
+
+		const anchorLat = userLocation.lat;
+		const anchorLng = userLocation.lng;
+
+		if (devRadiusCircleRef.current) {
+			devRadiusCircleRef.current.setLatLng([anchorLat, anchorLng]);
+		} else {
+			const circle = L.circle([anchorLat, anchorLng], {
+				radius: 100, // 100m geofence radius
+				color: '#059669',
+				weight: 2,
+				dashArray: '6, 6',
+				fillColor: '#059669',
+				fillOpacity: 0.12,
+			}).addTo(map);
+			devRadiusCircleRef.current = circle;
+		}
+	}, [devTrackingOverlay, userLocation.lat, userLocation.lng]);
 
 	const renderTripRoute = async (
 		map: L.Map,

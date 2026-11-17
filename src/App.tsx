@@ -100,29 +100,29 @@ export const INITIAL_RECORDED_TRIPS: RecordedTrip[] = [
 ];
 
 export const INITIAL_SMART_PROMPTS: SmartPrompt[] = [
-	{
-		id: 'prompt-frequent-school',
-		type: 'FREQUENT_ROUTE',
-		title: 'Frequent Drive Detected',
-		subtitle: 'You take School → Rowan often. Save this drive as a preset?',
-		ctaLabel: 'Save Drive',
-		payload: {
-			name: 'School → Rowan',
-			miles: 12.8,
-			category: 'Driving',
-		},
-	},
-	{
-		id: 'prompt-merchant-shoprite',
-		type: 'MERCHANT_STOP',
-		title: 'Merchant Stop Detected',
-		subtitle: 'You were just at ShopRite. Track how much you spent?',
-		ctaLabel: 'Log Spend',
-		payload: {
-			name: 'ShopRite',
-			category: 'Food',
-		},
-	},
+	// {
+	// 	id: 'prompt-frequent-school',
+	// 	type: 'FREQUENT_ROUTE',
+	// 	title: 'Frequent Drive Detected',
+	// 	subtitle: 'You take School → Rowan often. Save this drive as a preset?',
+	// 	ctaLabel: 'Save Drive',
+	// 	payload: {
+	// 		name: 'School → Rowan',
+	// 		miles: 12.8,
+	// 		category: 'Driving',
+	// 	},
+	// },
+	// {
+	// 	id: 'prompt-merchant-shoprite',
+	// 	type: 'MERCHANT_STOP',
+	// 	title: 'Merchant Stop Detected',
+	// 	subtitle: 'You were just at ShopRite. Track how much you spent?',
+	// 	ctaLabel: 'Log Spend',
+	// 	payload: {
+	// 		name: 'ShopRite',
+	// 		category: 'Food',
+	// 	},
+	// },
 ];
 
 export default function App() {
@@ -1646,6 +1646,8 @@ export default function App() {
 									setUserLocation(coords);
 								}
 							}}
+							devTrackingOverlay={devTrackingOverlay}
+							devTelemetry={devTelemetry}
 						/>
 					)}
 
