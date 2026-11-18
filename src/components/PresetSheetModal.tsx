@@ -5,6 +5,7 @@ import {
 	calculatePresetEquivalence,
 	PresetItem,
 } from '../utils/expenseMath';
+import { IconPickerDrawer } from './IconPickerDrawer';
 
 interface PresetSheetModalProps {
 	isOpen: boolean;
@@ -91,10 +92,17 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 	const [isAddingCategory, setIsAddingCategory] = useState(false);
 	const [newCategoryName, setNewCategoryName] = useState('');
 	const [iconIndex, setIconIndex] = useState(0);
+	const [customSelectedIcon, setCustomSelectedIcon] = useState<{
+		icon: string;
+		bgColor: string;
+		iconColor: string;
+	} | null>(null);
+	const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
 
 	// Synchronize or reset form states whenever the modal opens or initialPreset changes
 	React.useEffect(() => {
 		if (isOpen) {
+			setCustomSelectedIcon(null);
 			if (initialPreset) {
 				setPresetType(initialPreset.type || 'expense');
 				setCurrentValue(
@@ -128,7 +136,8 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 		presetType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 	const allCategories = [...baseCategories, ...customCategories];
 	const iconList = presetType === 'income' ? INCOME_ICONS : EXPENSE_ICONS;
-	const currentIconMeta = iconList[iconIndex % iconList.length];
+	const currentIconMeta =
+		customSelectedIcon || iconList[iconIndex % iconList.length];
 
 	const togglePresetType = () => {
 		const nextType = presetType === 'expense' ? 'income' : 'expense';
@@ -374,9 +383,9 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 						<div className="mt-2 bg-surface-container-low/70 rounded-xl px-3 py-2 flex items-center gap-3">
 							<button
 								type="button"
-								onClick={() => setIconIndex((i) => i + 1)}
-								aria-label="Cycle preset icon"
-								className={`relative w-10 h-10 rounded-full ${currentIconMeta.bgColor} flex items-center justify-center shrink-0 active:scale-95 transition-transform`}
+								onClick={() => setIsIconPickerOpen(true)}
+								aria-label="Open preset icon drawer"
+								className={`relative w-10 h-10 rounded-full ${currentIconMeta.bgColor} flex items-center justify-center shrink-0 active:scale-95 transition-transform cursor-pointer`}
 							>
 								<span
 									className="material-symbols-outlined text-[20px]"
@@ -517,6 +526,17 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 							</button>
 						</div>
 					</motion.div>
+
+					{/* Icon Picker Drawer for Presets */}
+					<IconPickerDrawer
+						isOpen={isIconPickerOpen}
+						onClose={() => setIsIconPickerOpen(false)}
+						selectedIcon={currentIconMeta.icon}
+						type={presetType}
+						onSelectIcon={(selected) => {
+							setCustomSelectedIcon(selected);
+						}}
+					/>
 				</div>
 			)}
 		</AnimatePresence>

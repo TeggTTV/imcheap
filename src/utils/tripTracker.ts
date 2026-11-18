@@ -471,6 +471,23 @@ export class AutomaticTripDetectionService {
 			case 'DRIVING': {
 				if (!this.activeTrip) return;
 
+				// Auto-complete trip if user arrives back within close proximity (<= 100m) of Home
+				const distToHomeMeters =
+					haversineDistanceMiles(coord, {
+						lat: this.homeAddress.lat,
+						lng: this.homeAddress.lng,
+					}) * 1609.344;
+				const movingDurationSeconds =
+					(now - this.activeTrip.startTime) / 1000;
+				if (
+					distToHomeMeters <= 100 &&
+					this.activeTrip.accumulatedMiles >= 0.3 &&
+					movingDurationSeconds >= 90
+				) {
+					await this.completeTrip('Home', coord);
+					return;
+				}
+
 				// 3-Minute Sanity Check: If driving for 3+ minutes, check if displacement from anchor is too small
 				const elapsedSeconds = (now - this.activeTrip.startTime) / 1000;
 				if (elapsedSeconds >= 180) {

@@ -3,7 +3,9 @@ import { motion, useMotionValue, useTransform, animate } from 'motion/react';
 import { PresetItem } from '../utils/expenseMath';
 import {
 	IntroStep,
+	NameStep,
 	LocationStep,
+	AccountStep,
 	OutroStep,
 	useWageStep,
 	useCommuteStep,
@@ -67,6 +69,14 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
 	// User-configurable parameters
 	const [wage, setWage] = useState<number>(ONBOARDING_CONFIG_DEFAULTS.wage);
+	const [userName, setUserName] = useState<string>(() => {
+		if (typeof window !== 'undefined') {
+			try {
+				return localStorage.getItem('imcheap_user_name') || '';
+			} catch {}
+		}
+		return '';
+	});
 	const [mpg, setMpg] = useState<number>(
 		ONBOARDING_CONFIG_DEFAULTS.vehicle.mpg,
 	);
@@ -142,13 +152,37 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 		renderContent: () => null,
 	};
 
+	const nameDefinition: OnboardingStepDefinition = {
+		id: 'step_name',
+		image: '',
+		fallbackImage: '',
+		receipt: null,
+		headline: "What's your name?",
+		body: "We'll use this to personalize your daily runway and dashboard greeting.",
+		ctaText: 'Continue',
+		renderContent: () => null,
+	};
+
+	const accountDefinition: OnboardingStepDefinition = {
+		id: 'step_account',
+		image: '',
+		fallbackImage: '',
+		receipt: null,
+		headline: 'Save your runway.',
+		body: 'Create an account to back up your wage engine, presets, and shift history.',
+		ctaText: 'Create Account',
+		renderContent: () => null,
+	};
+
 	const screens = [
 		introDefinition,
+		nameDefinition,
 		wageStep,
 		commuteStep,
 		habitStep,
 		paycheckStep,
 		locationDefinition,
+		accountDefinition,
 		outroDefinition,
 	];
 
@@ -399,16 +433,33 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 										onSkip={handleSkip}
 										onDotClick={handleDotClick}
 									/>
-								) : idx === 5 ? (
+								) : idx === 1 ? (
+									<NameStep
+										onNext={nextStep}
+										onBack={prevStep}
+										onSkip={handleSkip}
+										onDotClick={handleDotClick}
+										totalSteps={screens.length}
+										initialName={userName}
+										onNameChange={setUserName}
+									/>
+								) : idx === 6 ? (
 									<LocationStep
 										onNext={nextStep}
 										onBack={prevStep}
 										onSkip={handleSkip}
 										onDotClick={handleDotClick}
 										totalSteps={screens.length}
-										isActive={currentIndex === 5}
+										isActive={currentIndex === 6}
 									/>
-								) : idx === 6 ? (
+								) : idx === 7 ? (
+									<AccountStep
+										onNext={nextStep}
+										onBack={prevStep}
+										onSkip={handleSkip}
+										userName={userName}
+									/>
+								) : idx === 8 ? (
 									<OutroStep
 										onNext={handleFinish}
 										onBack={prevStep}

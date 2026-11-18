@@ -432,6 +432,62 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 		});
 	}, [selectedMonthTransactions, wage]);
 
+	// Lifetime summary: all transactions aggregated
+	const lifetimeStats = useMemo(() => {
+		let totalExp = 0;
+		let totalInc = 0;
+		transactions.forEach((t) => {
+			if (t.type === 'expense') totalExp += t.amount;
+			else if (t.type === 'income') totalInc += t.amount;
+		});
+		const earnedHours = wage > 0 ? totalInc / wage : 0;
+		const spentHours = wage > 0 ? totalExp / wage : 0;
+		const preservedHours = Math.max(0, earnedHours - spentHours);
+		const preservationRate =
+			earnedHours > 0
+				? Math.round((preservedHours / earnedHours) * 100)
+				: 0;
+
+		return {
+			totalExp,
+			totalInc,
+			earnedHours: Number(earnedHours.toFixed(1)),
+			spentHours: Number(spentHours.toFixed(1)),
+			preservedHours: Number(preservedHours.toFixed(1)),
+			preservationRate,
+		};
+	}, [transactions, wage]);
+
+	// Peak spending day analysis for this week
+	const peakDayInfo = useMemo(() => {
+		const totalWeekSpend = velocityDays.reduce(
+			(acc, d) => acc + d.amount,
+			0,
+		);
+		if (totalWeekSpend === 0) return null;
+
+		let peak = velocityDays[0];
+		velocityDays.forEach((d) => {
+			if (d.amount > peak.amount) peak = d;
+		});
+
+		const fullDayNames: Record<string, string> = {
+			S: 'Sunday',
+			M: 'Monday',
+			T: 'Tuesday',
+			W: 'Wednesday',
+			F: 'Friday',
+		};
+		const percent = Math.round((peak.amount / totalWeekSpend) * 100);
+
+		return {
+			dayLetter: peak.day,
+			amount: peak.amount,
+			hours: peak.hours,
+			percent,
+		};
+	}, [velocityDays]);
+
 	return (
 		<div className="flex flex-col relative w-full pt-2 pb-24 max-w-[480px] mx-auto min-h-screen px-4 font-sans">
 			{/* Period & Filter Selector Row */}
@@ -533,6 +589,82 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 					</button>
 				</div>
 			)}
+
+			{/* Card 0: LIFETIME LABOR PRESERVATION */}
+			<div className="mb-4">
+				<div className="text-[11px] font-bold text-gray-400 tracking-wider uppercase mb-2 px-1">
+					LIFETIME LABOR RUNWAY
+				</div>
+				<section className="bg-white rounded-[20px] p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] border border-[#F3F4F6]">
+					<div className="flex items-center justify-between mb-4">
+						<div>
+							<div className="text-[28px] font-black text-[#111111] leading-none tabular-nums font-sans">
+								{lifetimeStats.preservedHours}{' '}
+								<span className="text-[18px] font-normal text-neutral-500">
+									hrs
+								</span>
+							</div>
+							<div className="text-[12px] text-[#059669] font-bold mt-1 inline-flex items-center gap-1 bg-[#ECFDF5] px-2 py-0.5 rounded-full whitespace-nowrap">
+								<span className="material-symbols-outlined text-[14px]">
+									shield
+								</span>
+								<span>
+									{lifetimeStats.preservationRate}% preserved
+								</span>
+							</div>
+						</div>
+						<div className="text-right">
+							<div className="text-[13px] text-neutral-400 font-medium uppercase tracking-wider">
+								Labor Ratio
+							</div>
+							<div className="text-[16px] font-bold text-[#111111] tabular-nums mt-0.5">
+								{lifetimeStats.spentHours}h spent /{' '}
+								{lifetimeStats.earnedHours}h worked
+							</div>
+						</div>
+					</div>
+
+					{/* Dual Progress Bar: Spent vs Preserved */}
+					<div className="w-full h-3 bg-neutral-100 rounded-full overflow-hidden flex">
+						<div
+							className="h-full bg-rose-500 transition-all duration-500"
+							style={{
+								width: `${
+									lifetimeStats.earnedHours > 0
+										? Math.min(
+												100,
+												(lifetimeStats.spentHours /
+													lifetimeStats.earnedHours) *
+													100,
+											)
+										: 0
+								}%`,
+							}}
+							title="Spent hours"
+						/>
+						<div
+							className="h-full bg-[#059669] transition-all duration-500"
+							style={{
+								width: `${lifetimeStats.preservationRate}%`,
+							}}
+							title="Preserved hours"
+						/>
+					</div>
+					<div className="flex items-center justify-between mt-2 text-[11px] text-neutral-400 font-medium">
+						<div className="flex items-center gap-1.5">
+							<span className="w-2 h-2 rounded-full bg-rose-500" />
+							<span>
+								Labor spent ($
+								{lifetimeStats.totalExp.toFixed(2)})
+							</span>
+						</div>
+						<div className="flex items-center gap-1.5">
+							<span className="w-2 h-2 rounded-full bg-[#059669]" />
+							<span>Hours preserved</span>
+						</div>
+					</div>
+				</section>
+			</div>
 
 			{/* Card 1: CYCLE RUNWAY & LABOR DEPRECIATION */}
 			<div className="mb-4">
@@ -736,15 +868,25 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 					</div>
 
 					{/* Footnote with live calculations */}
-					<div className="mt-4 pt-3 border-t border-[#F3F4F6] text-center text-[12px] text-[#6B7280]">
-						Avg:{' '}
-						<strong className="text-[#111111] font-semibold tabular-nums">
-							${sevenDayAvg}/day
-						</strong>{' '}
-						• Safe Target:{' '}
-						<strong className="text-[#10B981] font-semibold tabular-nums">
-							≤ ${safeTargetPerDay}/day
-						</strong>
+					<div className="mt-4 pt-3 border-t border-[#F3F4F6] flex flex-col gap-1.5 text-center text-[12px] text-[#6B7280]">
+						<div>
+							Avg:{' '}
+							<strong className="text-[#111111] font-semibold tabular-nums">
+								${sevenDayAvg}/day
+							</strong>{' '}
+							• Safe Target:{' '}
+							<strong className="text-[#10B981] font-semibold tabular-nums">
+								≤ ${safeTargetPerDay}/day
+							</strong>
+						</div>
+						{peakDayInfo && peakDayInfo.amount > 0 && (
+							<div className="text-[11px] text-amber-700 font-medium bg-amber-50 py-1 px-2.5 rounded-lg inline-block mx-auto">
+								Peak spend is on {peakDayInfo.dayLetter} ($
+								{peakDayInfo.amount.toFixed(2)} /{' '}
+								{peakDayInfo.hours}h) accounting for{' '}
+								{peakDayInfo.percent}% of weekly spend
+							</div>
+						)}
 					</div>
 				</section>
 			</div>

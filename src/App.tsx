@@ -28,6 +28,7 @@ import { BalanceBreakdownModal } from './components/BalanceBreakdownModal';
 import { SwipeableTransactionItem } from './components/SwipeableTransactionItem';
 import { TopBar } from './components/TopBar';
 import { OnboardingModal } from './components/OnboardingModal';
+import { IconPickerDrawer } from './components/IconPickerDrawer';
 import {
 	MapsView,
 	AnalyticsView,
@@ -167,6 +168,7 @@ export default function App() {
 		bgColor: string;
 		iconColor: string;
 	} | null>(null);
+	const [isIconPickerOpen, setIsIconPickerOpen] = useState<boolean>(false);
 
 	const [animationsEnabled, setAnimationsEnabled] = useState<boolean>(() => {
 		if (typeof window !== 'undefined') {
@@ -924,10 +926,6 @@ export default function App() {
 				{/* Top App Header */}
 				<TopBar
 					title={tabTitle}
-					isSearchOpen={isSearchOpen}
-					onToggleSearch={() => setIsSearchOpen((prev) => !prev)}
-					searchQuery={searchQuery}
-					onSearchQueryChange={setSearchQuery}
 					onOpenOnboarding={() => setIsOnboardingOpen(true)}
 					onOpenProfile={() => setActiveTab('settings')}
 				/>
@@ -935,7 +933,7 @@ export default function App() {
 				{/* Main Content Container */}
 				<main
 					className={`flex flex-col relative w-full max-w-120 mx-auto px-margin ${
-						isSearchOpen ? 'pt-28' : 'pt-16'
+						isSearchOpen && activeTab === 'dashboard' ? 'pt-28' : 'pt-16'
 					} ${
 						activeTab === 'dashboard'
 							? 'h-dvh pb-24 overflow-hidden'
@@ -1118,14 +1116,32 @@ export default function App() {
 									<span className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">
 										RECENTS
 									</span>
-									{/* <button
-										type="button"
-										onClick={() => setIsDockExpanded(true)}
-										className="text-[13px] text-[#4B5563] font-semibold hover:text-[#111111] flex items-center gap-0.5 cursor-pointer"
-									>
-										<span>See All</span>
-										<span className="text-[14px]">→</span>
-									</button> */}
+								</div>
+
+								{/* Search Bar directly above Recent Transactions */}
+								<div className="relative flex items-center bg-white border border-gray-100 rounded-2xl px-3.5 py-2.5 shadow-[0_2px_12px_rgba(0,0,0,0.02)] focus-within:border-black/30 transition-all">
+									<span className="material-symbols-outlined text-gray-400 text-[18px] mr-2.5 select-none">
+										search
+									</span>
+									<input
+										type="text"
+										value={searchQuery}
+										onChange={(e) => setSearchQuery(e.target.value)}
+										placeholder="Search transactions or categories..."
+										className="w-full bg-transparent text-[13px] text-[#111111] placeholder:text-gray-400 focus:outline-none"
+									/>
+									{searchQuery && (
+										<button
+											type="button"
+											aria-label="Clear search"
+											onClick={() => setSearchQuery('')}
+											className="text-gray-400 hover:text-black transition-colors cursor-pointer ml-1"
+										>
+											<span className="material-symbols-outlined text-[16px]">
+												cancel
+											</span>
+										</button>
+									)}
 								</div>
 
 								{/* White Card Containing Transactions List */}
@@ -1446,28 +1462,9 @@ export default function App() {
 									<div className="flex items-center gap-3 bg-surface-container-low rounded-xl px-4 py-2.5 mb-3 border border-transparent focus-within:border-primary/20">
 										<button
 											type="button"
-											onClick={() => {
-												if (customDockIcon) {
-													const matchIdx =
-														iconList.findIndex(
-															(item) =>
-																item.icon ===
-																customDockIcon.icon,
-														);
-													setDockIconIndex(
-														(matchIdx >= 0
-															? matchIdx
-															: 0) + 1,
-													);
-													setCustomDockIcon(null);
-												} else {
-													setDockIconIndex(
-														(i) => i + 1,
-													);
-												}
-											}}
-											aria-label="Cycle transaction icon"
-											className={`relative w-10 h-10 rounded-full ${currentDockIcon.bgColor} flex items-center justify-center shrink-0 active:scale-95 transition-transform`}
+											onClick={() => setIsIconPickerOpen(true)}
+											aria-label="Open icon drawer"
+											className={`relative w-10 h-10 rounded-full ${currentDockIcon.bgColor} flex items-center justify-center shrink-0 active:scale-95 transition-transform cursor-pointer`}
 										>
 											<span
 												className="material-symbols-outlined text-[20px]"
@@ -1931,6 +1928,17 @@ export default function App() {
 						}
 					/>
 				)}
+
+				{/* Icon Picker Drawer for Dock & Presets */}
+				<IconPickerDrawer
+					isOpen={isIconPickerOpen}
+					onClose={() => setIsIconPickerOpen(false)}
+					selectedIcon={currentDockIcon.icon}
+					type={dockType}
+					onSelectIcon={(selected) => {
+						setCustomDockIcon(selected);
+					}}
+				/>
 			</div>
 		</MotionConfig>
 	);

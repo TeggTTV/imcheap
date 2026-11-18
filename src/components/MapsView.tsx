@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import { Coordinate, RecordedTrip, LiveTrackingStatus, DevTrackingTelemetry } from '../types/maps';
 import { DEFAULT_ROAD_ROUTES } from '../utils/mapRouting';
 import { chaikinSmooth, lerpCoordinate } from '../utils/geoSmoothing';
+import { getSavedHomeAddress } from '../utils/tripTracker';
 import { SwipeableTripItem } from './SwipeableTripItem';
 
 export interface MapsViewProps {
@@ -186,6 +187,28 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		}).addTo(map);
 
 		userMarkerRef.current = userMarker;
+
+		// Permanent Home Marker
+		const homeCoords = getSavedHomeAddress();
+		const homeIcon = L.divIcon({
+			className: 'bg-transparent',
+			html: `
+				<div class="relative flex items-center justify-center w-8 h-8 rounded-full bg-white shadow-md border border-neutral-200">
+					<span class="material-symbols-outlined text-[18px] text-[#059669]">
+						home
+					</span>
+				</div>
+			`,
+			iconSize: [32, 32],
+			iconAnchor: [16, 16],
+		});
+		L.marker([homeCoords.lat, homeCoords.lng], {
+			icon: homeIcon,
+			zIndexOffset: 900,
+		})
+			.addTo(map)
+			.bindTooltip('Home', { direction: 'top', offset: [0, -12] });
+
 		mapInstanceRef.current = map;
 
 		// Auto fit to initial active trip only if one is explicitly selected
@@ -325,7 +348,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		}
 	}, [trackingStatus?.liveBreadcrumbs, trackingStatus?.isDriving, trackingStatus?.state]);
 
-	// Draw 100m geofence departure radius circle when dev indicator is active
+	// Draw static 100m departure geofence circle around Home when dev indicator is active
 	useEffect(() => {
 		if (!mapInstanceRef.current) return;
 		const map = mapInstanceRef.current;
@@ -338,8 +361,9 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			return;
 		}
 
-		const anchorLat = userLocation.lat;
-		const anchorLng = userLocation.lng;
+		const homeCoords = getSavedHomeAddress();
+		const anchorLat = homeCoords.lat;
+		const anchorLng = homeCoords.lng;
 
 		if (devRadiusCircleRef.current) {
 			devRadiusCircleRef.current.setLatLng([anchorLat, anchorLng]);
@@ -354,7 +378,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			}).addTo(map);
 			devRadiusCircleRef.current = circle;
 		}
-	}, [devTrackingOverlay, userLocation.lat, userLocation.lng]);
+	}, [devTrackingOverlay]);
 
 	const renderTripRoute = async (
 		map: L.Map,
@@ -566,7 +590,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 							{activeTrip
 								? `${activeTrip.from} → ${activeTrip.to}`
 								: trackingStatus?.state === 'TRACKING_TRIP'
-									? `Tracking: ${trackingStatus.originName} → ${trackingStatus.currentMiles || 0} mi`
+									? `${trackingStatus.originName === 'Current Location' ? 'En Route' : trackingStatus.originName} → ${trackingStatus.currentMiles || 0} mi`
 									: trackingStatus?.state === 'AT_HOME'
 										? 'At Home'
 										: trackingStatus?.state === 'STATIONARY'
@@ -595,7 +619,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 							</span>
 							{activeTrip
 								? `${activeLaborMinutes.toFixed(1)}m`
-								: 'Auto-Trip Ready'}
+								: `${activeMiles.toFixed(1)} mi logged`}
 						</span>
 					</div>
 				</div>
