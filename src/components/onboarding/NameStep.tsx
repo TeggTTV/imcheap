@@ -52,6 +52,12 @@ export const NameStep: React.FC<NameStepProps> = ({
 			} catch {}
 		}
 
+		// If no name entered, do not show greeting; proceed immediately
+		if (!trimmed) {
+			onNext();
+			return;
+		}
+
 		// Trigger animated floating text: slide up for 500ms, hold for 250ms, then proceed
 		setIsAnimatingGreeting(true);
 		setTimeout(() => {
@@ -59,7 +65,7 @@ export const NameStep: React.FC<NameStepProps> = ({
 		}, 750);
 	};
 
-	const displayName = name.trim() || 'friend';
+	const displayName = name.trim();
 
 	return (
 		<div className="relative w-full h-full flex flex-col justify-between select-none overflow-hidden bg-[#fcf9f8] text-[#1c1b1b] p-6 pb-safe">
@@ -121,31 +127,30 @@ export const NameStep: React.FC<NameStepProps> = ({
 							onChange={handleInputChange}
 							placeholder="Your name"
 							autoComplete="given-name"
-							autoFocus
 							className="w-full py-4 px-6 text-center text-[22px] font-semibold text-[#1c1b1b] placeholder:text-neutral-300 bg-transparent rounded-2xl focus:outline-none"
 						/>
 					</div>
-
-					{/* Animated Floating Greeting on Continue */}
-					<AnimatePresence>
-						{isAnimatingGreeting && (
-							<motion.div
-								initial={{ opacity: 0, y: 15, scale: 0.95 }}
-								animate={{ opacity: 1, y: -24, scale: 1 }}
-								exit={{ opacity: 0, scale: 0.9 }}
-								transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-								className="absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap bg-[#006948] text-white px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 z-30"
-							>
-								<span className="material-symbols-outlined text-[16px] text-emerald-200">
-									auto_awesome
-								</span>
-								<span className="text-[13px] font-bold">
-									Nice to meet you, {displayName}!
-								</span>
-							</motion.div>
-						)}
-					</AnimatePresence>
 				</div>
+
+				{/* Floating Bottom Greeting on Continue */}
+				<AnimatePresence>
+					{isAnimatingGreeting && (
+						<motion.div
+							initial={{ opacity: 0, y: 50 }}
+							animate={{ opacity: 1, y: 0 }}
+							exit={{ opacity: 0, y: 20 }}
+							transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+							className="fixed bottom-28 inset-x-4 max-w-[340px] mx-auto bg-black text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center justify-center gap-2 z-50 pointer-events-none"
+						>
+							<span className="material-symbols-outlined text-[18px] text-emerald-400">
+								auto_awesome
+							</span>
+							<span className="text-[17px] font-bold tracking-tight">
+								Nice to meet you, {displayName}!
+							</span>
+						</motion.div>
+					)}
+				</AnimatePresence>
 			</div>
 
 			{/* Bottom Controls */}

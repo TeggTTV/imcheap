@@ -29,6 +29,9 @@ import { SwipeableTransactionItem } from './components/SwipeableTransactionItem'
 import { TopBar } from './components/TopBar';
 import { OnboardingModal } from './components/OnboardingModal';
 import { IconPickerDrawer } from './components/IconPickerDrawer';
+import { LocationsView } from './components/LocationsView';
+import { VehicleSettingsView } from './components/VehicleSettingsView';
+import { getSavedLocations, saveLocations } from './utils/savedLocations';
 import {
 	MapsView,
 	AnalyticsView,
@@ -48,7 +51,7 @@ import {
 import { fetchRoadRoute } from './utils/mapRouting';
 import { AutomaticTripDetectionService } from './utils/tripTracker';
 
-type ActiveTab = 'dashboard' | 'maps' | 'analytics' | 'presets' | 'settings';
+type ActiveTab = 'dashboard' | 'maps' | 'analytics' | 'presets' | 'settings' | 'locations' | 'vehicle_settings';
 type ActiveModal = 'none' | 'preset' | 'breakdown';
 
 const COLLAPSED_DOCK_Y = 396;
@@ -514,6 +517,10 @@ export default function App() {
 		return true;
 	});
 
+	const [savedLocations, setSavedLocations] = useState(() => {
+		return getSavedLocations();
+	});
+
 	const [trackingStatus, setTrackingStatus] = useState<LiveTrackingStatus>({
 		state: 'LOCATING',
 	});
@@ -918,7 +925,11 @@ export default function App() {
 					? 'Analytics'
 					: activeTab === 'presets'
 						? 'Presets'
-						: 'Settings';
+						: activeTab === 'locations'
+							? 'Locations'
+							: activeTab === 'vehicle_settings'
+								? 'Vehicle Settings'
+								: 'Settings';
 
 	return (
 		<MotionConfig reducedMotion={animationsEnabled ? 'never' : 'always'}>
@@ -1645,6 +1656,40 @@ export default function App() {
 							}}
 							devTrackingOverlay={devTrackingOverlay}
 							devTelemetry={devTelemetry}
+							onOpenLocationsPage={() => setActiveTab('locations')}
+							onOpenVehicleSettings={() => setActiveTab('vehicle_settings')}
+							onEndTripDirect={(destName, coord) => {
+								tripDetectorRef.current?.endTripNow(destName, coord);
+							}}
+						/>
+					)}
+
+					{activeTab === 'locations' && (
+						<LocationsView
+							locations={savedLocations}
+							onUpdateLocations={(updated) => {
+								setSavedLocations(updated);
+								saveLocations(updated);
+								const home = updated.find((l) => l.isHome);
+								if (home) {
+									tripDetectorRef.current?.updateHomeAddress({
+										address: home.address,
+										lat: home.lat,
+										lng: home.lng,
+									});
+								}
+							}}
+							onBack={() => setActiveTab('maps')}
+							currentGps={userLocation}
+						/>
+					)}
+
+					{activeTab === 'vehicle_settings' && (
+						<VehicleSettingsView
+							settings={incomeSettings}
+							onUpdateSettings={setIncomeSettings}
+							onBack={() => setActiveTab('maps')}
+							wageRate={incomeSettings.hourlyWage}
 						/>
 					)}
 
@@ -1681,12 +1726,8 @@ export default function App() {
 					)}
 
 					{activeTab === 'settings' && (
-						<motion.div
+						<div
 							key="settings"
-							initial={{ x: 60, opacity: 0 }}
-							animate={{ x: 0, opacity: 1 }}
-							exit={{ x: -60, opacity: 0 }}
-							transition={{ duration: 0.25, ease: 'easeOut' }}
 							className="w-full"
 						>
 							<SettingsView
@@ -1718,7 +1759,7 @@ export default function App() {
 									}
 								}}
 							/>
-						</motion.div>
+						</div>
 					)}
 				</main>
 

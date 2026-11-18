@@ -1,11 +1,21 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Coordinate, RecordedTrip, LiveTrackingStatus, DevTrackingTelemetry } from '../types/maps';
-import { DEFAULT_ROAD_ROUTES } from '../utils/mapRouting';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+	Coordinate,
+	RecordedTrip,
+	LiveTrackingStatus,
+	DevTrackingTelemetry,
+	SavedLocation,
+} from '../types/maps';
+import { DEFAULT_ROAD_ROUTES, haversineDistanceMiles } from '../utils/mapRouting';
 import { chaikinSmooth, lerpCoordinate } from '../utils/geoSmoothing';
 import { getSavedHomeAddress } from '../utils/tripTracker';
+import { getSavedLocations, saveLocations } from '../utils/savedLocations';
 import { SwipeableTripItem } from './SwipeableTripItem';
+import { LocationActionDock } from './LocationActionDock';
+import { ArrivalEndTripModal } from './ArrivalEndTripModal';
 
 export interface MapsViewProps {
 	trips: RecordedTrip[];
@@ -21,9 +31,12 @@ export interface MapsViewProps {
 	onEnableLocation?: (coords?: Coordinate) => void;
 	devTrackingOverlay?: boolean;
 	devTelemetry?: DevTrackingTelemetry | null;
+	onOpenLocationsPage: () => void;
+	onOpenVehicleSettings: () => void;
+	onEndTripDirect?: (destName?: string, coord?: Coordinate) => void;
 }
 
-const DEFAULT_CENTER: [number, number] = [39.7032, -75.122]; // Glassboro, NJ (Girard Rd area)
+const DEFAULT_CENTER: [number, number] = [39.7032, -75.122]; // Glassboro, NJ
 
 export const MapsView: React.FC<MapsViewProps> = ({
 	trips,
@@ -39,8 +52,23 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	onEnableLocation,
 	devTrackingOverlay = false,
 	devTelemetry,
+	onOpenLocationsPage,
+	onOpenVehicleSettings,
+	onEndTripDirect,
 }) => {
-	// User location state, prioritizing external live location, then last known GPS
+	// Saved locations state
+	const [savedLocations, setSavedLocations] = useState<SavedLocation[]>(() => {
+		return getSavedLocations();
+	});
+
+	// Floating 3-option menu state
+	const [isMenuOpen, setIsMenuOpen] = useState(false);
+	const [isCreateMarkerOpen, setIsCreateMarkerOpen] = useState(false);
+
+	// Arrival prompt state
+	const [arrivalPromptLocation, setArrivalPromptLocation] = useState<SavedLocation | null>(null);
+
+	// User location state
 	const [userLocation, setUserLocation] = useState<Coordinate>(() => {
 		if (externalUserLocation?.lat && externalUserLocation?.lng) {
 			return externalUserLocation;
@@ -68,6 +96,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	const livePolylineLayerRef = useRef<L.Polyline | null>(null);
 	const devRadiusCircleRef = useRef<L.Circle | null>(null);
 	const markersLayerRef = useRef<L.LayerGroup | null>(null);
+	const savedLocationsMarkersRef = useRef<L.LayerGroup | null>(null);
 	const userMarkerRef = useRef<L.Marker | null>(null);
 	const animFrameRef = useRef<number | null>(null);
 	const currentAnimPosRef = useRef<Coordinate>(userLocation);
@@ -76,6 +105,29 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	const animDurationRef = useRef<number>(1000);
 	const [isRequestingPermission, setIsRequestingPermission] = useState<boolean>(false);
 	const [permissionError, setPermissionError] = useState<string | null>(null);
+
+	// Snapped display coordinate calculation (for battery saving / low precision when at destination)
+	const displayedUserLocation = useMemo<Coordinate>(() => {
+		const isDriving =
+			trackingStatus?.isDriving || trackingStatus?.state === 'TRACKING_TRIP';
+		if (isDriving) {
+			return userLocation;
+		}
+
+		// Check proximity to Home or any saved location
+		for (const loc of savedLocations) {
+			const distMeters =
+				haversineDistanceMiles(userLocation, {
+					lat: loc.lat,
+					lng: loc.lng,
+				}) * 1609.344;
+			if (distMeters <= 85) {
+				return { lat: loc.lat, lng: loc.lng };
+			}
+		}
+
+		return userLocation;
+	}, [userLocation, savedLocations, trackingStatus?.isDriving, trackingStatus?.state]);
 
 	// Synchronize when external user location changes from tracker
 	useEffect(() => {
@@ -91,7 +143,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 
 	const [activeTripId, setActiveTripId] = useState<string | null>(null);
 
-	// High accuracy GPS detection with smooth fallback (only runs if location is enabled)
+	// High accuracy GPS detection with smooth fallback
 	useEffect(() => {
 		if (!isLocationEnabled || !('geolocation' in navigator)) return;
 
@@ -108,12 +160,6 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				try {
 					localStorage.setItem('imcheap_last_known_gps', JSON.stringify(coords));
 				} catch {}
-			}
-			if (!activeTripId && mapInstanceRef.current) {
-				mapInstanceRef.current.setView(
-					[coords.lat, coords.lng],
-					mapInstanceRef.current.getZoom() || 15,
-				);
 			}
 		};
 
@@ -154,19 +200,21 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		if (mapInstanceRef.current) return;
 
 		const map = L.map(mapContainerRef.current, {
-			center: [userLocation.lat, userLocation.lng],
+			center: [displayedUserLocation.lat, displayedUserLocation.lng],
 			zoom: 15,
 			zoomControl: false,
 			attributionControl: false,
 		});
 
-		// Clean OpenStreetMap tiles with high-contrast grayscale filter
 		L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 			maxZoom: 19,
 		}).addTo(map);
 
 		const markersGroup = L.layerGroup().addTo(map);
 		markersLayerRef.current = markersGroup;
+
+		const savedLocGroup = L.layerGroup().addTo(map);
+		savedLocationsMarkersRef.current = savedLocGroup;
 
 		// Pulsing user location marker
 		const userIcon = L.divIcon({
@@ -181,43 +229,13 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			iconAnchor: [14, 14],
 		});
 
-		const userMarker = L.marker([userLocation.lat, userLocation.lng], {
+		const userMarker = L.marker([displayedUserLocation.lat, displayedUserLocation.lng], {
 			icon: userIcon,
 			zIndexOffset: 1000,
 		}).addTo(map);
 
 		userMarkerRef.current = userMarker;
-
-		// Permanent Home Marker
-		const homeCoords = getSavedHomeAddress();
-		const homeIcon = L.divIcon({
-			className: 'bg-transparent',
-			html: `
-				<div class="relative flex items-center justify-center w-8 h-8 rounded-full bg-white shadow-md border border-neutral-200">
-					<span class="material-symbols-outlined text-[18px] text-[#059669]">
-						home
-					</span>
-				</div>
-			`,
-			iconSize: [32, 32],
-			iconAnchor: [16, 16],
-		});
-		L.marker([homeCoords.lat, homeCoords.lng], {
-			icon: homeIcon,
-			zIndexOffset: 900,
-		})
-			.addTo(map)
-			.bindTooltip('Home', { direction: 'top', offset: [0, -12] });
-
 		mapInstanceRef.current = map;
-
-		// Auto fit to initial active trip only if one is explicitly selected
-		if (activeTripId) {
-			const initialTrip = trips.find((t) => t.id === activeTripId);
-			if (initialTrip) {
-				renderTripRoute(map, markersGroup, initialTrip);
-			}
-		}
 
 		return () => {
 			map.remove();
@@ -225,58 +243,52 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		};
 	}, []);
 
-	const handleRequestLocationAccess = () => {
-		if (typeof window === 'undefined' || !('geolocation' in navigator)) {
-			setPermissionError('Geolocation is not supported by your browser.');
-			return;
-		}
+	// Render / Update Saved Location Markers on map
+	useEffect(() => {
+		if (!mapInstanceRef.current || !savedLocationsMarkersRef.current) return;
+		const group = savedLocationsMarkersRef.current;
+		group.clearLayers();
 
-		setIsRequestingPermission(true);
-		setPermissionError(null);
+		savedLocations.forEach((loc) => {
+			if (loc.isVisibleOnMap === false) return;
 
-		navigator.geolocation.getCurrentPosition(
-			(pos) => {
-				const coords = {
-					lat: pos.coords.latitude,
-					lng: pos.coords.longitude,
-				};
-				setIsRequestingPermission(false);
-				setUserLocation(coords);
-				try {
-					localStorage.setItem('imcheap_location_enabled', 'true');
-					localStorage.setItem('imcheap_last_known_gps', JSON.stringify(coords));
-				} catch {}
-				if (userMarkerRef.current) {
-					userMarkerRef.current.setLatLng([coords.lat, coords.lng]);
-				}
-				mapInstanceRef.current?.setView([coords.lat, coords.lng], 16, { animate: true });
-				if (onEnableLocation) {
-					onEnableLocation(coords);
-				}
-				if (onUserLocationChange) {
-					onUserLocationChange(coords);
-				}
-			},
-			(err) => {
-				setIsRequestingPermission(false);
-				if (err.code === 1) {
-					setPermissionError('Location permission denied. Please enable it in browser settings.');
-				} else {
-					setPermissionError('Could not retrieve location. Please try again.');
-				}
-			},
-			{
-				enableHighAccuracy: true,
-				timeout: 10000,
-				maximumAge: 10000,
-			},
-		);
-	};
+			const isHome = loc.isHome;
+			const iconHtml = isHome
+				? `
+				<div class="relative flex items-center justify-center w-8 h-8 rounded-full bg-white shadow-md border border-neutral-200">
+					<span class="material-symbols-outlined text-[18px] text-[#059669]">
+						home
+					</span>
+				</div>
+			`
+				: `
+				<div class="relative flex items-center justify-center w-8 h-8 rounded-full bg-white shadow-md border border-neutral-200">
+					<span class="material-symbols-outlined text-[17px] text-[#111111]">
+						${loc.icon || 'pin_drop'}
+					</span>
+				</div>
+			`;
 
-	// Animate user marker and live route smoothly via 60fps lerp
+			const pinIcon = L.divIcon({
+				className: 'bg-transparent',
+				html: iconHtml,
+				iconSize: [32, 32],
+				iconAnchor: [16, 16],
+			});
+
+			L.marker([loc.lat, loc.lng], {
+				icon: pinIcon,
+				zIndexOffset: isHome ? 900 : 850,
+			})
+				.addTo(group)
+				.bindTooltip(loc.name, { direction: 'top', offset: [0, -12] });
+		});
+	}, [savedLocations]);
+
+	// Animate user marker position smoothly
 	useEffect(() => {
 		const startPos = currentAnimPosRef.current;
-		const endPos = userLocation;
+		const endPos = displayedUserLocation;
 		targetAnimPosRef.current = endPos;
 		animStartTimeRef.current = performance.now();
 		animDurationRef.current = 1000;
@@ -307,9 +319,9 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				cancelAnimationFrame(animFrameRef.current);
 			}
 		};
-	}, [userLocation]);
+	}, [displayedUserLocation]);
 
-	// Draw real-time live route behind the user when driving
+	// Draw live driving trail
 	useEffect(() => {
 		if (!mapInstanceRef.current) return;
 		const map = mapInstanceRef.current;
@@ -326,7 +338,6 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			return;
 		}
 
-		// Smooth points using Chaikin algorithm
 		const smoothedCoords =
 			liveBreadcrumbs.length >= 3
 				? chaikinSmooth(liveBreadcrumbs, 2)
@@ -338,7 +349,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			livePolylineLayerRef.current.setLatLngs(latLngs);
 		} else {
 			const livePolyline = L.polyline(latLngs, {
-				color: '#059669', // Emerald driving trail
+				color: '#059669',
 				weight: 5,
 				opacity: 0.9,
 				lineCap: 'round',
@@ -369,7 +380,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			devRadiusCircleRef.current.setLatLng([anchorLat, anchorLng]);
 		} else {
 			const circle = L.circle([anchorLat, anchorLng], {
-				radius: 100, // 100m geofence radius
+				radius: 100,
 				color: '#059669',
 				weight: 2,
 				dashArray: '6, 6',
@@ -379,6 +390,50 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			devRadiusCircleRef.current = circle;
 		}
 	}, [devTrackingOverlay]);
+
+	// Proximity arrival trigger for "End Trip" action dock
+	useEffect(() => {
+		const isDriving =
+			trackingStatus?.isDriving || trackingStatus?.state === 'TRACKING_TRIP';
+		const miles = trackingStatus?.currentMiles || 0;
+
+		if (!isDriving || miles < 0.25) {
+			if (arrivalPromptLocation) {
+				setArrivalPromptLocation(null);
+			}
+			return;
+		}
+
+		// Check distance to all saved locations
+		let arrivedLoc: SavedLocation | null = null;
+		for (const loc of savedLocations) {
+			const distMeters =
+				haversineDistanceMiles(userLocation, {
+					lat: loc.lat,
+					lng: loc.lng,
+				}) * 1609.344;
+			if (distMeters <= 85) {
+				arrivedLoc = loc;
+				break;
+			}
+		}
+
+		if (arrivedLoc) {
+			if (!arrivalPromptLocation || arrivalPromptLocation.id !== arrivedLoc.id) {
+				setArrivalPromptLocation(arrivedLoc);
+			}
+		} else if (arrivalPromptLocation) {
+			// Auto dismiss once user drives away (> 150m)
+			const distAwayMeters =
+				haversineDistanceMiles(userLocation, {
+					lat: arrivalPromptLocation.lat,
+					lng: arrivalPromptLocation.lng,
+				}) * 1609.344;
+			if (distAwayMeters > 150) {
+				setArrivalPromptLocation(null);
+			}
+		}
+	}, [userLocation, trackingStatus?.isDriving, trackingStatus?.state, trackingStatus?.currentMiles, savedLocations, arrivalPromptLocation]);
 
 	const renderTripRoute = async (
 		map: L.Map,
@@ -396,7 +451,6 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		if (DEFAULT_ROAD_ROUTES[trip.id]) {
 			coords = DEFAULT_ROAD_ROUTES[trip.id];
 		} else if (coords && coords.length >= 3) {
-			// Apply corner smoothing to the user's manual route
 			coords = chaikinSmooth(coords, 2);
 		}
 
@@ -404,14 +458,14 @@ export const MapsView: React.FC<MapsViewProps> = ({
 
 		const latLngs: [number, number][] = coords.map((c) => [c.lat, c.lng]);
 
-		// Polyline showing the user's manual route
 		const polyline = L.polyline(latLngs, {
 			color: '#111111',
-			weight: 4.5,
-			opacity: 0.95,
+			weight: 5,
+			opacity: 0.9,
 			lineCap: 'round',
 			lineJoin: 'round',
 		}).addTo(map);
+
 		polylineLayerRef.current = polyline;
 
 		// Start Marker "A"
@@ -419,7 +473,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		const iconA = L.divIcon({
 			className: 'bg-transparent',
 			html: `
-				<div class="w-7 h-7 rounded-full bg-white border-2 border-[#111111] text-[#111111] font-black text-[12px] flex items-center justify-center shadow-lg transform -translate-x-1/2 -translate-y-1/2">
+				<div class="w-7 h-7 rounded-full bg-[#111111] text-white flex items-center justify-center font-bold text-xs shadow-md border-2 border-white">
 					A
 				</div>
 			`,
@@ -432,7 +486,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		const iconB = L.divIcon({
 			className: 'bg-transparent',
 			html: `
-				<div class="w-7 h-7 rounded-full bg-[#111111] border-2 border-white text-white font-black text-[12px] flex items-center justify-center shadow-lg transform -translate-x-1/2 -translate-y-1/2">
+				<div class="w-7 h-7 rounded-full bg-secondary text-white flex items-center justify-center font-bold text-xs shadow-md border-2 border-white">
 					B
 				</div>
 			`,
@@ -442,7 +496,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 
 		const bounds = L.latLngBounds(latLngs);
 		map.fitBounds(bounds, {
-			padding: [48, 48],
+			padding: [50, 50],
 			maxZoom: 16,
 			animate: true,
 		});
@@ -450,7 +504,6 @@ export const MapsView: React.FC<MapsViewProps> = ({
 
 	const handleSelectTrip = (trip: RecordedTrip) => {
 		if (activeTripId === trip.id) {
-			// Deselect and focus back on user position
 			setActiveTripId(null);
 			if (polylineLayerRef.current) {
 				mapInstanceRef.current?.removeLayer(polylineLayerRef.current);
@@ -459,9 +512,9 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			if (markersLayerRef.current) {
 				markersLayerRef.current.clearLayers();
 			}
-			if (mapInstanceRef.current && userLocation) {
+			if (mapInstanceRef.current && displayedUserLocation) {
 				mapInstanceRef.current.setView(
-					[userLocation.lat, userLocation.lng],
+					[displayedUserLocation.lat, displayedUserLocation.lng],
 					15,
 					{ animate: true },
 				);
@@ -469,7 +522,6 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			return;
 		}
 
-		// Select route
 		setActiveTripId(trip.id);
 		if (mapInstanceRef.current && markersLayerRef.current) {
 			renderTripRoute(
@@ -503,18 +555,9 @@ export const MapsView: React.FC<MapsViewProps> = ({
 					} catch {}
 				}
 				if (userMarkerRef.current) {
-					userMarkerRef.current.setLatLng([
-						coords.lat,
-						coords.lng,
-					]);
+					userMarkerRef.current.setLatLng([coords.lat, coords.lng]);
 				}
-				mapInstanceRef.current?.setView(
-					[coords.lat, coords.lng],
-					16,
-					{
-						animate: true,
-					},
-				);
+				mapInstanceRef.current?.setView([coords.lat, coords.lng], 16, { animate: true });
 			};
 
 			navigator.geolocation.getCurrentPosition(
@@ -524,49 +567,41 @@ export const MapsView: React.FC<MapsViewProps> = ({
 						lng: pos.coords.longitude,
 					});
 				},
-				(err) => {
-					// Fallback to low-power / cached position on timeout
-					if (err.code === 3 && 'geolocation' in navigator) {
-						navigator.geolocation.getCurrentPosition(
-							(fallbackPos) => {
-								applyCenteredCoords({
-									lat: fallbackPos.coords.latitude,
-									lng: fallbackPos.coords.longitude,
-								});
-							},
-							() => {
-								applyCenteredCoords(userLocation);
-							},
-							{ enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 },
-						);
-					} else {
-						applyCenteredCoords(userLocation);
-					}
+				() => {
+					mapInstanceRef.current?.setView(
+						[displayedUserLocation.lat, displayedUserLocation.lng],
+						16,
+						{ animate: true },
+					);
 				},
-				{ enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 },
+				{ enableHighAccuracy: true, timeout: 6000 },
 			);
 		} else {
 			mapInstanceRef.current.setView(
-				[userLocation.lat, userLocation.lng],
+				[displayedUserLocation.lat, displayedUserLocation.lng],
 				16,
 				{ animate: true },
 			);
 		}
 	};
 
-	const activeTrip = trips.find((t) => t.id === activeTripId);
-	const activeMiles = activeTrip ? activeTrip.miles : 12.8;
-	const activeLaborMinutes =
-		hourlyWage > 0 ? ((activeMiles * mileageRate) / hourlyWage) * 60 : 6.3;
+	const handleSaveNewLocation = (newLoc: SavedLocation) => {
+		const next = [...savedLocations, newLoc];
+		setSavedLocations(next);
+		saveLocations(next);
+		setIsCreateMarkerOpen(false);
+	};
 
-	const totalLaborMinutes = trips.reduce((acc, t) => {
-		const cost = t.miles * mileageRate;
-		return acc + (hourlyWage > 0 ? (cost / hourlyWage) * 60 : 0);
-	}, 0);
+	const handleEndTripConfirmed = () => {
+		if (onEndTripDirect && arrivalPromptLocation) {
+			onEndTripDirect(arrivalPromptLocation.name, userLocation);
+		}
+		setArrivalPromptLocation(null);
+	};
 
 	return (
-		<div className="flex flex-col gap-4 pb-28 pt-2 px-margin-sm max-w-120 mx-auto w-full select-none">
-			{/* Custom Grayscale Map Card */}
+		<div className="w-full flex flex-col gap-4">
+			{/* Leaflet Map Card */}
 			<div className="relative w-full h-80 rounded-3xl overflow-hidden border border-gray-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.04)] bg-white">
 				<div
 					ref={mapContainerRef}
@@ -576,65 +611,92 @@ export const MapsView: React.FC<MapsViewProps> = ({
 					}}
 				/>
 
-				{/* Floating Pill: Top-Left Active Commute Indicator */}
-				<div className="absolute top-3.5 left-3.5 z-10 pointer-events-none">
-					<div className="bg-white/95 backdrop-blur-md rounded-full px-3 py-1.5 shadow-md border border-neutral-200/60 flex items-center gap-1.5">
-						<span className="material-symbols-outlined text-[16px] text-[#111111]">
-							{activeTrip
-								? 'directions_car'
-								: trackingStatus?.state === 'TRACKING_TRIP'
-									? 'navigation'
-									: 'near_me'}
-						</span>
-						<span className="text-[12px] font-bold text-[#111111]">
-							{activeTrip
-								? `${activeTrip.from} → ${activeTrip.to}`
-								: trackingStatus?.state === 'TRACKING_TRIP'
-									? `${trackingStatus.originName === 'Current Location' ? 'En Route' : trackingStatus.originName} → ${trackingStatus.currentMiles || 0} mi`
-									: trackingStatus?.state === 'AT_HOME'
-										? 'At Home'
-										: trackingStatus?.state === 'STATIONARY'
-											? `At ${trackingStatus.originName} (${trackingStatus.dwellMinutes || 0}m)`
-											: trackingStatus?.state === 'LOCATING'
-												? 'Locating GPS...'
-												: 'Active Commute'}
-						</span>
-					</div>
-				</div>
+				{/* Floating Bottom-Right Buttons Stack */}
+				<div className="absolute bottom-3.5 right-3.5 z-20 flex flex-col items-end gap-2.5">
+					{/* Pop-up 3-Option Select Menu */}
+					<AnimatePresence>
+						{isMenuOpen && (
+							<motion.div
+								initial={{ opacity: 0, scale: 0.9, y: 10 }}
+								animate={{ opacity: 1, scale: 1, y: 0 }}
+								exit={{ opacity: 0, scale: 0.9, y: 10 }}
+								transition={{ duration: 0.16, ease: 'easeOut' }}
+								className="bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 flex flex-col gap-1 w-48 mb-1"
+							>
+								{/* Option 1: Locations */}
+								<button
+									type="button"
+									onClick={() => {
+										setIsMenuOpen(false);
+										onOpenLocationsPage();
+									}}
+									className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
+								>
+									<span className="material-symbols-outlined text-[18px] text-[#059669]">
+										format_list_bulleted
+									</span>
+									<span>Locations</span>
+								</button>
 
-				{/* Floating Pill: Bottom-Left Trip Stat */}
-				<div className="absolute bottom-3.5 left-3.5 z-10 pointer-events-none">
-					<div className="bg-white/95 backdrop-blur-md rounded-full px-3.5 py-1.5 shadow-md border border-neutral-200/60 flex items-center gap-2">
-						<span className="text-[13px] font-black text-[#111111] tabular-nums">
-							{activeTrip
-								? `${activeMiles.toFixed(1)} mi`
-								: trackingStatus?.state === 'TRACKING_TRIP'
-									? `${(trackingStatus.currentMiles || 0).toFixed(1)} mi`
-									: `${totalLaborMinutes.toFixed(1)}m burn`}
-						</span>
-						<span className="text-gray-300 font-bold">•</span>
-						<span className="text-[12px] font-bold text-secondary flex items-center gap-1 tabular-nums">
-							<span className="material-symbols-outlined text-[14px]">
-								schedule
-							</span>
-							{activeTrip
-								? `${activeLaborMinutes.toFixed(1)}m`
-								: `${activeMiles.toFixed(1)} mi logged`}
-						</span>
-					</div>
-				</div>
+								{/* Option 2: Create Marker */}
+								<button
+									type="button"
+									onClick={() => {
+										setIsMenuOpen(false);
+										setIsCreateMarkerOpen(true);
+									}}
+									className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
+								>
+									<span className="material-symbols-outlined text-[18px] text-[#111111]">
+										add_location_alt
+									</span>
+									<span>Create Marker</span>
+								</button>
 
-				{/* Floating Target Button: Bottom-Right Recenter */}
-				<button
-					type="button"
-					onClick={handleCenterOnMe}
-					aria-label="Center on live location"
-					className="absolute bottom-3.5 right-3.5 z-10 w-10 h-10 rounded-full bg-white shadow-md border border-neutral-200/60 flex items-center justify-center text-[#111111] hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
-				>
-					<span className="material-symbols-outlined text-[20px]">
-						my_location
-					</span>
-				</button>
+								{/* Option 3: Vehicle Settings */}
+								<button
+									type="button"
+									onClick={() => {
+										setIsMenuOpen(false);
+										onOpenVehicleSettings();
+									}}
+									className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
+								>
+									<span className="material-symbols-outlined text-[18px] text-neutral-600">
+										directions_car
+									</span>
+									<span>Vehicle Settings</span>
+								</button>
+							</motion.div>
+						)}
+					</AnimatePresence>
+
+					{/* Marker Options Floating Trigger Button */}
+					<button
+						type="button"
+						onClick={() => setIsMenuOpen(!isMenuOpen)}
+						aria-label="Locations and Vehicle Menu"
+						className={`w-10 h-10 rounded-full bg-white shadow-md border border-neutral-200/60 flex items-center justify-center transition-all cursor-pointer ${
+							isMenuOpen ? 'bg-neutral-900 text-white' : 'text-[#111111] hover:bg-neutral-50'
+						}`}
+					>
+						<span className="material-symbols-outlined text-[20px]">
+							{isMenuOpen ? 'close' : 'pin_drop'}
+						</span>
+					</button>
+
+					{/* Recenter Target Button */}
+					<button
+						type="button"
+						onClick={handleCenterOnMe}
+						aria-label="Center on live location"
+						className="w-10 h-10 rounded-full bg-white shadow-md border border-neutral-200/60 flex items-center justify-center text-[#111111] hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
+					>
+						<span className="material-symbols-outlined text-[20px]">
+							my_location
+						</span>
+					</button>
+				</div>
 
 				{/* Location Access Disabled Dimmed Overlay */}
 				{!isLocationEnabled && (
@@ -652,28 +714,17 @@ export const MapsView: React.FC<MapsViewProps> = ({
 						</p>
 						<button
 							type="button"
-							onClick={handleRequestLocationAccess}
+							onClick={() => onEnableLocation && onEnableLocation()}
 							disabled={isRequestingPermission}
-							className="h-11 px-6 rounded-xl bg-[#111111] hover:bg-neutral-800 active:scale-[0.98] text-white font-bold text-[14px] flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+							className="h-11 px-5 rounded-xl bg-[#111111] hover:bg-neutral-800 text-white font-bold text-[14px] flex items-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50"
 						>
-							{isRequestingPermission ? (
-								<>
-									<span className="material-symbols-outlined animate-spin text-[16px]">
-										progress_activity
-									</span>
-									<span>Requesting...</span>
-								</>
-							) : (
-								<>
-									<span className="material-symbols-outlined text-[16px]">
-										near_me
-									</span>
-									<span>Enable Location</span>
-								</>
-							)}
+							<span className="material-symbols-outlined text-[18px]">
+								near_me
+							</span>
+							<span>{isRequestingPermission ? 'Requesting...' : 'Enable Location'}</span>
 						</button>
 						{permissionError && (
-							<p className="text-[11px] text-amber-700 font-semibold mt-2.5 max-w-[280px]">
+							<p className="text-[12px] text-red-500 font-medium mt-2">
 								{permissionError}
 							</p>
 						)}
@@ -682,44 +733,71 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			</div>
 
 			{/* Recorded Trips Section */}
-			<section className="flex flex-col gap-2.5">
+			<section className="w-full flex flex-col gap-2.5">
 				<div className="flex items-center justify-between px-1">
 					<div className="flex items-center gap-2">
 						<span className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">
 							Recorded Trips
 						</span>
-						<span className="w-5 h-5 rounded-full bg-neutral-100 text-[#111111] flex items-center justify-center text-[11px] font-bold tabular-nums">
+						<span className="text-[11px] font-bold bg-[#E5E7EB] text-[#4B5563] px-1.5 py-0.5 rounded-full">
 							{trips.length}
 						</span>
 					</div>
+					<span className="text-[11px] font-semibold text-neutral-400">
+						Tap a trip to view path
+					</span>
 				</div>
 
-				{/* Grouped White Card: Swipeable Trips List (Delete Only) */}
 				<div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_16px_rgba(0,0,0,0.03)] overflow-hidden">
 					{trips.length === 0 ? (
-						<div className="p-8 text-center text-[#6B7280] text-sm">
-							No trips recorded yet.
+						<div className="p-8 text-center text-on-surface-variant flex flex-col items-center justify-center gap-2">
+							<div className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant">
+								<span className="material-symbols-outlined text-[20px]">
+									directions_car
+								</span>
+							</div>
+							<p className="text-body-sm font-medium text-neutral-600">
+								No recorded trips yet.
+							</p>
+							<p className="text-label-sm text-outline max-w-[240px]">
+								Drive or simulate a commute to track mileage against your working hours.
+							</p>
 						</div>
 					) : (
-						trips.map((trip, idx) => {
-							const isSelected = trip.id === activeTripId;
-							return (
+						<div className="divide-y divide-gray-100">
+							{trips.map((trip) => (
 								<SwipeableTripItem
 									key={trip.id}
 									trip={trip}
-									isSelected={isSelected}
-									onSelect={handleSelectTrip}
-									onLog={onLogTrip}
-									onDelete={(id) => onDeleteTrip?.(id)}
 									hourlyWage={hourlyWage}
 									mileageRate={mileageRate}
-									isLast={idx === trips.length - 1}
+									isSelected={activeTripId === trip.id}
+									onSelect={() => handleSelectTrip(trip)}
+									onLog={onLogTrip}
+									onDelete={(id) => onDeleteTrip && onDeleteTrip(id)}
 								/>
-							);
-						})
+							))}
+						</div>
 					)}
 				</div>
 			</section>
+
+			{/* Create Marker Action Dock */}
+			<LocationActionDock
+				isOpen={isCreateMarkerOpen}
+				onClose={() => setIsCreateMarkerOpen(false)}
+				onSave={handleSaveNewLocation}
+				currentGps={userLocation}
+			/>
+
+			{/* Arrival End Trip Action Dock */}
+			<ArrivalEndTripModal
+				isOpen={Boolean(arrivalPromptLocation)}
+				locationName={arrivalPromptLocation?.name || 'Destination'}
+				currentMiles={trackingStatus?.currentMiles}
+				onEndTrip={handleEndTripConfirmed}
+				onKeepDriving={() => setArrivalPromptLocation(null)}
+			/>
 		</div>
 	);
 };

@@ -65,6 +65,18 @@ export interface SavedHomeAddress {
 	lng: number;
 }
 
+export interface SavedLocation {
+	id: string;
+	name: string;
+	address: string;
+	lat: number;
+	lng: number;
+	icon: string;
+	isHome?: boolean;
+	isVisibleOnMap: boolean;
+	createdAt?: string;
+}
+
 export interface LiveTrackingStatus {
 	state: 'LOCATING' | 'AT_HOME' | 'STATIONARY' | 'TRACKING_TRIP';
 	originName?: string;
@@ -98,9 +110,9 @@ export interface DevTrackingTelemetry {
 	targetDwellSeconds: number;
 	stopSeconds: number;
 	distanceToAnchorMeters: number;
-	accumulatedMiles: number;
-	breadcrumbsCount: number;
-	originName: string;
+	accumulatedMiles?: number;
+	originName?: string;
 	destinationName?: string;
-	lastUpdated: number;
+	breadcrumbsCount?: number;
+	lastUpdated?: number;
 }

@@ -2565,37 +2565,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										chevron_right
 									</span>
 								</button>
-
-								{/* Subpage 2 link */}
-								<button
-									type="button"
-									onClick={() => navigateTo('vehicle')}
-									className="w-full flex items-center justify-between p-4 text-left transition-colors active:bg-[#F9FAFB] focus:outline-none cursor-pointer"
-								>
-									<div className="flex items-center gap-3.5">
-										<div className="w-10 h-10 rounded-xl bg-[#EEF2F6] flex items-center justify-center text-[#1E293B] shrink-0">
-											<span className="material-symbols-outlined text-[20px]">
-												directions_car
-											</span>
-										</div>
-										<div className="flex flex-col">
-											<span className="text-[16px] font-bold text-[#111111] leading-snug">
-												Vehicle &amp; Transit Math
-											</span>
-											<span className="text-[13px] text-[#6B7280] mt-0.5">
-												{currentMpg} MPG @ $
-												{currentGas.toFixed(2)}/gal • $
-												{settings.mileageRate.toFixed(
-													2,
-												)}
-												/mi
-											</span>
-										</div>
-									</div>
-									<span className="material-symbols-outlined text-[22px] text-[#9CA3AF] shrink-0">
-										chevron_right
-									</span>
-								</button>
 							</div>
 						</section>
 
@@ -2710,58 +2679,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										chevron_right
 									</span>
 								</button>
-							</div>
-						</section>
-
-						{/* SECTION 4: HOME & LOCATION */}
-						<section className="flex flex-col mt-6">
-							<div className="px-1 mb-2">
-								<span className="text-[11px] font-bold uppercase tracking-wider text-[#9CA3AF]">
-									Home &amp; Location
-								</span>
-							</div>
-							<div className="bg-white rounded-[18px] border border-[#F3F4F6] shadow-sm overflow-hidden divide-y divide-[#F3F4F6]">
-								<div className="flex items-center justify-between p-4">
-									<div className="flex items-center gap-3.5 min-w-0 pr-3">
-										<div className="w-10 h-10 rounded-xl bg-[#EEF2F6] flex items-center justify-center text-[#1E293B] shrink-0">
-											<span className="material-symbols-outlined text-[20px]">
-												home
-											</span>
-										</div>
-										<div className="flex flex-col min-w-0">
-											<span className="text-[15px] font-semibold text-[#111111]">
-												Home Address
-											</span>
-											<span
-												className="text-[12px] text-[#6B7280] mt-0.5 truncate"
-												title={
-													homeAddress?.address ||
-													'Set your home address'
-												}
-											>
-												{homeAddress?.address ||
-													'Set your home address'}
-											</span>
-										</div>
-									</div>
-									<button
-										type="button"
-										onClick={() =>
-											setIsLocationModalOpen(true)
-										}
-										data-testid="settings-fine-tune-location-btn"
-										className="text-[12px] font-bold text-secondary hover:text-[#047857] hover:bg-emerald-50 active:scale-95 px-3 py-1.5 rounded-xl border border-emerald-200/60 transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs"
-									>
-										<span>
-											{homeAddress?.address
-												? 'Change'
-												: 'Set Address'}
-										</span>
-										<span className="material-symbols-outlined text-[14px]">
-											edit
-										</span>
-									</button>
-								</div>
 							</div>
 						</section>
 					</motion.div>

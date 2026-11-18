@@ -917,6 +917,16 @@ export class AutomaticTripDetectionService {
 		});
 	}
 
+	public async endTripNow(destName?: string, endCoord?: Coordinate) {
+		const targetCoord = endCoord || this.lastCoord || this.homeAddress;
+		const name = destName || (await this.resolveLocationName(targetCoord));
+		if (this.activeTrip) {
+			await this.completeTrip(name, targetCoord);
+		} else {
+			this.resetToIdleState(name, targetCoord);
+		}
+	}
+
 	// ─── DEV SIMULATION METHODS FOR DESK TESTING ─────────────────────────
 
 	public simulateDeparture(speedMph: number = 26) {

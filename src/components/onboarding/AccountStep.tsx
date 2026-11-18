@@ -215,7 +215,6 @@ export const AccountStep: React.FC<AccountStepProps> = ({
 								onChange={(e) => setEmail(e.target.value)}
 								placeholder="name@example.com"
 								required
-								autoFocus
 								className="w-full h-12 px-4 rounded-xl bg-white border border-neutral-200 text-[14px] text-neutral-900 focus:outline-none focus:border-neutral-900"
 							/>
 						</div>
