@@ -166,16 +166,6 @@ export const IntroStep: React.FC<IntroStepProps> = ({
 					<span>Get Started</span>
 					<ArrowRight size={18} />
 				</button>
-
-				{/* Security Lock Note */}
-				{/* <div className="flex items-center justify-center space-x-1.5 text-center -mt-1">
-					<span className="material-symbols-outlined text-[#6d7a72] text-[13px]">
-						lock
-					</span>
-					<span className="text-[11px] text-[#6d7a72] font-medium">
-						Private by default. No bank logins needed.
-					</span>
-				</div> */}
 			</div>
 		</div>
 	);

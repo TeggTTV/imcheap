@@ -847,9 +847,6 @@ export const MapsView: React.FC<MapsViewProps> = ({
 					{trips.length === 0 ? (
 						<div className="p-8 text-center text-on-surface-variant flex flex-col items-center justify-center gap-2">
 							<div className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant">
-								<span className="material-symbols-outlined text-[20px]">
-									directions_car
-								</span>
 								<Car size={20} />
 							</div>
 							<p className="text-body-sm font-medium text-neutral-600">
