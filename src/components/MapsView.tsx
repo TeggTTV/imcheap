@@ -16,6 +16,7 @@ import { getSavedLocations, saveLocations } from '../utils/savedLocations';
 import { SwipeableTripItem } from './SwipeableTripItem';
 import { LocationActionDock } from './LocationActionDock';
 import { ArrivalEndTripModal } from './ArrivalEndTripModal';
+import { MapsOnboardingModal } from './MapsOnboardingModal';
 
 export interface MapsViewProps {
 	trips: RecordedTrip[];
@@ -34,6 +35,8 @@ export interface MapsViewProps {
 	onOpenLocationsPage: () => void;
 	onOpenVehicleSettings: () => void;
 	onEndTripDirect?: (destName?: string, coord?: Coordinate) => void;
+	onUpdateHomeLocation?: (homeLocation: SavedLocation) => void;
+	onDockStateChange?: (isOpen: boolean) => void;
 }
 
 const DEFAULT_CENTER: [number, number] = [39.7032, -75.122]; // Glassboro, NJ
@@ -55,10 +58,29 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	onOpenLocationsPage,
 	onOpenVehicleSettings,
 	onEndTripDirect,
+	onUpdateHomeLocation,
+	onDockStateChange,
 }) => {
 	// Saved locations state
 	const [savedLocations, setSavedLocations] = useState<SavedLocation[]>(() => {
 		return getSavedLocations();
+	});
+
+	// Check if Maps Onboarding is required
+	const [isMapsOnboardingOpen, setIsMapsOnboardingOpen] = useState<boolean>(() => {
+		if (typeof window === 'undefined') return false;
+		try {
+			const completed = localStorage.getItem('imcheap_maps_onboarding_completed');
+			if (completed === 'true') return false;
+			// If not completed or home is still default Glassboro NJ, trigger onboarding
+			const home = getSavedHomeAddress();
+			if (home.lat === 39.7032 && home.lng === -75.122) {
+				return true;
+			}
+			return !completed;
+		} catch {
+			return true;
+		}
 	});
 
 	// Floating 3-option menu state
@@ -67,6 +89,12 @@ export const MapsView: React.FC<MapsViewProps> = ({
 
 	// Arrival prompt state
 	const [arrivalPromptLocation, setArrivalPromptLocation] = useState<SavedLocation | null>(null);
+
+	// Notify parent to slide bottom navigation bar down when any modal dock is active
+	useEffect(() => {
+		const isAnyDockOpen = isCreateMarkerOpen || Boolean(arrivalPromptLocation) || isMapsOnboardingOpen;
+		onDockStateChange?.(isAnyDockOpen);
+	}, [isCreateMarkerOpen, arrivalPromptLocation, isMapsOnboardingOpen, onDockStateChange]);
 
 	// User location state
 	const [userLocation, setUserLocation] = useState<Coordinate>(() => {
@@ -599,6 +627,31 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		setArrivalPromptLocation(null);
 	};
 
+	const handleFinishMapsOnboarding = (
+		homeLocation: SavedLocation,
+		additionalLocations: SavedLocation[],
+	) => {
+		const next = [homeLocation, ...additionalLocations];
+		setSavedLocations(next);
+		saveLocations(next);
+		setIsMapsOnboardingOpen(false);
+
+		// Re-center map to the new home location
+		const newCenter: Coordinate = { lat: homeLocation.lat, lng: homeLocation.lng };
+		setUserLocation(newCenter);
+		if (onUserLocationChange) {
+			onUserLocationChange(newCenter);
+		}
+		if (userMarkerRef.current) {
+			userMarkerRef.current.setLatLng([newCenter.lat, newCenter.lng]);
+		}
+		mapInstanceRef.current?.setView([newCenter.lat, newCenter.lng], 16, { animate: true });
+
+		if (onUpdateHomeLocation) {
+			onUpdateHomeLocation(homeLocation);
+		}
+	};
+
 	return (
 		<div className="w-full flex flex-col gap-4">
 			{/* Leaflet Map Card */}
@@ -797,6 +850,14 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				currentMiles={trackingStatus?.currentMiles}
 				onEndTrip={handleEndTripConfirmed}
 				onKeepDriving={() => setArrivalPromptLocation(null)}
+			/>
+
+			{/* Maps Onboarding Modal for Setting Home Base & Initial Places */}
+			<MapsOnboardingModal
+				isOpen={isMapsOnboardingOpen}
+				onClose={() => setIsMapsOnboardingOpen(false)}
+				onComplete={handleFinishMapsOnboarding}
+				initialCoords={userLocation}
 			/>
 		</div>
 	);

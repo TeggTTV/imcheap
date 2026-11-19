@@ -192,6 +192,7 @@ export default function App() {
 
 	// Continuous motion values for smooth live dragging
 	const dockY = useMotionValue(COLLAPSED_DOCK_Y);
+	const [isSecondaryDockOpen, setIsSecondaryDockOpen] = useState(false);
 
 	useEffect(() => {
 		if (isDockExpanded) {
@@ -207,7 +208,23 @@ export default function App() {
 
 	// Motion transforms driven continuously by dock dragging
 	const bgDimOpacity = useTransform(dockY, [COLLAPSED_DOCK_Y, 0], [0, 0.4]);
-	const navY = useTransform(dockY, [COLLAPSED_DOCK_Y, 160], [0, 80]);
+	const dockNavY = useTransform(dockY, [COLLAPSED_DOCK_Y, 160], [0, 80]);
+	const modalNavY = useMotionValue(0);
+
+	useEffect(() => {
+		const isAnyModalActive = activeModal !== 'none' || isSecondaryDockOpen;
+		animate(modalNavY, isAnyModalActive ? 100 : 0, {
+			type: 'spring',
+			damping: 28,
+			stiffness: 320,
+		});
+	}, [activeModal, isSecondaryDockOpen, modalNavY]);
+
+	// Effective nav position combining dock drag and modal sheets
+	const combinedNavY = useTransform(
+		[dockNavY, modalNavY],
+		([dY, mY]) => Math.max(dY as number, mY as number),
+	);
 
 	const [txManager] = useState<TransactionManager>(() => {
 		let initialTxs: Transaction[] = INITIAL_TRANSACTIONS;
@@ -1661,6 +1678,14 @@ export default function App() {
 							onEndTripDirect={(destName, coord) => {
 								tripDetectorRef.current?.endTripNow(destName, coord);
 							}}
+							onUpdateHomeLocation={(homeLoc) => {
+								tripDetectorRef.current?.updateHomeAddress({
+									address: homeLoc.address,
+									lat: homeLoc.lat,
+									lng: homeLoc.lng,
+								});
+							}}
+							onDockStateChange={setIsSecondaryDockOpen}
 						/>
 					)}
 
@@ -1681,6 +1706,7 @@ export default function App() {
 							}}
 							onBack={() => setActiveTab('maps')}
 							currentGps={userLocation}
+							onDockStateChange={setIsSecondaryDockOpen}
 						/>
 					)}
 
@@ -1766,7 +1792,7 @@ export default function App() {
 				{/* Bottom Navigation Tab Bar - Slides down to hide when dock is dragged up */}
 				<motion.nav
 					aria-label="Primary Bottom Navigation"
-					style={{ y: navY }}
+					style={{ y: combinedNavY }}
 					className="fixed bottom-0 inset-x-0 z-50 bg-surface-container-lowest shadow-[0_-2px_12px_rgba(0,0,0,0.03)] pb-[env(safe-area-inset-bottom)]"
 				>
 					<div className="flex justify-around items-center h-16 max-w-120 mx-auto px-1 sm:px-3">
