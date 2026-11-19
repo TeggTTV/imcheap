@@ -1673,6 +1673,19 @@ export default function App() {
 							}}
 							devTrackingOverlay={devTrackingOverlay}
 							devTelemetry={devTelemetry}
+							locations={savedLocations}
+							onUpdateLocations={(updated) => {
+								setSavedLocations(updated);
+								saveLocations(updated);
+								const home = updated.find((l) => l.isHome);
+								if (home) {
+									tripDetectorRef.current?.updateHomeAddress({
+										address: home.address,
+										lat: home.lat,
+										lng: home.lng,
+									});
+								}
+							}}
 							onOpenLocationsPage={() => setActiveTab('locations')}
 							onOpenVehicleSettings={() => setActiveTab('vehicle_settings')}
 							onEndTripDirect={(destName, coord) => {

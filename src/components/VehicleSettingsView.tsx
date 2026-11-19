@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { IncomeSettings } from '../utils/expenseMath';
 
 interface VehicleSettingsViewProps {
@@ -58,15 +58,6 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 		return 14.0;
 	});
 
-	const [autoTripDetection, setAutoTripDetection] = useState<boolean>(() => {
-		if (typeof window !== 'undefined') {
-			try {
-				return localStorage.getItem('imcheap_auto_trip_detection') === 'true';
-			} catch {}
-		}
-		return true;
-	});
-
 	const vehicleCostPerMile = mpg > 0 ? gasPrice / mpg : 0;
 	const maxRange = Math.round(mpg * tankSize);
 	const commuteCost = vehicleCostPerMile * 10;
@@ -76,18 +67,21 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 	const tankHours = wageRate > 0 ? (tankCost / wageRate).toFixed(1) : '0';
 
 	const handleUpdateMpg = (val: number) => {
-		setMpg(val);
-		saveVehicle(val, gasPrice, tankSize);
+		const safeVal = Math.max(1, isNaN(val) ? 29 : val);
+		setMpg(safeVal);
+		saveVehicle(safeVal, gasPrice, tankSize);
 	};
 
 	const handleUpdateGas = (val: number) => {
-		setGasPrice(val);
-		saveVehicle(mpg, val, tankSize);
+		const safeVal = Math.max(0.1, isNaN(val) ? 3.95 : val);
+		setGasPrice(safeVal);
+		saveVehicle(mpg, safeVal, tankSize);
 	};
 
 	const handleUpdateCap = (val: number) => {
-		setTankSize(val);
-		saveVehicle(mpg, gasPrice, val);
+		const safeVal = Math.max(1, isNaN(val) ? 14 : val);
+		setTankSize(safeVal);
+		saveVehicle(mpg, gasPrice, safeVal);
 	};
 
 	const saveVehicle = (newMpg: number, newGas: number, newTank: number) => {
@@ -105,16 +99,6 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 			} catch (e) {
 				console.warn('Failed to save vehicle settings', e);
 			}
-		}
-	};
-
-	const handleToggleTripDetection = () => {
-		const next = !autoTripDetection;
-		setAutoTripDetection(next);
-		if (typeof window !== 'undefined') {
-			try {
-				localStorage.setItem('imcheap_auto_trip_detection', String(next));
-			} catch {}
 		}
 	};
 
@@ -166,14 +150,26 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 			</section>
 
 			{/* Efficiency & Fuel Selectors */}
-			<section className="bg-white rounded-3xl p-5 shadow-[0_2px_16px_rgba(0,0,0,0.03)] border border-gray-100 flex flex-col gap-4">
+			<section className="bg-white rounded-3xl p-5 shadow-[0_2px_16px_rgba(0,0,0,0.03)] border border-gray-100 flex flex-col gap-5">
 				{/* MPG */}
-				<div className="flex flex-col gap-2">
+				<div className="flex flex-col gap-2.5">
 					<div className="flex items-center justify-between">
-						<span className="text-[13px] font-bold text-[#111111]">Fuel Economy (MPG)</span>
-						<span className="text-[13px] font-bold text-[#059669] bg-emerald-50 px-2 py-0.5 rounded-lg">
-							{mpg} MPG
-						</span>
+						<label htmlFor="vehicle-mpg-input" className="text-[13px] font-bold text-[#111111]">
+							Fuel Economy (MPG)
+						</label>
+						<div className="flex items-center bg-neutral-100 rounded-xl px-2.5 py-1 border border-neutral-200/60 focus-within:border-black transition-colors">
+							<input
+								id="vehicle-mpg-input"
+								type="number"
+								min="1"
+								max="150"
+								step="1"
+								value={mpg}
+								onChange={(e) => handleUpdateMpg(parseFloat(e.target.value))}
+								className="w-14 text-[13px] font-black text-right text-[#111111] bg-transparent outline-none tabular-nums"
+							/>
+							<span className="text-[12px] font-bold text-neutral-500 ml-1">MPG</span>
+						</div>
 					</div>
 					<div className="grid grid-cols-4 gap-2">
 						{mpgOptions.map((opt) => (
@@ -196,12 +192,25 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 				<div className="h-px bg-gray-100" />
 
 				{/* Gas Price */}
-				<div className="flex flex-col gap-2">
+				<div className="flex flex-col gap-2.5">
 					<div className="flex items-center justify-between">
-						<span className="text-[13px] font-bold text-[#111111]">Gas Price ($/gal)</span>
-						<span className="text-[13px] font-bold text-[#059669] bg-emerald-50 px-2 py-0.5 rounded-lg">
-							${gasPrice.toFixed(2)}/gal
-						</span>
+						<label htmlFor="vehicle-gas-input" className="text-[13px] font-bold text-[#111111]">
+							Gas Price ($/gal)
+						</label>
+						<div className="flex items-center bg-neutral-100 rounded-xl px-2.5 py-1 border border-neutral-200/60 focus-within:border-black transition-colors">
+							<span className="text-[12px] font-bold text-neutral-500 mr-0.5">$</span>
+							<input
+								id="vehicle-gas-input"
+								type="number"
+								min="0.10"
+								max="20.00"
+								step="0.05"
+								value={gasPrice}
+								onChange={(e) => handleUpdateGas(parseFloat(e.target.value))}
+								className="w-14 text-[13px] font-black text-right text-[#111111] bg-transparent outline-none tabular-nums"
+							/>
+							<span className="text-[12px] font-bold text-neutral-500 ml-1">/gal</span>
+						</div>
 					</div>
 					<div className="grid grid-cols-4 gap-2">
 						{gasOptions.map((opt) => (
@@ -224,12 +233,29 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 				<div className="h-px bg-gray-100" />
 
 				{/* Tank Size */}
-				<div className="flex flex-col gap-2">
+				<div className="flex flex-col gap-2.5">
 					<div className="flex items-center justify-between">
-						<span className="text-[13px] font-bold text-[#111111]">Tank Capacity</span>
-						<span className="text-[13px] font-bold text-[#059669] bg-emerald-50 px-2 py-0.5 rounded-lg">
-							{tankSize.toFixed(1)} gal ({maxRange} mi)
-						</span>
+						<div>
+							<label htmlFor="vehicle-tank-input" className="text-[13px] font-bold text-[#111111] block">
+								Tank Capacity
+							</label>
+							<span className="text-[11px] font-medium text-neutral-400">
+								Est. range: {maxRange} mi
+							</span>
+						</div>
+						<div className="flex items-center bg-neutral-100 rounded-xl px-2.5 py-1 border border-neutral-200/60 focus-within:border-black transition-colors">
+							<input
+								id="vehicle-tank-input"
+								type="number"
+								min="1.0"
+								max="100.0"
+								step="0.5"
+								value={tankSize}
+								onChange={(e) => handleUpdateCap(parseFloat(e.target.value))}
+								className="w-14 text-[13px] font-black text-right text-[#111111] bg-transparent outline-none tabular-nums"
+							/>
+							<span className="text-[12px] font-bold text-neutral-500 ml-1">gal</span>
+						</div>
 					</div>
 					<div className="grid grid-cols-4 gap-2">
 						{capOptions.map((opt) => (
@@ -291,31 +317,6 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 					</div>
 				</div>
 			</section>
-
-			{/* Auto Tracking Switch */}
-			<div className="bg-white rounded-3xl p-5 shadow-[0_2px_16px_rgba(0,0,0,0.03)] border border-gray-100 flex items-center justify-between">
-				<div className="flex flex-col pr-3">
-					<span className="text-[14px] font-bold text-[#111111]">
-						Automatic Trip Detection
-					</span>
-					<span className="text-[12px] text-neutral-400 mt-0.5">
-						Automatically detects vehicle movement and arrival
-					</span>
-				</div>
-				<button
-					type="button"
-					onClick={handleToggleTripDetection}
-					className={`w-12 h-7 rounded-full p-1 transition-colors cursor-pointer flex items-center ${
-						autoTripDetection ? 'bg-[#059669]' : 'bg-neutral-300'
-					}`}
-				>
-					<div
-						className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${
-							autoTripDetection ? 'translate-x-5' : 'translate-x-0'
-						}`}
-					/>
-				</button>
-			</div>
 		</motion.div>
 	);
 };

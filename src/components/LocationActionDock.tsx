@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SavedLocation, Coordinate } from '../types/maps';
+import { searchAddresses } from '../utils/mapRouting';
 import { IconPickerDrawer } from './IconPickerDrawer';
 
 interface LocationActionDockProps {
@@ -26,9 +27,17 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 	const [isVisibleOnMap, setIsVisibleOnMap] = useState(true);
 	const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
 	const [isSearchingGps, setIsSearchingGps] = useState(false);
+	const [isSearchingAddress, setIsSearchingAddress] = useState(false);
+	const [addressResults, setAddressResults] = useState<
+		Array<{ label: string; lat: number; lng: number }>
+	>([]);
+	const [showAdvancedCoords, setShowAdvancedCoords] = useState(false);
+	const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	useEffect(() => {
 		if (isOpen) {
+			setAddressResults([]);
+			setShowAdvancedCoords(false);
 			if (initialLocation) {
 				setName(initialLocation.name);
 				setAddress(initialLocation.address);
@@ -41,17 +50,41 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 				if (currentGps) {
 					setLat(currentGps.lat);
 					setLng(currentGps.lng);
-					setAddress(`${currentGps.lat.toFixed(4)}, ${currentGps.lng.toFixed(4)}`);
+					setAddress('');
 				} else {
 					setLat(39.7032);
 					setLng(-75.122);
-					setAddress('Glassboro, NJ');
+					setAddress('');
 				}
 				setIcon('pin_drop');
 				setIsVisibleOnMap(true);
 			}
 		}
 	}, [isOpen, initialLocation, currentGps]);
+
+	const handleAddressChange = (val: string) => {
+		setAddress(val);
+		if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+		if (!val.trim() || val.length < 3) {
+			setAddressResults([]);
+			setIsSearchingAddress(false);
+			return;
+		}
+
+		setIsSearchingAddress(true);
+		searchTimeoutRef.current = setTimeout(async () => {
+			const res = await searchAddresses(val);
+			setAddressResults(res);
+			setIsSearchingAddress(false);
+		}, 400);
+	};
+
+	const handleSelectAddressResult = (item: { label: string; lat: number; lng: number }) => {
+		setAddress(item.label);
+		setLat(item.lat);
+		setLng(item.lng);
+		setAddressResults([]);
+	};
 
 	const handleUseCurrentGps = () => {
 		if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
@@ -64,6 +97,7 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 				setLat(newLat);
 				setLng(newLng);
 				setAddress(`${newLat.toFixed(4)}, ${newLng.toFixed(4)}`);
+				setAddressResults([]);
 			},
 			() => {
 				setIsSearchingGps(false);
@@ -158,16 +192,22 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 							<form onSubmit={handleSubmit} className="flex flex-col gap-4">
 								{/* Icon & Name Row */}
 								<div className="flex items-center gap-3">
-									<button
-										type="button"
-										onClick={() => setIsIconPickerOpen(true)}
-										className="w-14 h-14 rounded-2xl bg-neutral-100 hover:bg-neutral-200 border border-neutral-200/60 flex items-center justify-center text-[#111111] shadow-xs cursor-pointer transition-all shrink-0 active:scale-95"
-										title="Change marker icon"
-									>
-										<span className="material-symbols-outlined text-[28px]">
-											{icon || 'pin_drop'}
+									<div className="relative">
+										<button
+											type="button"
+											onClick={() => setIsIconPickerOpen(true)}
+											className="w-14 h-14 rounded-2xl bg-neutral-100 hover:bg-neutral-200 border border-neutral-200/80 flex items-center justify-center text-[#111111] shadow-xs cursor-pointer transition-all shrink-0 active:scale-95 group"
+											title="Change marker icon"
+										>
+											<span className="material-symbols-outlined text-[28px]">
+												{icon || 'pin_drop'}
+											</span>
+										</button>
+										{/* Visual Affordance Badge */}
+										<span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#111111] text-white flex items-center justify-center shadow-xs pointer-events-none border border-white">
+											<span className="material-symbols-outlined text-[11px]">edit</span>
 										</span>
-									</button>
+									</div>
 
 									<div className="flex-1 flex flex-col gap-1">
 										<label className="text-[12px] font-bold text-neutral-500 uppercase tracking-wider px-0.5">
@@ -185,18 +225,27 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 								</div>
 
 								{/* Address / Location Search */}
-								<div className="flex flex-col gap-1.5">
+								<div className="relative flex flex-col gap-1.5">
 									<label className="text-[12px] font-bold text-neutral-500 uppercase tracking-wider px-0.5">
-										Address or Description
+										Address or Location
 									</label>
 									<div className="flex items-center gap-2">
-										<input
-											type="text"
-											value={address}
-											onChange={(e) => setAddress(e.target.value)}
-											placeholder="Search address or enter description"
-											className="flex-1 h-12 px-4 rounded-xl bg-neutral-50 border border-neutral-200 text-[14px] text-[#111111] focus:outline-none focus:border-black"
-										/>
+										<div className="relative flex-1">
+											<input
+												type="text"
+												value={address}
+												onChange={(e) => handleAddressChange(e.target.value)}
+												placeholder="Search address or enter place"
+												className="w-full h-12 pl-4 pr-9 rounded-xl bg-neutral-50 border border-neutral-200 text-[14px] text-[#111111] focus:outline-none focus:border-black"
+											/>
+											{isSearchingAddress && (
+												<div className="absolute right-3 top-1/2 -translate-y-1/2">
+													<span className="material-symbols-outlined text-[18px] text-neutral-400 animate-spin">
+														sync
+													</span>
+												</div>
+											)}
+										</div>
 										<button
 											type="button"
 											onClick={handleUseCurrentGps}
@@ -210,34 +259,70 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 											<span className="hidden sm:inline">Current GPS</span>
 										</button>
 									</div>
+
+									{/* Autocomplete Dropdown */}
+									{addressResults.length > 0 && (
+										<div className="absolute top-[72px] left-0 right-0 z-20 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+											{addressResults.map((item, idx) => (
+												<button
+													key={idx}
+													type="button"
+													onClick={() => handleSelectAddressResult(item)}
+													className="w-full text-left px-3.5 py-2.5 text-[13px] text-neutral-800 hover:bg-neutral-100 border-b border-gray-100 last:border-b-0 flex items-start gap-2 cursor-pointer transition-colors"
+												>
+													<span className="material-symbols-outlined text-[16px] text-neutral-400 mt-0.5 shrink-0">
+														location_on
+													</span>
+													<span className="line-clamp-2 leading-snug">{item.label}</span>
+												</button>
+											))}
+										</div>
+									)}
 								</div>
 
-								{/* Latitude & Longitude Preview */}
-								<div className="grid grid-cols-2 gap-3">
-									<div className="flex flex-col gap-1">
-										<label className="text-[11px] font-semibold text-neutral-400 px-0.5">
-											Latitude
-										</label>
-										<input
-											type="number"
-											step="any"
-											value={lat}
-											onChange={(e) => setLat(parseFloat(e.target.value) || 0)}
-											className="h-10 px-3 rounded-xl bg-neutral-50 border border-neutral-200 text-[13px] font-mono text-neutral-700 focus:outline-none focus:border-black"
-										/>
-									</div>
-									<div className="flex flex-col gap-1">
-										<label className="text-[11px] font-semibold text-neutral-400 px-0.5">
-											Longitude
-										</label>
-										<input
-											type="number"
-											step="any"
-											value={lng}
-											onChange={(e) => setLng(parseFloat(e.target.value) || 0)}
-											className="h-10 px-3 rounded-xl bg-neutral-50 border border-neutral-200 text-[13px] font-mono text-neutral-700 focus:outline-none focus:border-black"
-										/>
-									</div>
+								{/* Advanced Coordinates Accordion */}
+								<div className="flex flex-col rounded-2xl border border-neutral-200/80 bg-neutral-50/70 overflow-hidden">
+									<button
+										type="button"
+										onClick={() => setShowAdvancedCoords(!showAdvancedCoords)}
+										className="w-full px-4 py-2.5 flex items-center justify-between text-neutral-600 hover:text-black cursor-pointer transition-colors"
+									>
+										<span className="text-[12px] font-bold uppercase tracking-wider">
+											Advanced Coordinates
+										</span>
+										<span className="material-symbols-outlined text-[18px]">
+											{showAdvancedCoords ? 'expand_less' : 'expand_more'}
+										</span>
+									</button>
+
+									{showAdvancedCoords && (
+										<div className="px-4 pb-3 pt-1 grid grid-cols-2 gap-3 border-t border-neutral-200/60">
+											<div className="flex flex-col gap-1">
+												<label className="text-[11px] font-semibold text-neutral-400 px-0.5">
+													Latitude
+												</label>
+												<input
+													type="number"
+													step="any"
+													value={lat}
+													onChange={(e) => setLat(parseFloat(e.target.value) || 0)}
+													className="h-10 px-3 rounded-xl bg-white border border-neutral-200 text-[13px] font-mono text-neutral-700 focus:outline-none focus:border-black"
+												/>
+											</div>
+											<div className="flex flex-col gap-1">
+												<label className="text-[11px] font-semibold text-neutral-400 px-0.5">
+													Longitude
+												</label>
+												<input
+													type="number"
+													step="any"
+													value={lng}
+													onChange={(e) => setLng(parseFloat(e.target.value) || 0)}
+													className="h-10 px-3 rounded-xl bg-white border border-neutral-200 text-[13px] font-mono text-neutral-700 focus:outline-none focus:border-black"
+												/>
+											</div>
+										</div>
+									)}
 								</div>
 
 								{/* Show on Map Toggle */}

@@ -12,7 +12,6 @@ import {
 import { DEFAULT_ROAD_ROUTES, haversineDistanceMiles } from '../utils/mapRouting';
 import { chaikinSmooth, lerpCoordinate } from '../utils/geoSmoothing';
 import { getSavedHomeAddress } from '../utils/tripTracker';
-import { getSavedLocations, saveLocations } from '../utils/savedLocations';
 import { SwipeableTripItem } from './SwipeableTripItem';
 import { LocationActionDock } from './LocationActionDock';
 import { ArrivalEndTripModal } from './ArrivalEndTripModal';
@@ -32,6 +31,8 @@ export interface MapsViewProps {
 	onEnableLocation?: (coords?: Coordinate) => void;
 	devTrackingOverlay?: boolean;
 	devTelemetry?: DevTrackingTelemetry | null;
+	locations: SavedLocation[];
+	onUpdateLocations: (locations: SavedLocation[]) => void;
 	onOpenLocationsPage: () => void;
 	onOpenVehicleSettings: () => void;
 	onEndTripDirect?: (destName?: string, coord?: Coordinate) => void;
@@ -55,17 +56,14 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	onEnableLocation,
 	devTrackingOverlay = false,
 	devTelemetry,
+	locations: savedLocations,
+	onUpdateLocations,
 	onOpenLocationsPage,
 	onOpenVehicleSettings,
 	onEndTripDirect,
 	onUpdateHomeLocation,
 	onDockStateChange,
 }) => {
-	// Saved locations state
-	const [savedLocations, setSavedLocations] = useState<SavedLocation[]>(() => {
-		return getSavedLocations();
-	});
-
 	// Check if Maps Onboarding is required
 	const [isMapsOnboardingOpen, setIsMapsOnboardingOpen] = useState<boolean>(() => {
 		if (typeof window === 'undefined') return false;
@@ -96,7 +94,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		onDockStateChange?.(isAnyDockOpen);
 	}, [isCreateMarkerOpen, arrivalPromptLocation, isMapsOnboardingOpen, onDockStateChange]);
 
-	// User location state
+	// User location state, prioritizing external live location, then last known GPS or home
 	const [userLocation, setUserLocation] = useState<Coordinate>(() => {
 		if (externalUserLocation?.lat && externalUserLocation?.lng) {
 			return externalUserLocation;
@@ -115,7 +113,8 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				}
 			} catch {}
 		}
-		return { lat: DEFAULT_CENTER[0], lng: DEFAULT_CENTER[1] };
+		const home = getSavedHomeAddress();
+		return { lat: home.lat || DEFAULT_CENTER[0], lng: home.lng || DEFAULT_CENTER[1] };
 	});
 
 	const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -134,7 +133,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	const [isRequestingPermission, setIsRequestingPermission] = useState<boolean>(false);
 	const [permissionError, setPermissionError] = useState<string | null>(null);
 
-	// Snapped display coordinate calculation (for battery saving / low precision when at destination)
+	// Firm snapping when stationary / idle: if within 120m of ANY saved location or home, lock to it
 	const displayedUserLocation = useMemo<Coordinate>(() => {
 		const isDriving =
 			trackingStatus?.isDriving || trackingStatus?.state === 'TRACKING_TRIP';
@@ -142,14 +141,14 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			return userLocation;
 		}
 
-		// Check proximity to Home or any saved location
+		// When idle or stationary, find closest saved location within 120 meters
 		for (const loc of savedLocations) {
 			const distMeters =
 				haversineDistanceMiles(userLocation, {
 					lat: loc.lat,
 					lng: loc.lng,
 				}) * 1609.344;
-			if (distMeters <= 85) {
+			if (distMeters <= 120) {
 				return { lat: loc.lat, lng: loc.lng };
 			}
 		}
@@ -571,52 +570,16 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			markersLayerRef.current.clearLayers();
 		}
 
-		if ('geolocation' in navigator) {
-			const applyCenteredCoords = (coords: Coordinate) => {
-				setUserLocation(coords);
-				if (onUserLocationChange) {
-					onUserLocationChange(coords);
-				}
-				if (typeof window !== 'undefined') {
-					try {
-						localStorage.setItem('imcheap_last_known_gps', JSON.stringify(coords));
-					} catch {}
-				}
-				if (userMarkerRef.current) {
-					userMarkerRef.current.setLatLng([coords.lat, coords.lng]);
-				}
-				mapInstanceRef.current?.setView([coords.lat, coords.lng], 16, { animate: true });
-			};
-
-			navigator.geolocation.getCurrentPosition(
-				(pos) => {
-					applyCenteredCoords({
-						lat: pos.coords.latitude,
-						lng: pos.coords.longitude,
-					});
-				},
-				() => {
-					mapInstanceRef.current?.setView(
-						[displayedUserLocation.lat, displayedUserLocation.lng],
-						16,
-						{ animate: true },
-					);
-				},
-				{ enableHighAccuracy: true, timeout: 6000 },
-			);
-		} else {
-			mapInstanceRef.current.setView(
-				[displayedUserLocation.lat, displayedUserLocation.lng],
-				16,
-				{ animate: true },
-			);
-		}
+		mapInstanceRef.current.setView(
+			[displayedUserLocation.lat, displayedUserLocation.lng],
+			16,
+			{ animate: true },
+		);
 	};
 
 	const handleSaveNewLocation = (newLoc: SavedLocation) => {
 		const next = [...savedLocations, newLoc];
-		setSavedLocations(next);
-		saveLocations(next);
+		onUpdateLocations(next);
 		setIsCreateMarkerOpen(false);
 	};
 
@@ -632,8 +595,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		additionalLocations: SavedLocation[],
 	) => {
 		const next = [homeLocation, ...additionalLocations];
-		setSavedLocations(next);
-		saveLocations(next);
+		onUpdateLocations(next);
 		setIsMapsOnboardingOpen(false);
 
 		// Re-center map to the new home location

@@ -12,13 +12,16 @@ export function getSavedLocations(): SavedLocation[] {
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
 		if (raw) {
-			storedLocations = JSON.parse(raw);
+			const parsed = JSON.parse(raw);
+			if (Array.isArray(parsed)) {
+				storedLocations = parsed;
+			}
 		}
 	} catch (e) {
 		console.warn('Failed to parse saved locations from localStorage', e);
 	}
 
-	// Ensure Home is permanently present at index 0
+	// Always sync Home location with the latest saved home address
 	const homeIndex = storedLocations.findIndex((loc) => loc.isHome);
 	const homeLocation: SavedLocation = {
 		id: 'home_permanent',
