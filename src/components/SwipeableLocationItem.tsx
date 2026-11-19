@@ -83,12 +83,19 @@ export const SwipeableLocationItem: React.FC<SwipeableLocationItemProps> = ({
 
 			{/* Foreground Interactive Card */}
 			<motion.div
-				style={{ x }}
 				drag="x"
-				dragConstraints={{ left: location.isHome ? 0 : -100, right: 100 }}
-				dragElastic={0.2}
+				dragSnapToOrigin={!isDismissing}
+				dragConstraints={{ left: location.isHome ? 0 : -140, right: 140 }}
+				dragElastic={0.25}
 				onDragEnd={handleDragEnd}
-				className={`relative bg-white flex items-center justify-between p-4 cursor-grab active:cursor-grabbing ${
+				animate={isDismissing ? { x: -450 } : undefined}
+				transition={
+					isDismissing
+						? { duration: 0.28, ease: 'easeIn' }
+						: undefined
+				}
+				style={{ x }}
+				className={`relative z-10 bg-white flex items-center justify-between p-4 cursor-grab active:cursor-grabbing ${
 					!isLast ? 'border-b border-gray-100' : ''
 				}`}
 			>

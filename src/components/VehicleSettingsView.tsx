@@ -15,10 +15,6 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 	onBack,
 	wageRate,
 }) => {
-	const mpgOptions = [25, 30, 35, 40];
-	const gasOptions = [3.55, 3.95, 4.35, 4.79];
-	const capOptions = [12.0, 14.0, 16.5, 18.0];
-
 	const [mpg, setMpg] = useState<number>(() => {
 		if (typeof window !== 'undefined') {
 			try {
@@ -58,6 +54,11 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 		return 14.0;
 	});
 
+	// Local string states for smooth typing
+	const [mpgInput, setMpgInput] = useState<string>(() => String(mpg));
+	const [gasInput, setGasInput] = useState<string>(() => String(gasPrice));
+	const [tankInput, setTankInput] = useState<string>(() => String(tankSize));
+
 	const vehicleCostPerMile = mpg > 0 ? gasPrice / mpg : 0;
 	const maxRange = Math.round(mpg * tankSize);
 	const commuteCost = vehicleCostPerMile * 10;
@@ -66,22 +67,67 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 	const tankCost = gasPrice * tankSize;
 	const tankHours = wageRate > 0 ? (tankCost / wageRate).toFixed(1) : '0';
 
-	const handleUpdateMpg = (val: number) => {
-		const safeVal = Math.max(1, isNaN(val) ? 29 : val);
-		setMpg(safeVal);
-		saveVehicle(safeVal, gasPrice, tankSize);
+	const handleMpgChange = (raw: string) => {
+		setMpgInput(raw);
+		const num = parseFloat(raw);
+		if (!isNaN(num) && num > 0) {
+			setMpg(num);
+			saveVehicle(num, gasPrice, tankSize);
+		}
 	};
 
-	const handleUpdateGas = (val: number) => {
-		const safeVal = Math.max(0.1, isNaN(val) ? 3.95 : val);
-		setGasPrice(safeVal);
-		saveVehicle(mpg, safeVal, tankSize);
+	const handleMpgBlur = () => {
+		const num = parseFloat(mpgInput);
+		if (isNaN(num) || num <= 0) {
+			setMpgInput(String(mpg));
+		} else {
+			const clamped = Math.min(150, Math.max(1, Math.round(num)));
+			setMpg(clamped);
+			setMpgInput(String(clamped));
+			saveVehicle(clamped, gasPrice, tankSize);
+		}
 	};
 
-	const handleUpdateCap = (val: number) => {
-		const safeVal = Math.max(1, isNaN(val) ? 14 : val);
-		setTankSize(safeVal);
-		saveVehicle(mpg, gasPrice, safeVal);
+	const handleGasChange = (raw: string) => {
+		setGasInput(raw);
+		const num = parseFloat(raw);
+		if (!isNaN(num) && num > 0) {
+			setGasPrice(num);
+			saveVehicle(mpg, num, tankSize);
+		}
+	};
+
+	const handleGasBlur = () => {
+		const num = parseFloat(gasInput);
+		if (isNaN(num) || num <= 0) {
+			setGasInput(gasPrice.toFixed(2));
+		} else {
+			const clamped = Number(Math.min(20, Math.max(0.1, num)).toFixed(2));
+			setGasPrice(clamped);
+			setGasInput(String(clamped));
+			saveVehicle(mpg, clamped, tankSize);
+		}
+	};
+
+	const handleTankChange = (raw: string) => {
+		setTankInput(raw);
+		const num = parseFloat(raw);
+		if (!isNaN(num) && num > 0) {
+			setTankSize(num);
+			saveVehicle(mpg, gasPrice, num);
+		}
+	};
+
+	const handleTankBlur = () => {
+		const num = parseFloat(tankInput);
+		if (isNaN(num) || num <= 0) {
+			setTankInput(tankSize.toFixed(1));
+		} else {
+			const clamped = Number(Math.min(100, Math.max(1, num)).toFixed(1));
+			setTankSize(clamped);
+			setTankInput(String(clamped));
+			saveVehicle(mpg, gasPrice, clamped);
+		}
 	};
 
 	const saveVehicle = (newMpg: number, newGas: number, newTank: number) => {
@@ -149,129 +195,90 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 				</p>
 			</section>
 
-			{/* Efficiency & Fuel Selectors */}
-			<section className="bg-white rounded-3xl p-5 shadow-[0_2px_16px_rgba(0,0,0,0.03)] border border-gray-100 flex flex-col gap-5">
-				{/* MPG */}
-				<div className="flex flex-col gap-2.5">
-					<div className="flex items-center justify-between">
-						<label htmlFor="vehicle-mpg-input" className="text-[13px] font-bold text-[#111111]">
-							Fuel Economy (MPG)
+			{/* Efficiency & Fuel Fields */}
+			<section className="flex flex-col gap-3.5">
+				{/* MPG Card */}
+				<div className="bg-white rounded-3xl p-5 shadow-[0_2px_16px_rgba(0,0,0,0.03)] border border-gray-100 flex items-center justify-between">
+					<div className="flex flex-col min-w-0 pr-3">
+						<label htmlFor="vehicle-mpg-input" className="text-[14px] font-bold text-[#111111]">
+							Fuel Economy
 						</label>
-						<div className="flex items-center bg-neutral-100 rounded-xl px-2.5 py-1 border border-neutral-200/60 focus-within:border-black transition-colors">
-							<input
-								id="vehicle-mpg-input"
-								type="number"
-								min="1"
-								max="150"
-								step="1"
-								value={mpg}
-								onChange={(e) => handleUpdateMpg(parseFloat(e.target.value))}
-								className="w-14 text-[13px] font-black text-right text-[#111111] bg-transparent outline-none tabular-nums"
-							/>
-							<span className="text-[12px] font-bold text-neutral-500 ml-1">MPG</span>
-						</div>
+						<span className="text-[12px] text-neutral-400 font-medium mt-0.5">
+							Vehicle average miles per gallon
+						</span>
 					</div>
-					<div className="grid grid-cols-4 gap-2">
-						{mpgOptions.map((opt) => (
-							<button
-								key={opt}
-								type="button"
-								onClick={() => handleUpdateMpg(opt)}
-								className={`py-2 rounded-xl text-[13px] font-bold transition-all cursor-pointer ${
-									mpg === opt
-										? 'bg-[#111111] text-white shadow-xs'
-										: 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
-								}`}
-							>
-								{opt}
-							</button>
-						))}
+					<div className="flex items-center bg-neutral-50 hover:bg-neutral-100/80 rounded-2xl px-3.5 py-2.5 border border-neutral-200/80 focus-within:border-black focus-within:bg-white transition-all shrink-0">
+						<input
+							id="vehicle-mpg-input"
+							type="number"
+							min="1"
+							max="150"
+							step="1"
+							value={mpgInput}
+							onChange={(e) => handleMpgChange(e.target.value)}
+							onBlur={handleMpgBlur}
+							className="w-16 text-[18px] font-black text-right text-[#111111] bg-transparent outline-none tabular-nums"
+						/>
+						<span className="text-[13px] font-extrabold text-neutral-400 ml-1.5 uppercase tracking-wide">
+							MPG
+						</span>
 					</div>
 				</div>
 
-				<div className="h-px bg-gray-100" />
-
-				{/* Gas Price */}
-				<div className="flex flex-col gap-2.5">
-					<div className="flex items-center justify-between">
-						<label htmlFor="vehicle-gas-input" className="text-[13px] font-bold text-[#111111]">
-							Gas Price ($/gal)
+				{/* Gas Price Card */}
+				<div className="bg-white rounded-3xl p-5 shadow-[0_2px_16px_rgba(0,0,0,0.03)] border border-gray-100 flex items-center justify-between">
+					<div className="flex flex-col min-w-0 pr-3">
+						<label htmlFor="vehicle-gas-input" className="text-[14px] font-bold text-[#111111]">
+							Gas Price
 						</label>
-						<div className="flex items-center bg-neutral-100 rounded-xl px-2.5 py-1 border border-neutral-200/60 focus-within:border-black transition-colors">
-							<span className="text-[12px] font-bold text-neutral-500 mr-0.5">$</span>
-							<input
-								id="vehicle-gas-input"
-								type="number"
-								min="0.10"
-								max="20.00"
-								step="0.05"
-								value={gasPrice}
-								onChange={(e) => handleUpdateGas(parseFloat(e.target.value))}
-								className="w-14 text-[13px] font-black text-right text-[#111111] bg-transparent outline-none tabular-nums"
-							/>
-							<span className="text-[12px] font-bold text-neutral-500 ml-1">/gal</span>
-						</div>
+						<span className="text-[12px] text-neutral-400 font-medium mt-0.5">
+							Average price per gallon at pump
+						</span>
 					</div>
-					<div className="grid grid-cols-4 gap-2">
-						{gasOptions.map((opt) => (
-							<button
-								key={opt}
-								type="button"
-								onClick={() => handleUpdateGas(opt)}
-								className={`py-2 rounded-xl text-[13px] font-bold transition-all cursor-pointer ${
-									gasPrice === opt
-										? 'bg-[#111111] text-white shadow-xs'
-										: 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
-								}`}
-							>
-								${opt.toFixed(2)}
-							</button>
-						))}
+					<div className="flex items-center bg-neutral-50 hover:bg-neutral-100/80 rounded-2xl px-3.5 py-2.5 border border-neutral-200/80 focus-within:border-black focus-within:bg-white transition-all shrink-0">
+						<span className="text-[16px] font-black text-neutral-400 mr-1">$</span>
+						<input
+							id="vehicle-gas-input"
+							type="number"
+							min="0.10"
+							max="20.00"
+							step="0.05"
+							value={gasInput}
+							onChange={(e) => handleGasChange(e.target.value)}
+							onBlur={handleGasBlur}
+							className="w-16 text-[18px] font-black text-right text-[#111111] bg-transparent outline-none tabular-nums"
+						/>
+						<span className="text-[13px] font-extrabold text-neutral-400 ml-1.5 uppercase tracking-wide">
+							/gal
+						</span>
 					</div>
 				</div>
 
-				<div className="h-px bg-gray-100" />
-
-				{/* Tank Size */}
-				<div className="flex flex-col gap-2.5">
-					<div className="flex items-center justify-between">
-						<div>
-							<label htmlFor="vehicle-tank-input" className="text-[13px] font-bold text-[#111111] block">
-								Tank Capacity
-							</label>
-							<span className="text-[11px] font-medium text-neutral-400">
-								Est. range: {maxRange} mi
-							</span>
-						</div>
-						<div className="flex items-center bg-neutral-100 rounded-xl px-2.5 py-1 border border-neutral-200/60 focus-within:border-black transition-colors">
-							<input
-								id="vehicle-tank-input"
-								type="number"
-								min="1.0"
-								max="100.0"
-								step="0.5"
-								value={tankSize}
-								onChange={(e) => handleUpdateCap(parseFloat(e.target.value))}
-								className="w-14 text-[13px] font-black text-right text-[#111111] bg-transparent outline-none tabular-nums"
-							/>
-							<span className="text-[12px] font-bold text-neutral-500 ml-1">gal</span>
-						</div>
+				{/* Tank Capacity Card */}
+				<div className="bg-white rounded-3xl p-5 shadow-[0_2px_16px_rgba(0,0,0,0.03)] border border-gray-100 flex items-center justify-between">
+					<div className="flex flex-col min-w-0 pr-3">
+						<label htmlFor="vehicle-tank-input" className="text-[14px] font-bold text-[#111111]">
+							Tank Capacity
+						</label>
+						<span className="text-[12px] text-neutral-400 font-medium mt-0.5">
+							Est. full range: {maxRange} miles
+						</span>
 					</div>
-					<div className="grid grid-cols-4 gap-2">
-						{capOptions.map((opt) => (
-							<button
-								key={opt}
-								type="button"
-								onClick={() => handleUpdateCap(opt)}
-								className={`py-2 rounded-xl text-[13px] font-bold transition-all cursor-pointer ${
-									tankSize === opt
-										? 'bg-[#111111] text-white shadow-xs'
-										: 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
-								}`}
-							>
-								{opt}g
-							</button>
-						))}
+					<div className="flex items-center bg-neutral-50 hover:bg-neutral-100/80 rounded-2xl px-3.5 py-2.5 border border-neutral-200/80 focus-within:border-black focus-within:bg-white transition-all shrink-0">
+						<input
+							id="vehicle-tank-input"
+							type="number"
+							min="1.0"
+							max="100.0"
+							step="0.5"
+							value={tankInput}
+							onChange={(e) => handleTankChange(e.target.value)}
+							onBlur={handleTankBlur}
+							className="w-16 text-[18px] font-black text-right text-[#111111] bg-transparent outline-none tabular-nums"
+						/>
+						<span className="text-[13px] font-extrabold text-neutral-400 ml-1.5 uppercase tracking-wide">
+							gal
+						</span>
 					</div>
 				</div>
 			</section>
