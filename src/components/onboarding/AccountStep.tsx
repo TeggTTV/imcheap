@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Hourglass, Mail, RotateCw, CheckCircle2, ChevronRight } from 'lucide-react';
 
 interface AccountStepProps {
 	onNext: () => void;
@@ -126,12 +127,7 @@ export const AccountStep: React.FC<AccountStepProps> = ({
 					<div className="relative mb-4 group cursor-default">
 						<div className="absolute inset-0 bg-[#85f8c4]/60 rounded-2xl blur-xl scale-95" />
 						<div className="relative w-16 h-16 rounded-2xl bg-white shadow-md flex items-center justify-center">
-							<span
-								className="material-symbols-outlined text-[#006948] text-[32px]"
-								style={{ fontVariationSettings: "'FILL' 1" }}
-							>
-								hourglass_top
-							</span>
+							<Hourglass size={32} className="text-[#006948]" />
 						</div>
 					</div>
 					<h1 className="text-[30px] leading-[36px] font-extrabold text-[#1c1b1b] tracking-tight mb-2 max-w-[320px] font-sans">
@@ -181,9 +177,7 @@ export const AccountStep: React.FC<AccountStepProps> = ({
 							disabled={status !== 'idle'}
 							className="w-full h-[52px] rounded-2xl bg-white hover:bg-neutral-50 text-[#1c1b1b] border border-neutral-200 shadow-xs flex items-center justify-center gap-3 px-5 active:scale-[0.98] transition-all cursor-pointer font-semibold text-[14px] disabled:opacity-75"
 						>
-							<span className="material-symbols-outlined text-[20px] text-neutral-600">
-								mail
-							</span>
+							<Mail size={20} className="text-neutral-600" />
 							<span>Continue with Email</span>
 						</button>
 					</section>
@@ -252,14 +246,10 @@ export const AccountStep: React.FC<AccountStepProps> = ({
 								}`}
 							>
 								{status === 'loading' ? (
-									<span className="material-symbols-outlined text-[20px] animate-spin">
-										progress_activity
-									</span>
+									<RotateCw size={20} className="animate-spin" />
 								) : status === 'success' ? (
 									<>
-										<span className="material-symbols-outlined text-[20px]">
-											check_circle
-										</span>
+										<CheckCircle2 size={20} />
 										<span>Account Created</span>
 									</>
 								) : (
@@ -279,9 +269,7 @@ export const AccountStep: React.FC<AccountStepProps> = ({
 					className="group flex items-center gap-1 text-[13px] font-semibold text-neutral-600 hover:text-neutral-900 transition-colors mb-2 py-1 px-3 cursor-pointer"
 				>
 					<span>Continue without an account</span>
-					<span className="material-symbols-outlined text-[14px] transition-transform group-hover:translate-x-0.5">
-						chevron_right
-					</span>
+					<ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5" />
 				</button>
 				<p className="text-[11px] text-neutral-400 text-center max-w-[270px] leading-tight">
 					By continuing, you agree to our Terms and Privacy Policy.

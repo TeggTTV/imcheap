@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DevTrackingTelemetry, TrackingEngineState } from '../types/maps';
+import { Terminal, X } from 'lucide-react';
 
 interface DevTrackingIndicatorProps {
 	telemetry: DevTrackingTelemetry | null;
@@ -76,7 +77,9 @@ export const DevTrackingIndicator: React.FC<DevTrackingIndicatorProps> = ({
 			case 'IDLE_ANCHORED':
 			default: {
 				const dwellMins = Math.floor(telemetry.dwellSeconds / 60);
-				const targetMins = Math.floor(telemetry.targetDwellSeconds / 60);
+				const targetMins = Math.floor(
+					telemetry.targetDwellSeconds / 60,
+				);
 				return `${dwellMins}m / ${targetMins}m`;
 			}
 		}
@@ -125,9 +128,10 @@ export const DevTrackingIndicator: React.FC<DevTrackingIndicatorProps> = ({
 							{/* Header */}
 							<div className="flex items-center justify-between pb-1 border-b border-gray-100">
 								<div className="flex items-center gap-2">
-									<span className="material-symbols-outlined text-[18px] text-[#059669]">
-										terminal
-									</span>
+									<Terminal
+										size={18}
+										className="text-[#059669]"
+									/>
 									<span className="text-[14px] font-bold text-[#111111]">
 										Trip Engine Dev Tools
 									</span>
@@ -137,37 +141,51 @@ export const DevTrackingIndicator: React.FC<DevTrackingIndicatorProps> = ({
 									onClick={() => setIsOpen(false)}
 									className="w-7 h-7 rounded-full text-gray-400 hover:text-gray-700 flex items-center justify-center cursor-pointer"
 								>
-									<span className="material-symbols-outlined text-[18px]">
-										close
-									</span>
+									<X size={18} />
 								</button>
 							</div>
 
 							{/* Live Telemetry Data Rows */}
 							<div className="bg-[#F8F9FB] rounded-2xl p-2.5 flex flex-col gap-1.5 font-mono text-[11px] text-neutral-700">
 								<div className="flex justify-between items-center">
-									<span className="text-neutral-500">State:</span>
+									<span className="text-neutral-500">
+										State:
+									</span>
 									<span className="font-bold text-[#111111]">
 										{telemetry.state}
 									</span>
 								</div>
 								<div className="flex justify-between items-center">
-									<span className="text-neutral-500">Speed / Accuracy:</span>
+									<span className="text-neutral-500">
+										Speed / Accuracy:
+									</span>
 									<span className="tabular-nums font-semibold text-[#111111]">
-										{telemetry.speedMph} mph / ±{telemetry.accuracyMeters}m
+										{telemetry.speedMph} mph / ±
+										{telemetry.accuracyMeters}m
 									</span>
 								</div>
 								<div className="flex justify-between items-center">
-									<span className="text-neutral-500">Anchor Dist:</span>
+									<span className="text-neutral-500">
+										Anchor Dist:
+									</span>
 									<span className="tabular-nums font-semibold text-[#111111]">
-										{telemetry.distanceToAnchorMeters}m / 100m gate
+										{telemetry.distanceToAnchorMeters}m /
+										100m gate
 									</span>
 								</div>
 								<div className="flex justify-between items-center">
-									<span className="text-neutral-500">Dwell Timer:</span>
+									<span className="text-neutral-500">
+										Dwell Timer:
+									</span>
 									<span className="tabular-nums font-semibold text-[#111111]">
-										{Math.floor(telemetry.dwellSeconds / 60)}m /{' '}
-										{Math.floor(telemetry.targetDwellSeconds / 60)}m
+										{Math.floor(
+											telemetry.dwellSeconds / 60,
+										)}
+										m /{' '}
+										{Math.floor(
+											telemetry.targetDwellSeconds / 60,
+										)}
+										m
 									</span>
 								</div>
 								{telemetry.state === 'STOPPED_EVALUATING' && (
@@ -179,9 +197,12 @@ export const DevTrackingIndicator: React.FC<DevTrackingIndicatorProps> = ({
 									</div>
 								)}
 								<div className="flex justify-between items-center">
-									<span className="text-neutral-500">Trip Breadcrumbs:</span>
+									<span className="text-neutral-500">
+										Trip Breadcrumbs:
+									</span>
 									<span className="tabular-nums font-semibold text-[#111111]">
-										{telemetry.breadcrumbsCount} pts · {telemetry.accumulatedMiles} mi
+										{telemetry.breadcrumbsCount} pts ·{' '}
+										{telemetry.accumulatedMiles} mi
 									</span>
 								</div>
 							</div>

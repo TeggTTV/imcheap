@@ -9,13 +9,27 @@ import {
 	DevTrackingTelemetry,
 	SavedLocation,
 } from '../types/maps';
-import { DEFAULT_ROAD_ROUTES, haversineDistanceMiles } from '../utils/mapRouting';
+import {
+	DEFAULT_ROAD_ROUTES,
+	haversineDistanceMiles,
+} from '../utils/mapRouting';
 import { chaikinSmooth, lerpCoordinate } from '../utils/geoSmoothing';
 import { getSavedHomeAddress } from '../utils/tripTracker';
 import { SwipeableTripItem } from './SwipeableTripItem';
 import { LocationActionDock } from './LocationActionDock';
 import { ArrivalEndTripModal } from './ArrivalEndTripModal';
 import { MapsOnboardingModal } from './MapsOnboardingModal';
+import { getLucideIconSvgString } from './LucideIcon';
+import {
+	List,
+	MapPinPlus,
+	Car,
+	MapPin,
+	X,
+	LocateFixed,
+	MapPinOff,
+	Navigation,
+} from 'lucide-react';
 
 export interface MapsViewProps {
 	trips: RecordedTrip[];
@@ -65,34 +79,47 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	onDockStateChange,
 }) => {
 	// Check if Maps Onboarding is required
-	const [isMapsOnboardingOpen, setIsMapsOnboardingOpen] = useState<boolean>(() => {
-		if (typeof window === 'undefined') return false;
-		try {
-			const completed = localStorage.getItem('imcheap_maps_onboarding_completed');
-			if (completed === 'true') return false;
-			// If not completed or home is still default Glassboro NJ, trigger onboarding
-			const home = getSavedHomeAddress();
-			if (home.lat === 39.7032 && home.lng === -75.122) {
+	const [isMapsOnboardingOpen, setIsMapsOnboardingOpen] = useState<boolean>(
+		() => {
+			if (typeof window === 'undefined') return false;
+			try {
+				const completed = localStorage.getItem(
+					'imcheap_maps_onboarding_completed',
+				);
+				if (completed === 'true') return false;
+				// If not completed or home is still default Glassboro NJ, trigger onboarding
+				const home = getSavedHomeAddress();
+				if (home.lat === 39.7032 && home.lng === -75.122) {
+					return true;
+				}
+				return !completed;
+			} catch {
 				return true;
 			}
-			return !completed;
-		} catch {
-			return true;
-		}
-	});
+		},
+	);
 
 	// Floating 3-option menu state
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const [isCreateMarkerOpen, setIsCreateMarkerOpen] = useState(false);
 
 	// Arrival prompt state
-	const [arrivalPromptLocation, setArrivalPromptLocation] = useState<SavedLocation | null>(null);
+	const [arrivalPromptLocation, setArrivalPromptLocation] =
+		useState<SavedLocation | null>(null);
 
 	// Notify parent to slide bottom navigation bar down when any modal dock is active
 	useEffect(() => {
-		const isAnyDockOpen = isCreateMarkerOpen || Boolean(arrivalPromptLocation) || isMapsOnboardingOpen;
+		const isAnyDockOpen =
+			isCreateMarkerOpen ||
+			Boolean(arrivalPromptLocation) ||
+			isMapsOnboardingOpen;
 		onDockStateChange?.(isAnyDockOpen);
-	}, [isCreateMarkerOpen, arrivalPromptLocation, isMapsOnboardingOpen, onDockStateChange]);
+	}, [
+		isCreateMarkerOpen,
+		arrivalPromptLocation,
+		isMapsOnboardingOpen,
+		onDockStateChange,
+	]);
 
 	// User location state, prioritizing external live location, then last known GPS or home
 	const [userLocation, setUserLocation] = useState<Coordinate>(() => {
@@ -106,7 +133,9 @@ export const MapsView: React.FC<MapsViewProps> = ({
 					const parsed = JSON.parse(savedGps);
 					if (parsed?.lat && parsed?.lng) return parsed;
 				}
-				const savedCustom = localStorage.getItem('imcheap_user_custom_location');
+				const savedCustom = localStorage.getItem(
+					'imcheap_user_custom_location',
+				);
 				if (savedCustom) {
 					const parsed = JSON.parse(savedCustom);
 					if (parsed?.lat && parsed?.lng) return parsed;
@@ -114,7 +143,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			} catch {}
 		}
 		const home = getSavedHomeAddress();
-		return { lat: home.lat || DEFAULT_CENTER[0], lng: home.lng || DEFAULT_CENTER[1] };
+		return {
+			lat: home.lat || DEFAULT_CENTER[0],
+			lng: home.lng || DEFAULT_CENTER[1],
+		};
 	});
 
 	const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -130,13 +162,15 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	const targetAnimPosRef = useRef<Coordinate>(userLocation);
 	const animStartTimeRef = useRef<number>(0);
 	const animDurationRef = useRef<number>(1000);
-	const [isRequestingPermission, setIsRequestingPermission] = useState<boolean>(false);
+	const [isRequestingPermission, setIsRequestingPermission] =
+		useState<boolean>(false);
 	const [permissionError, setPermissionError] = useState<string | null>(null);
 
 	// Firm snapping when stationary / idle: if within 120m of ANY saved location or home, lock to it
 	const displayedUserLocation = useMemo<Coordinate>(() => {
 		const isDriving =
-			trackingStatus?.isDriving || trackingStatus?.state === 'TRACKING_TRIP';
+			trackingStatus?.isDriving ||
+			trackingStatus?.state === 'TRACKING_TRIP';
 		if (isDriving) {
 			return userLocation;
 		}
@@ -154,7 +188,12 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		}
 
 		return userLocation;
-	}, [userLocation, savedLocations, trackingStatus?.isDriving, trackingStatus?.state]);
+	}, [
+		userLocation,
+		savedLocations,
+		trackingStatus?.isDriving,
+		trackingStatus?.state,
+	]);
 
 	// Synchronize when external user location changes from tracker
 	useEffect(() => {
@@ -185,7 +224,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			}
 			if (typeof window !== 'undefined') {
 				try {
-					localStorage.setItem('imcheap_last_known_gps', JSON.stringify(coords));
+					localStorage.setItem(
+						'imcheap_last_known_gps',
+						JSON.stringify(coords),
+					);
 				} catch {}
 			}
 		};
@@ -194,7 +236,11 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		const watchId = navigator.geolocation.watchPosition(
 			handleSuccess,
 			(err) => {
-				if (err.code === 3 && typeof window !== 'undefined' && 'geolocation' in navigator) {
+				if (
+					err.code === 3 &&
+					typeof window !== 'undefined' &&
+					'geolocation' in navigator
+				) {
 					fallbackWatchId = navigator.geolocation.watchPosition(
 						handleSuccess,
 						() => {},
@@ -219,7 +265,12 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				navigator.geolocation.clearWatch(fallbackWatchId);
 			}
 		};
-	}, [isLocationEnabled, autoTripDetection, activeTripId, onUserLocationChange]);
+	}, [
+		isLocationEnabled,
+		autoTripDetection,
+		activeTripId,
+		onUserLocationChange,
+	]);
 
 	// Initialize Leaflet map
 	useEffect(() => {
@@ -256,10 +307,13 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			iconAnchor: [14, 14],
 		});
 
-		const userMarker = L.marker([displayedUserLocation.lat, displayedUserLocation.lng], {
-			icon: userIcon,
-			zIndexOffset: 1000,
-		}).addTo(map);
+		const userMarker = L.marker(
+			[displayedUserLocation.lat, displayedUserLocation.lng],
+			{
+				icon: userIcon,
+				zIndexOffset: 1000,
+			},
+		).addTo(map);
 
 		userMarkerRef.current = userMarker;
 		mapInstanceRef.current = map;
@@ -272,7 +326,8 @@ export const MapsView: React.FC<MapsViewProps> = ({
 
 	// Render / Update Saved Location Markers on map
 	useEffect(() => {
-		if (!mapInstanceRef.current || !savedLocationsMarkersRef.current) return;
+		if (!mapInstanceRef.current || !savedLocationsMarkersRef.current)
+			return;
 		const group = savedLocationsMarkersRef.current;
 		group.clearLayers();
 
@@ -280,19 +335,13 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			if (loc.isVisibleOnMap === false) return;
 
 			const isHome = loc.isHome;
-			const iconHtml = isHome
-				? `
+			const svgContent = isHome
+				? getLucideIconSvgString('home', '#059669', 18)
+				: getLucideIconSvgString(loc.icon || 'pin_drop', '#111111', 17);
+
+			const iconHtml = `
 				<div class="relative flex items-center justify-center w-8 h-8 rounded-full bg-white shadow-md border border-neutral-200">
-					<span class="material-symbols-outlined text-[18px] text-[#059669]">
-						home
-					</span>
-				</div>
-			`
-				: `
-				<div class="relative flex items-center justify-center w-8 h-8 rounded-full bg-white shadow-md border border-neutral-200">
-					<span class="material-symbols-outlined text-[17px] text-[#111111]">
-						${loc.icon || 'pin_drop'}
-					</span>
+					${svgContent}
 				</div>
 			`;
 
@@ -331,7 +380,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			currentAnimPosRef.current = interpolated;
 
 			if (userMarkerRef.current) {
-				userMarkerRef.current.setLatLng([interpolated.lat, interpolated.lng]);
+				userMarkerRef.current.setLatLng([
+					interpolated.lat,
+					interpolated.lng,
+				]);
 			}
 
 			if (progress < 1) {
@@ -355,7 +407,8 @@ export const MapsView: React.FC<MapsViewProps> = ({
 
 		const liveBreadcrumbs = trackingStatus?.liveBreadcrumbs || [];
 		const isDriving =
-			trackingStatus?.isDriving || trackingStatus?.state === 'TRACKING_TRIP';
+			trackingStatus?.isDriving ||
+			trackingStatus?.state === 'TRACKING_TRIP';
 
 		if (!isDriving || liveBreadcrumbs.length < 2) {
 			if (livePolylineLayerRef.current) {
@@ -370,7 +423,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				? chaikinSmooth(liveBreadcrumbs, 2)
 				: liveBreadcrumbs;
 
-		const latLngs: [number, number][] = smoothedCoords.map((c) => [c.lat, c.lng]);
+		const latLngs: [number, number][] = smoothedCoords.map((c) => [
+			c.lat,
+			c.lng,
+		]);
 
 		if (livePolylineLayerRef.current) {
 			livePolylineLayerRef.current.setLatLngs(latLngs);
@@ -384,7 +440,11 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			}).addTo(map);
 			livePolylineLayerRef.current = livePolyline;
 		}
-	}, [trackingStatus?.liveBreadcrumbs, trackingStatus?.isDriving, trackingStatus?.state]);
+	}, [
+		trackingStatus?.liveBreadcrumbs,
+		trackingStatus?.isDriving,
+		trackingStatus?.state,
+	]);
 
 	// Draw static 100m departure geofence circle around Home when dev indicator is active
 	useEffect(() => {
@@ -421,7 +481,8 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	// Proximity arrival trigger for "End Trip" action dock
 	useEffect(() => {
 		const isDriving =
-			trackingStatus?.isDriving || trackingStatus?.state === 'TRACKING_TRIP';
+			trackingStatus?.isDriving ||
+			trackingStatus?.state === 'TRACKING_TRIP';
 		const miles = trackingStatus?.currentMiles || 0;
 
 		if (!isDriving || miles < 0.25) {
@@ -446,7 +507,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		}
 
 		if (arrivedLoc) {
-			if (!arrivalPromptLocation || arrivalPromptLocation.id !== arrivedLoc.id) {
+			if (
+				!arrivalPromptLocation ||
+				arrivalPromptLocation.id !== arrivedLoc.id
+			) {
 				setArrivalPromptLocation(arrivedLoc);
 			}
 		} else if (arrivalPromptLocation) {
@@ -460,7 +524,14 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				setArrivalPromptLocation(null);
 			}
 		}
-	}, [userLocation, trackingStatus?.isDriving, trackingStatus?.state, trackingStatus?.currentMiles, savedLocations, arrivalPromptLocation]);
+	}, [
+		userLocation,
+		trackingStatus?.isDriving,
+		trackingStatus?.state,
+		trackingStatus?.currentMiles,
+		savedLocations,
+		arrivalPromptLocation,
+	]);
 
 	const renderTripRoute = async (
 		map: L.Map,
@@ -599,7 +670,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		setIsMapsOnboardingOpen(false);
 
 		// Re-center map to the new home location
-		const newCenter: Coordinate = { lat: homeLocation.lat, lng: homeLocation.lng };
+		const newCenter: Coordinate = {
+			lat: homeLocation.lat,
+			lng: homeLocation.lng,
+		};
 		setUserLocation(newCenter);
 		if (onUserLocationChange) {
 			onUserLocationChange(newCenter);
@@ -607,7 +681,9 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		if (userMarkerRef.current) {
 			userMarkerRef.current.setLatLng([newCenter.lat, newCenter.lng]);
 		}
-		mapInstanceRef.current?.setView([newCenter.lat, newCenter.lng], 16, { animate: true });
+		mapInstanceRef.current?.setView([newCenter.lat, newCenter.lng], 16, {
+			animate: true,
+		});
 
 		if (onUpdateHomeLocation) {
 			onUpdateHomeLocation(homeLocation);
@@ -647,9 +723,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 									}}
 									className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
 								>
-									<span className="material-symbols-outlined text-[18px] text-[#059669]">
-										format_list_bulleted
-									</span>
+									<List
+										size={18}
+										className="text-[#059669]"
+									/>
 									<span>Locations</span>
 								</button>
 
@@ -662,9 +739,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 									}}
 									className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
 								>
-									<span className="material-symbols-outlined text-[18px] text-[#111111]">
-										add_location_alt
-									</span>
+									<MapPinPlus
+										size={18}
+										className="text-[#111111]"
+									/>
 									<span>Create Marker</span>
 								</button>
 
@@ -677,9 +755,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 									}}
 									className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
 								>
-									<span className="material-symbols-outlined text-[18px] text-neutral-600">
-										directions_car
-									</span>
+									<Car
+										size={18}
+										className="text-neutral-600"
+									/>
 									<span>Vehicle Settings</span>
 								</button>
 							</motion.div>
@@ -692,12 +771,12 @@ export const MapsView: React.FC<MapsViewProps> = ({
 						onClick={() => setIsMenuOpen(!isMenuOpen)}
 						aria-label="Locations and Vehicle Menu"
 						className={`w-10 h-10 rounded-full bg-white shadow-md border border-neutral-200/60 flex items-center justify-center transition-all cursor-pointer ${
-							isMenuOpen ? 'bg-neutral-900 text-white' : 'text-[#111111] hover:bg-neutral-50'
+							isMenuOpen
+								? 'bg-neutral-900 text-white'
+								: 'text-[#111111] hover:bg-neutral-50'
 						}`}
 					>
-						<span className="material-symbols-outlined text-[20px]">
-							{isMenuOpen ? 'close' : 'pin_drop'}
-						</span>
+						{isMenuOpen ? <X size={18} /> : <MapPin size={18} />}
 					</button>
 
 					{/* Recenter Target Button */}
@@ -707,9 +786,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 						aria-label="Center on live location"
 						className="w-10 h-10 rounded-full bg-white shadow-md border border-neutral-200/60 flex items-center justify-center text-[#111111] hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
 					>
-						<span className="material-symbols-outlined text-[20px]">
-							my_location
-						</span>
+						<LocateFixed size={18} />
 					</button>
 				</div>
 
@@ -717,26 +794,29 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				{!isLocationEnabled && (
 					<div className="absolute inset-0 z-30 backdrop-blur-xs bg-[#F5F6F8]/85 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
 						<div className="w-12 h-12 rounded-2xl bg-white border border-gray-200/80 shadow-xs flex items-center justify-center text-[#111111] mb-3">
-							<span className="material-symbols-outlined text-[24px]">
-								location_off
-							</span>
+							<MapPinOff size={24} />
 						</div>
 						<h3 className="text-[17px] font-black text-[#111111] tracking-tight mb-1">
 							Location Access Required
 						</h3>
 						<p className="text-[13px] text-[#6B7280] font-medium leading-relaxed max-w-[280px] mb-4">
-							Maps and automatic commute tracking require location permissions to record your trips and live position.
+							Maps and automatic commute tracking require location
+							permissions to record your trips and live position.
 						</p>
 						<button
 							type="button"
-							onClick={() => onEnableLocation && onEnableLocation()}
+							onClick={() =>
+								onEnableLocation && onEnableLocation()
+							}
 							disabled={isRequestingPermission}
 							className="h-11 px-5 rounded-xl bg-[#111111] hover:bg-neutral-800 text-white font-bold text-[14px] flex items-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50"
 						>
-							<span className="material-symbols-outlined text-[18px]">
-								near_me
+							<Navigation size={18} />
+							<span>
+								{isRequestingPermission
+									? 'Requesting...'
+									: 'Enable Location'}
 							</span>
-							<span>{isRequestingPermission ? 'Requesting...' : 'Enable Location'}</span>
 						</button>
 						{permissionError && (
 							<p className="text-[12px] text-red-500 font-medium mt-2">
@@ -775,7 +855,8 @@ export const MapsView: React.FC<MapsViewProps> = ({
 								No recorded trips yet.
 							</p>
 							<p className="text-label-sm text-outline max-w-[240px]">
-								Drive or simulate a commute to track mileage against your working hours.
+								Drive or simulate a commute to track mileage
+								against your working hours.
 							</p>
 						</div>
 					) : (
@@ -789,7 +870,9 @@ export const MapsView: React.FC<MapsViewProps> = ({
 									isSelected={activeTripId === trip.id}
 									onSelect={() => handleSelectTrip(trip)}
 									onLog={onLogTrip}
-									onDelete={(id) => onDeleteTrip && onDeleteTrip(id)}
+									onDelete={(id) =>
+										onDeleteTrip && onDeleteTrip(id)
+									}
 								/>
 							))}
 						</div>

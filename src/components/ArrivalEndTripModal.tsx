@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { MapPin, Flag } from 'lucide-react';
 
 interface ArrivalEndTripModalProps {
 	isOpen: boolean;
@@ -49,7 +50,11 @@ export const ArrivalEndTripModal: React.FC<ArrivalEndTripModalProps> = ({
 						initial={{ y: '100%' }}
 						animate={{ y: 0 }}
 						exit={{ y: '100%' }}
-						transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+						transition={{
+							type: 'spring',
+							damping: 28,
+							stiffness: 320,
+						}}
 						className="relative z-50 w-full max-w-120 mx-auto bg-white rounded-t-[28px] p-6 shadow-2xl flex flex-col select-none pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
 					>
 						{/* Drag handle */}
@@ -65,19 +70,25 @@ export const ArrivalEndTripModal: React.FC<ArrivalEndTripModalProps> = ({
 
 						<div className="flex flex-col items-center text-center">
 							<div className="w-12 h-12 rounded-full bg-emerald-50 text-[#059669] flex items-center justify-center mb-3">
-								<span className="material-symbols-outlined text-[24px]">
-									location_on
-								</span>
+								<MapPin size={24} />
 							</div>
 
 							<h3 className="text-[20px] font-black text-[#111111] tracking-tight font-sans">
 								Have you reached your destination?
 							</h3>
 							<p className="text-[14px] text-neutral-500 font-medium mt-1 leading-relaxed">
-								You arrived at <span className="font-bold text-[#111111]">{locationName}</span>
-								{typeof currentMiles === 'number' && currentMiles > 0 && (
-									<span> ({currentMiles.toFixed(1)} miles)</span>
-								)}.
+								You arrived at{' '}
+								<span className="font-bold text-[#111111]">
+									{locationName}
+								</span>
+								{typeof currentMiles === 'number' &&
+									currentMiles > 0 && (
+										<span>
+											{' '}
+											({currentMiles.toFixed(1)} miles)
+										</span>
+									)}
+								.
 							</p>
 						</div>
 
@@ -88,9 +99,7 @@ export const ArrivalEndTripModal: React.FC<ArrivalEndTripModalProps> = ({
 								onClick={onEndTrip}
 								className="w-full h-13 rounded-2xl bg-[#DC2626] hover:bg-[#B91C1C] active:scale-[0.98] text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
 							>
-								<span className="material-symbols-outlined text-[18px]">
-									flag
-								</span>
+								<Flag size={18} />
 								<span>End Trip</span>
 							</button>
 

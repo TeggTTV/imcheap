@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { RotateCw, Check } from 'lucide-react';
 
 export interface SetActionFeedbackButtonProps {
 	onAction: () => boolean | void | Promise<boolean | void>;
@@ -43,13 +44,9 @@ export const SetActionFeedbackButton: React.FC<
 			className={className}
 		>
 			{status === 'loading' ? (
-				<span className="material-symbols-outlined text-[18px] animate-spin">
-					progress_activity
-				</span>
+				<RotateCw size={18} className="animate-spin" />
 			) : status === 'success' ? (
-				<span className="material-symbols-outlined text-[18px] text-emerald-300">
-					check
-				</span>
+				<Check size={18} className="text-emerald-300" />
 			) : (
 				label
 			)}

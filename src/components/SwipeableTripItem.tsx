@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'motion/react';
 import { RecordedTrip } from '../types/maps';
+import { Trash2, ArrowUpRight } from 'lucide-react';
 
 export interface SwipeableTripItemProps {
 	trip: RecordedTrip;
@@ -77,9 +78,7 @@ export const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
 			>
 				<div className="flex items-center gap-2 font-semibold text-[13px] tracking-tight">
 					<span>Deleting trip</span>
-					<span className="material-symbols-outlined text-[20px]">
-						delete
-					</span>
+					<Trash2 size={18} />
 				</div>
 			</motion.div>
 
@@ -116,9 +115,7 @@ export const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
 						<span className="text-[15px] font-bold text-[#111111] truncate">
 							{trip.from} → {trip.to}
 						</span>
-						<span className="material-symbols-outlined text-[15px] text-gray-400">
-							north_east
-						</span>
+						<ArrowUpRight size={15} className="text-gray-400" />
 					</div>
 					<span className="text-[12px] text-[#6B7280] truncate mt-0.5 tabular-nums">
 						{trip.miles.toFixed(1)} mi ·{' '}

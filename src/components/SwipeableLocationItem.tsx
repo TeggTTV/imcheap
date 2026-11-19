@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'motion/react';
 import { SavedLocation } from '../types/maps';
+import { LucideIcon } from './LucideIcon';
+import { Pencil, Trash2, Eye, EyeOff, MoreVertical } from 'lucide-react';
 
 interface SwipeableLocationItemProps {
 	location: SavedLocation;
@@ -62,7 +64,7 @@ export const SwipeableLocationItem: React.FC<SwipeableLocationItemProps> = ({
 				aria-hidden="true"
 			>
 				<div className="flex items-center gap-2 font-semibold text-[13px] tracking-tight">
-					<span className="material-symbols-outlined text-[20px]">edit</span>
+					<Pencil size={18} />
 					<span>Edit Location</span>
 				</div>
 			</motion.div>
@@ -76,7 +78,7 @@ export const SwipeableLocationItem: React.FC<SwipeableLocationItemProps> = ({
 				>
 					<div className="flex items-center gap-2 font-semibold text-[13px] tracking-tight">
 						<span>Delete</span>
-						<span className="material-symbols-outlined text-[20px]">delete</span>
+						<Trash2 size={18} />
 					</div>
 				</motion.div>
 			)}
@@ -104,9 +106,10 @@ export const SwipeableLocationItem: React.FC<SwipeableLocationItemProps> = ({
 					className="flex items-center gap-3.5 min-w-0 flex-1 cursor-pointer"
 				>
 					<div className="w-10 h-10 rounded-2xl bg-neutral-100 flex items-center justify-center text-[#111111] shrink-0 border border-neutral-200/50">
-						<span className="material-symbols-outlined text-[20px]">
-							{location.icon || (location.isHome ? 'home' : 'pin_drop')}
-						</span>
+						<LucideIcon
+							name={location.icon || (location.isHome ? 'home' : 'pin_drop')}
+							size={20}
+						/>
 					</div>
 
 					<div className="flex flex-col min-w-0 pr-2">
@@ -142,9 +145,7 @@ export const SwipeableLocationItem: React.FC<SwipeableLocationItemProps> = ({
 								: 'text-neutral-300 hover:bg-neutral-100'
 						}`}
 					>
-						<span className="material-symbols-outlined text-[20px]">
-							{location.isVisibleOnMap ? 'visibility' : 'visibility_off'}
-						</span>
+						{location.isVisibleOnMap ? <Eye size={18} /> : <EyeOff size={18} />}
 					</button>
 
 					<button
@@ -156,7 +157,7 @@ export const SwipeableLocationItem: React.FC<SwipeableLocationItemProps> = ({
 						aria-label="Edit location"
 						className="w-8 h-8 rounded-full text-neutral-400 hover:text-[#111111] hover:bg-neutral-100 flex items-center justify-center transition-colors cursor-pointer"
 					>
-						<span className="material-symbols-outlined text-[18px]">more_vert</span>
+						<MoreVertical size={18} />
 					</button>
 				</div>
 			</motion.div>

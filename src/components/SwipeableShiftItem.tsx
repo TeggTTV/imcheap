@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'motion/react';
+import { Pencil, Trash2 } from 'lucide-react';
 
 export interface TimeSelection {
 	hour: number;
@@ -88,9 +89,7 @@ export const SwipeableShiftItem: React.FC<SwipeableShiftItemProps> = ({
 				aria-hidden="true"
 			>
 				<div className="flex items-center gap-2 font-semibold text-[13px] tracking-tight">
-					<span className="material-symbols-outlined text-[20px]">
-						edit
-					</span>
+					<Pencil size={18} />
 					<span>Editing shift</span>
 				</div>
 			</motion.div>
@@ -103,9 +102,7 @@ export const SwipeableShiftItem: React.FC<SwipeableShiftItemProps> = ({
 			>
 				<div className="flex items-center gap-2 font-semibold text-[13px] tracking-tight">
 					<span>Deleting shift</span>
-					<span className="material-symbols-outlined text-[20px]">
-						delete
-					</span>
+					<Trash2 size={18} />
 				</div>
 			</motion.div>
 
@@ -139,7 +136,10 @@ export const SwipeableShiftItem: React.FC<SwipeableShiftItemProps> = ({
 				</div>
 				<div className="flex items-center gap-2 pointer-events-none">
 					<span className="text-xs font-semibold text-neutral-500 tabular-nums">
-						{shift.hours % 1 === 0 ? shift.hours : shift.hours.toFixed(2)} hrs · ${grossAmt}
+						{shift.hours % 1 === 0
+							? shift.hours
+							: shift.hours.toFixed(2)}{' '}
+						hrs · ${grossAmt}
 					</span>
 				</div>
 			</motion.div>

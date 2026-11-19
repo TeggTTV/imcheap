@@ -32,6 +32,25 @@ import { IconPickerDrawer } from './components/IconPickerDrawer';
 import { LocationsView } from './components/LocationsView';
 import { VehicleSettingsView } from './components/VehicleSettingsView';
 import { getSavedLocations, saveLocations } from './utils/savedLocations';
+import { LucideIcon } from './components/LucideIcon';
+import {
+	Plus,
+	Minus,
+	Search,
+	X,
+	Receipt,
+	CheckCircle2,
+	Pencil,
+	Delete,
+	RotateCw,
+	Trash2,
+	ArrowRight,
+	LayoutGrid,
+	Map,
+	BarChart2,
+	SlidersHorizontal,
+	Settings,
+} from 'lucide-react';
 import {
 	MapsView,
 	AnalyticsView,
@@ -51,7 +70,14 @@ import {
 import { fetchRoadRoute } from './utils/mapRouting';
 import { AutomaticTripDetectionService } from './utils/tripTracker';
 
-type ActiveTab = 'dashboard' | 'maps' | 'analytics' | 'presets' | 'settings' | 'locations' | 'vehicle_settings';
+type ActiveTab =
+	| 'dashboard'
+	| 'maps'
+	| 'analytics'
+	| 'presets'
+	| 'settings'
+	| 'locations'
+	| 'vehicle_settings';
 type ActiveModal = 'none' | 'preset' | 'breakdown';
 
 const COLLAPSED_DOCK_Y = 396;
@@ -221,9 +247,8 @@ export default function App() {
 	}, [activeModal, isSecondaryDockOpen, modalNavY]);
 
 	// Effective nav position combining dock drag and modal sheets
-	const combinedNavY = useTransform(
-		[dockNavY, modalNavY],
-		([dY, mY]) => Math.max(dY as number, mY as number),
+	const combinedNavY = useTransform([dockNavY, modalNavY], ([dY, mY]) =>
+		Math.max(dY as number, mY as number),
 	);
 
 	const [txManager] = useState<TransactionManager>(() => {
@@ -961,7 +986,9 @@ export default function App() {
 				{/* Main Content Container */}
 				<main
 					className={`flex flex-col relative w-full max-w-120 mx-auto px-margin ${
-						isSearchOpen && activeTab === 'dashboard' ? 'pt-28' : 'pt-16'
+						isSearchOpen && activeTab === 'dashboard'
+							? 'pt-28'
+							: 'pt-16'
 					} ${
 						activeTab === 'dashboard'
 							? 'h-dvh pb-24 overflow-hidden'
@@ -1127,9 +1154,10 @@ export default function App() {
 										className="flex flex-col items-center justify-center bg-[#F4F7FB] hover:bg-[#EBF0F7] active:scale-95 transition-all rounded-[20px] p-3 w-21 h-24.5 shrink-0 cursor-pointer border border-dashed border-gray-300 text-gray-400"
 									>
 										<div className="w-10 h-10 rounded-full bg-white shadow-xs flex items-center justify-center mb-2">
-											<span className="material-symbols-outlined text-[20px] text-gray-500">
-												add
-											</span>
+											<Plus
+												size={20}
+												className="text-gray-500"
+											/>
 										</div>
 										<span className="text-[12px] font-medium text-gray-500">
 											Add
@@ -1148,13 +1176,16 @@ export default function App() {
 
 								{/* Search Bar directly above Recent Transactions */}
 								<div className="relative flex items-center bg-white border border-gray-100 rounded-2xl px-3.5 py-2.5 shadow-[0_2px_12px_rgba(0,0,0,0.02)] focus-within:border-black/30 transition-all">
-									<span className="material-symbols-outlined text-gray-400 text-[18px] mr-2.5 select-none">
-										search
-									</span>
+									<Search
+										size={18}
+										className="text-gray-400 mr-2.5 select-none"
+									/>
 									<input
 										type="text"
 										value={searchQuery}
-										onChange={(e) => setSearchQuery(e.target.value)}
+										onChange={(e) =>
+											setSearchQuery(e.target.value)
+										}
 										placeholder="Search transactions or categories..."
 										className="w-full bg-transparent text-[13px] text-[#111111] placeholder:text-gray-400 focus:outline-none"
 									/>
@@ -1165,9 +1196,7 @@ export default function App() {
 											onClick={() => setSearchQuery('')}
 											className="text-gray-400 hover:text-black transition-colors cursor-pointer ml-1"
 										>
-											<span className="material-symbols-outlined text-[16px]">
-												cancel
-											</span>
+											<X size={16} />
 										</button>
 									)}
 								</div>
@@ -1180,9 +1209,7 @@ export default function App() {
 									{filteredTransactions.length === 0 ? (
 										<div className="p-8 text-center text-on-surface-variant flex flex-col items-center justify-center gap-2">
 											<div className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant">
-												<span className="material-symbols-outlined text-[20px]">
-													receipt_long
-												</span>
+												<Receipt size={20} />
 											</div>
 											<span className="text-[14px] font-semibold text-[#111111]">
 												{searchQuery
@@ -1248,9 +1275,10 @@ export default function App() {
 								aria-live="polite"
 							>
 								<div className="flex items-center justify-center py-2 px-4 rounded-full bg-primary text-on-primary text-body-sm font-body-sm shadow-md">
-									<span className="material-symbols-outlined text-[14px] mr-1.5 text-secondary-fixed">
-										check_circle
-									</span>
+									<CheckCircle2
+										size={14}
+										className="mr-1.5 text-secondary-fixed"
+									/>
 									<span id="toastMsg">
 										{toastMessage || 'Ready to log'}
 									</span>
@@ -1429,11 +1457,19 @@ export default function App() {
 													duration: 0.28,
 													ease: 'easeInOut',
 												}}
-												className="material-symbols-outlined text-[20px] font-bold select-none"
+												className="flex items-center justify-center"
 											>
-												{dockType === 'income'
-													? 'add'
-													: 'remove'}
+												{dockType === 'income' ? (
+													<Plus
+														size={20}
+														className="font-bold select-none"
+													/>
+												) : (
+													<Minus
+														size={20}
+														className="font-bold select-none"
+													/>
+												)}
 											</motion.span>
 										</motion.button>
 									</motion.div>
@@ -1490,22 +1526,21 @@ export default function App() {
 									<div className="flex items-center gap-3 bg-surface-container-low rounded-xl px-4 py-2.5 mb-3 border border-transparent focus-within:border-primary/20">
 										<button
 											type="button"
-											onClick={() => setIsIconPickerOpen(true)}
+											onClick={() =>
+												setIsIconPickerOpen(true)
+											}
 											aria-label="Open icon drawer"
 											className={`relative w-10 h-10 rounded-full ${currentDockIcon.bgColor} flex items-center justify-center shrink-0 active:scale-95 transition-transform cursor-pointer`}
 										>
-											<span
-												className="material-symbols-outlined text-[20px]"
+											<LucideIcon
+												name={currentDockIcon.icon}
+												size={20}
 												style={{
 													color: currentDockIcon.iconColor,
 												}}
-											>
-												{currentDockIcon.icon}
-											</span>
+											/>
 											<div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-primary text-on-primary rounded-full flex items-center justify-center shadow-xs overflow-hidden">
-												<span className="material-symbols-outlined text-[10px] leading-none scale-75">
-													edit
-												</span>
+												<Pencil size={8} />
 											</div>
 										</button>
 										<div className="flex-1 min-w-0 flex items-center">
@@ -1592,9 +1627,7 @@ export default function App() {
 											}
 											className="num-key h-14 rounded-full bg-transparent hover:bg-surface-container-low font-headline-lg text-headline-lg font-bold text-on-surface flex items-center justify-center transition-all active:scale-95 active:bg-surface-container cursor-pointer"
 										>
-											<span className="material-symbols-outlined text-[28px]">
-												backspace
-											</span>
+											<Delete size={24} />
 										</button>
 									</div>
 
@@ -1613,23 +1646,21 @@ export default function App() {
 										}`}
 									>
 										{isLoggingAction === 'spinning' ? (
-											<span className="material-symbols-outlined text-[22px] animate-spin">
-												progress_activity
-											</span>
+											<RotateCw
+												size={20}
+												className="animate-spin"
+											/>
 										) : isLoggingAction === 'success' ? (
 											<motion.span
 												initial={{ scale: 0.5 }}
 												animate={{ scale: 1 }}
-												className="material-symbols-outlined text-[24px]"
 											>
-												check_circle
+												<CheckCircle2 size={22} />
 											</motion.span>
 										) : isEditAmountZeroOrEmpty ? (
 											<>
 												<span>Delete Transaction</span>
-												<span className="material-symbols-outlined text-[18px]">
-													delete
-												</span>
+												<Trash2 size={18} />
 											</>
 										) : (
 											<>
@@ -1642,9 +1673,7 @@ export default function App() {
 															? 'Log Income'
 															: 'Log Expense'}
 												</span>
-												<span className="material-symbols-outlined text-[18px]">
-													arrow_forward
-												</span>
+												<ArrowRight size={18} />
 											</>
 										)}
 									</button>
@@ -1686,10 +1715,17 @@ export default function App() {
 									});
 								}
 							}}
-							onOpenLocationsPage={() => setActiveTab('locations')}
-							onOpenVehicleSettings={() => setActiveTab('vehicle_settings')}
+							onOpenLocationsPage={() =>
+								setActiveTab('locations')
+							}
+							onOpenVehicleSettings={() =>
+								setActiveTab('vehicle_settings')
+							}
 							onEndTripDirect={(destName, coord) => {
-								tripDetectorRef.current?.endTripNow(destName, coord);
+								tripDetectorRef.current?.endTripNow(
+									destName,
+									coord,
+								);
 							}}
 							onUpdateHomeLocation={(homeLoc) => {
 								tripDetectorRef.current?.updateHomeAddress({
@@ -1765,10 +1801,7 @@ export default function App() {
 					)}
 
 					{activeTab === 'settings' && (
-						<div
-							key="settings"
-							className="w-full"
-						>
+						<div key="settings" className="w-full">
 							<SettingsView
 								key={initialSettingsSubpage}
 								initialSubpage={initialSettingsSubpage}
@@ -1822,9 +1855,7 @@ export default function App() {
 									: 'text-on-surface-variant hover:text-on-surface'
 							}`}
 						>
-							<span className="material-symbols-outlined text-[22px]">
-								grid_view
-							</span>
+							<LayoutGrid size={20} />
 							<span className="font-label-sm text-[11px] leading-tight">
 								Dashboard
 							</span>
@@ -1843,9 +1874,7 @@ export default function App() {
 									: 'text-on-surface-variant hover:text-on-surface'
 							}`}
 						>
-							<span className="material-symbols-outlined text-[22px]">
-								map
-							</span>
+							<Map size={20} />
 							<span className="font-label-sm text-[11px] leading-tight">
 								Maps
 							</span>
@@ -1864,9 +1893,7 @@ export default function App() {
 									: 'text-on-surface-variant hover:text-on-surface'
 							}`}
 						>
-							<span className="material-symbols-outlined text-[22px]">
-								bar_chart
-							</span>
+							<BarChart2 size={20} />
 							<span className="font-label-sm text-[11px] leading-tight">
 								Analytics
 							</span>
@@ -1885,9 +1912,7 @@ export default function App() {
 									: 'text-on-surface-variant hover:text-on-surface'
 							}`}
 						>
-							<span className="material-symbols-outlined text-[22px]">
-								tune
-							</span>
+							<SlidersHorizontal size={20} />
 							<span className="font-label-sm text-[11px] leading-tight">
 								Presets
 							</span>
@@ -1909,9 +1934,7 @@ export default function App() {
 									: 'text-on-surface-variant hover:text-on-surface'
 							}`}
 						>
-							<span className="material-symbols-outlined text-[22px]">
-								settings
-							</span>
+							<Settings size={20} />
 							<span className="font-label-sm text-[11px] leading-tight">
 								Settings
 							</span>

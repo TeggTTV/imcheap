@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'motion/react';
+import { Clock } from 'lucide-react';
+import { LucideIcon } from './LucideIcon';
 import { PresetItem } from '../utils/expenseMath';
 import {
 	IntroStep,
@@ -523,13 +525,14 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 																		.iconColor,
 																}}
 															>
-																<span className="material-symbols-outlined text-[20px]">
-																	{
+																<LucideIcon
+																	name={
 																		step
 																			.receipt
 																			.icon
 																	}
-																</span>
+																	size={20}
+																/>
 															</div>
 															<div className="flex flex-col min-w-0">
 																<span className="font-semibold text-slate-900 text-[14px] leading-tight truncate">
@@ -551,15 +554,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
 														{/* Right side: Emerald pill badge displaying clock icon and shift labor time */}
 														<div className="bg-[#ECFDF5] text-secondary px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap flex items-center gap-1.5 shrink-0">
-															<span
-																className="material-symbols-outlined text-[15px]"
-																style={{
-																	fontVariationSettings:
-																		"'FILL' 1",
-																}}
-															>
-																schedule
-															</span>
+															<Clock size={15} />
 															<span className="tabular-nums">
 																{
 																	step.receipt

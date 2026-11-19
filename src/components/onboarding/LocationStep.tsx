@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { RotateCw, CheckCircle2, MapPinOff, Navigation, Lock } from 'lucide-react';
 import { reverseGeocode } from '../../utils/mapRouting';
 
 interface LocationStepProps {
@@ -397,9 +398,7 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 					>
 						{status === 'loading' && (
 							<>
-								<span className="material-symbols-outlined animate-spin text-[18px] text-secondary">
-									progress_activity
-								</span>
+								<RotateCw size={18} className="animate-spin text-secondary" />
 								<span className="text-secondary">
 									Locating...
 								</span>
@@ -407,9 +406,7 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 						)}
 						{status === 'success' && (
 							<>
-								<span className="material-symbols-outlined text-[18px] text-emerald-600">
-									check_circle
-								</span>
+								<CheckCircle2 size={18} className="text-emerald-600" />
 								<span className="text-emerald-700">
 									Location Enabled
 								</span>
@@ -417,9 +414,7 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 						)}
 						{status === 'error' && (
 							<>
-								<span className="material-symbols-outlined text-[18px] text-amber-700">
-									near_me_disabled
-								</span>
+								<MapPinOff size={18} className="text-amber-700" />
 								<span className="text-amber-900">
 									Allow Location (Retry)
 								</span>
@@ -428,21 +423,14 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 						{status === 'idle' && (
 							<>
 								<span>Turn On Location</span>
-								<span className="material-symbols-outlined text-[17px]">
-									near_me
-								</span>
+								<Navigation size={17} />
 							</>
 						)}
 					</button>
 
 					{/* Privacy & Trust Badge */}
 					<div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#86f2e4]/20 text-[#006f66] text-[12px] font-semibold">
-						<span
-							className="material-symbols-outlined text-[15px] leading-none"
-							style={{ fontVariationSettings: "'FILL' 1" }}
-						>
-							lock
-						</span>
+						<Lock size={15} />
 						<span>
 							Privacy is a priority, turn off Location at any
 							time.

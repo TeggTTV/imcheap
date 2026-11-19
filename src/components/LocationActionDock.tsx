@@ -3,6 +3,18 @@ import { motion, AnimatePresence } from 'motion/react';
 import { SavedLocation, Coordinate } from '../types/maps';
 import { searchAddresses } from '../utils/mapRouting';
 import { IconPickerDrawer } from './IconPickerDrawer';
+import { LucideIcon } from './LucideIcon';
+import {
+	X,
+	Pencil,
+	Search,
+	RotateCw,
+	LocateFixed,
+	MapPin,
+	ChevronDown,
+	ChevronUp,
+	Check,
+} from 'lucide-react';
 
 interface LocationActionDockProps {
 	isOpen: boolean;
@@ -184,7 +196,7 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 								onClick={onClose}
 								className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-600 cursor-pointer transition-colors"
 							>
-								<span className="material-symbols-outlined text-[18px]">close</span>
+								<X size={18} />
 							</button>
 						</div>
 
@@ -199,13 +211,14 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 											className="w-14 h-14 rounded-2xl bg-neutral-100 hover:bg-neutral-200 border border-neutral-200/80 flex items-center justify-center text-[#111111] shadow-xs cursor-pointer transition-all shrink-0 active:scale-95 group"
 											title="Change marker icon"
 										>
-											<span className="material-symbols-outlined text-[28px]">
-												{icon || 'pin_drop'}
-											</span>
+											<LucideIcon
+												name={icon || 'pin_drop'}
+												size={26}
+											/>
 										</button>
 										{/* Visual Affordance Badge */}
 										<span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#111111] text-white flex items-center justify-center shadow-xs pointer-events-none border border-white">
-											<span className="material-symbols-outlined text-[11px]">edit</span>
+											<Pencil size={10} />
 										</span>
 									</div>
 
@@ -240,9 +253,7 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 											/>
 											{isSearchingAddress && (
 												<div className="absolute right-3 top-1/2 -translate-y-1/2">
-													<span className="material-symbols-outlined text-[18px] text-neutral-400 animate-spin">
-														sync
-													</span>
+													<RotateCw size={16} className="text-neutral-400 animate-spin" />
 												</div>
 											)}
 										</div>
@@ -253,9 +264,11 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 											title="Use current GPS"
 											className="h-12 px-3 rounded-xl bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 text-neutral-700 font-semibold text-[13px] flex items-center gap-1.5 cursor-pointer shrink-0"
 										>
-											<span className="material-symbols-outlined text-[18px]">
-												{isSearchingGps ? 'sync' : 'my_location'}
-											</span>
+											{isSearchingGps ? (
+												<RotateCw size={16} className="animate-spin" />
+											) : (
+												<LocateFixed size={16} />
+											)}
 											<span className="hidden sm:inline">Current GPS</span>
 										</button>
 									</div>
@@ -270,9 +283,7 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 													onClick={() => handleSelectAddressResult(item)}
 													className="w-full text-left px-3.5 py-2.5 text-[13px] text-neutral-800 hover:bg-neutral-100 border-b border-gray-100 last:border-b-0 flex items-start gap-2 cursor-pointer transition-colors"
 												>
-													<span className="material-symbols-outlined text-[16px] text-neutral-400 mt-0.5 shrink-0">
-														location_on
-													</span>
+													<MapPin size={16} className="text-neutral-400 mt-0.5 shrink-0" />
 													<span className="line-clamp-2 leading-snug">{item.label}</span>
 												</button>
 											))}
@@ -290,9 +301,11 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 										<span className="text-[12px] font-bold uppercase tracking-wider">
 											Advanced Coordinates
 										</span>
-										<span className="material-symbols-outlined text-[18px]">
-											{showAdvancedCoords ? 'expand_less' : 'expand_more'}
-										</span>
+										{showAdvancedCoords ? (
+											<ChevronUp size={18} />
+										) : (
+											<ChevronDown size={18} />
+										)}
 									</button>
 
 									{showAdvancedCoords && (
@@ -355,7 +368,7 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 									type="submit"
 									className="w-full h-13 mt-3 rounded-2xl bg-[#111111] hover:bg-neutral-900 active:scale-[0.98] text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-md cursor-pointer transition-all"
 								>
-									<span className="material-symbols-outlined text-[18px]">check</span>
+									<Check size={18} />
 									<span>{initialLocation ? 'Save Changes' : 'Create Marker'}</span>
 								</button>
 							</form>

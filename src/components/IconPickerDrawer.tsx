@@ -1,5 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { LucideIcon } from './LucideIcon';
+import { X } from 'lucide-react';
 
 export interface IconOption {
 	icon: string;
@@ -63,15 +65,15 @@ export const ALL_EXPENSE_ICONS: IconOption[] = [
 		category: 'Transit',
 	},
 	{
-		icon: 'commute',
+		icon: 'navigation',
 		label: 'Commute',
 		bgColor: '#E0E7FF',
 		iconColor: '#4338CA',
 		category: 'Transit',
 	},
 	{
-		icon: 'local_taxi',
-		label: 'Rideshare',
+		icon: 'pin_drop',
+		label: 'Location',
 		bgColor: '#ECFDF5',
 		iconColor: '#059669',
 		category: 'Transit',
@@ -86,7 +88,7 @@ export const ALL_EXPENSE_ICONS: IconOption[] = [
 
 	// Shopping & Essentials
 	{
-		icon: 'shopping_cart',
+		icon: 'local_grocery_store',
 		label: 'Groceries',
 		bgColor: '#ECFDF5',
 		iconColor: '#059669',
@@ -296,9 +298,7 @@ export const IconPickerDrawer: React.FC<IconPickerDrawerProps> = ({
 									onClick={onClose}
 									className="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors cursor-pointer"
 								>
-									<span className="material-symbols-outlined text-[20px]">
-										close
-									</span>
+									<X size={18} />
 								</button>
 							</div>
 						</div>
@@ -326,16 +326,15 @@ export const IconPickerDrawer: React.FC<IconPickerDrawerProps> = ({
 													: item.bgColor,
 											}}
 										>
-											<span
-												className="material-symbols-outlined text-[24px]"
+											<LucideIcon
+												name={item.icon}
+												size={24}
 												style={{
 													color: isSelected
 														? '#FFFFFF'
 														: item.iconColor,
 												}}
-											>
-												{item.icon}
-											</span>
+											/>
 										</div>
 										<span
 											className={`text-[11px] font-medium tracking-tight text-center truncate max-w-full ${

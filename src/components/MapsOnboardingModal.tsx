@@ -3,6 +3,19 @@ import { motion, AnimatePresence } from 'motion/react';
 import { SavedLocation, Coordinate } from '../types/maps';
 import { reverseGeocode, searchAddresses } from '../utils/mapRouting';
 import { IconPickerDrawer } from './IconPickerDrawer';
+import { LucideIcon } from './LucideIcon';
+import {
+	LocateFixed,
+	RotateCw,
+	Search,
+	MapPin,
+	Home,
+	ArrowRight,
+	ArrowLeft,
+	Check,
+	Plus,
+	X,
+} from 'lucide-react';
 
 interface MapsOnboardingModalProps {
 	isOpen: boolean;
@@ -272,9 +285,11 @@ export const MapsOnboardingModal: React.FC<MapsOnboardingModalProps> = ({
 								disabled={isLocatingHome}
 								className="w-full h-13 rounded-2xl bg-[#ECFDF5] hover:bg-[#D1FAE5] text-[#059669] font-bold text-[14px] flex items-center justify-center gap-2 transition-all cursor-pointer border border-[#A7F3D0]/60 active:scale-[0.99]"
 							>
-								<span className="material-symbols-outlined text-[20px]">
-									{isLocatingHome ? 'sync' : 'my_location'}
-								</span>
+								{isLocatingHome ? (
+									<RotateCw size={20} className="animate-spin" />
+								) : (
+									<LocateFixed size={20} />
+								)}
 								<span>
 									{isLocatingHome
 										? 'Detecting your GPS position...'
@@ -301,13 +316,9 @@ export const MapsOnboardingModal: React.FC<MapsOnboardingModalProps> = ({
 										placeholder="e.g. 123 Main St, Philadelphia, PA"
 										className="w-full h-12 pl-10 pr-4 rounded-xl bg-neutral-50 border border-neutral-200 text-[14px] font-medium text-[#111111] focus:outline-none focus:border-black"
 									/>
-									<span className="material-symbols-outlined absolute left-3 text-[18px] text-neutral-400">
-										search
-									</span>
+									<Search size={18} className="absolute left-3 text-neutral-400" />
 									{isSearchingAddress && (
-										<span className="material-symbols-outlined absolute right-3 text-[18px] text-neutral-400 animate-spin">
-											sync
-										</span>
+										<RotateCw size={18} className="absolute right-3 text-neutral-400 animate-spin" />
 									)}
 								</div>
 
@@ -321,9 +332,7 @@ export const MapsOnboardingModal: React.FC<MapsOnboardingModalProps> = ({
 												onClick={() => handleSelectHomeResult(item)}
 												className="w-full text-left p-3 hover:bg-neutral-50 transition-colors text-[13px] text-[#111111] font-medium flex items-start gap-2 cursor-pointer"
 											>
-												<span className="material-symbols-outlined text-[16px] text-neutral-400 shrink-0 mt-0.5">
-													location_on
-												</span>
+												<MapPin size={16} className="text-neutral-400 shrink-0 mt-0.5" />
 												<span className="truncate">{item.label}</span>
 											</button>
 										))}
@@ -335,9 +344,7 @@ export const MapsOnboardingModal: React.FC<MapsOnboardingModalProps> = ({
 							{homeCoords && (
 								<div className="p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200/80 flex items-center gap-3">
 									<div className="w-10 h-10 rounded-xl bg-white shadow-xs flex items-center justify-center text-[#059669] shrink-0 border border-neutral-200/50">
-										<span className="material-symbols-outlined text-[20px]">
-											home
-										</span>
+										<Home size={20} />
 									</div>
 									<div className="flex flex-col min-w-0 flex-1">
 										<span className="text-[13px] font-bold text-[#111111] truncate">
@@ -358,9 +365,7 @@ export const MapsOnboardingModal: React.FC<MapsOnboardingModalProps> = ({
 								className="w-full h-13 mt-2 rounded-2xl bg-[#111111] hover:bg-neutral-900 active:scale-[0.98] text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-md cursor-pointer transition-all disabled:opacity-40"
 							>
 								<span>Set Home &amp; Continue</span>
-								<span className="material-symbols-outlined text-[18px]">
-									arrow_forward
-								</span>
+								<ArrowRight size={18} />
 							</button>
 						</div>
 					) : (
@@ -401,14 +406,10 @@ export const MapsOnboardingModal: React.FC<MapsOnboardingModalProps> = ({
 														: 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
 											}`}
 										>
-											<span className="material-symbols-outlined text-[16px]">
-												{tmpl.icon}
-											</span>
+											<LucideIcon name={tmpl.icon} size={16} />
 											<span>{tmpl.name}</span>
 											{isAlreadyAdded && (
-												<span className="material-symbols-outlined text-[14px] text-emerald-600">
-													check
-												</span>
+												<Check size={14} className="text-emerald-600" />
 											)}
 										</button>
 									);
@@ -424,9 +425,7 @@ export const MapsOnboardingModal: React.FC<MapsOnboardingModalProps> = ({
 									}}
 									className="px-3 py-2 rounded-xl text-[13px] font-bold bg-neutral-100 text-neutral-700 hover:bg-neutral-200 flex items-center gap-1.5 transition-all cursor-pointer"
 								>
-									<span className="material-symbols-outlined text-[16px]">
-										add
-									</span>
+									<Plus size={16} />
 									<span>Custom Place</span>
 								</button>
 							</div>
@@ -440,9 +439,7 @@ export const MapsOnboardingModal: React.FC<MapsOnboardingModalProps> = ({
 								>
 									<div className="flex items-center justify-between">
 										<div className="flex items-center gap-2">
-											<span className="material-symbols-outlined text-[20px] text-[#111111]">
-												{activeAddingPreset.icon}
-											</span>
+											<LucideIcon name={activeAddingPreset.icon} size={20} className="text-[#111111]" />
 											<span className="text-[14px] font-bold text-[#111111]">
 												Add {activeAddingPreset.name}
 											</span>
@@ -474,9 +471,7 @@ export const MapsOnboardingModal: React.FC<MapsOnboardingModalProps> = ({
 														onClick={() => handleSelectPlaceResult(item)}
 														className="w-full text-left p-2.5 hover:bg-neutral-50 text-[12px] text-[#111111] font-medium flex items-center gap-2"
 													>
-														<span className="material-symbols-outlined text-[15px] text-neutral-400">
-															location_on
-														</span>
+														<MapPin size={15} className="text-neutral-400" />
 														<span className="truncate">{item.label}</span>
 													</button>
 												))}
@@ -491,9 +486,7 @@ export const MapsOnboardingModal: React.FC<MapsOnboardingModalProps> = ({
 											disabled={isLocatingPlace}
 											className="flex-1 h-9 rounded-xl bg-white border border-neutral-200 hover:bg-neutral-100 text-neutral-700 font-bold text-[12px] flex items-center justify-center gap-1 cursor-pointer"
 										>
-											<span className="material-symbols-outlined text-[16px]">
-												my_location
-											</span>
+											<LocateFixed size={16} />
 											<span>Current GPS</span>
 										</button>
 
@@ -523,9 +516,7 @@ export const MapsOnboardingModal: React.FC<MapsOnboardingModalProps> = ({
 											>
 												<div className="flex items-center gap-2.5 min-w-0 pr-2">
 													<div className="w-8 h-8 rounded-lg bg-neutral-100 flex items-center justify-center text-[#111111] shrink-0">
-														<span className="material-symbols-outlined text-[17px]">
-															{p.icon}
-														</span>
+														<LucideIcon name={p.icon} size={17} />
 													</div>
 													<div className="flex flex-col min-w-0">
 														<span className="text-[13px] font-bold text-[#111111] truncate">
@@ -541,9 +532,7 @@ export const MapsOnboardingModal: React.FC<MapsOnboardingModalProps> = ({
 													onClick={() => handleRemovePlace(p.id)}
 													className="text-neutral-400 hover:text-red-600 p-1 cursor-pointer"
 												>
-													<span className="material-symbols-outlined text-[18px]">
-														close
-													</span>
+													<X size={18} />
 												</button>
 											</div>
 										))}
@@ -558,9 +547,7 @@ export const MapsOnboardingModal: React.FC<MapsOnboardingModalProps> = ({
 									onClick={() => setStep(1)}
 									className="h-13 px-4 rounded-2xl bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-[14px] flex items-center justify-center gap-1 cursor-pointer"
 								>
-									<span className="material-symbols-outlined text-[18px]">
-										arrow_back
-									</span>
+									<ArrowLeft size={18} />
 									<span>Back</span>
 								</button>
 
@@ -570,9 +557,7 @@ export const MapsOnboardingModal: React.FC<MapsOnboardingModalProps> = ({
 									className="flex-1 h-13 rounded-2xl bg-[#111111] hover:bg-neutral-900 active:scale-[0.98] text-white font-bold text-[15px] flex items-center justify-center gap-2 shadow-md cursor-pointer transition-all"
 								>
 									<span>Done &amp; Open Maps</span>
-									<span className="material-symbols-outlined text-[18px]">
-										check
-									</span>
+									<Check size={18} />
 								</button>
 							</div>
 						</div>

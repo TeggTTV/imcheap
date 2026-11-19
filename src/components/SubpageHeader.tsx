@@ -1,4 +1,5 @@
 import React from 'react';
+import { ChevronLeft } from 'lucide-react';
 
 export interface SubpageHeaderProps {
 	title: string;
@@ -18,9 +19,7 @@ export const SubpageHeader: React.FC<SubpageHeaderProps> = ({
 				onClick={onBack}
 				className="flex items-center gap-1.5 text-on-surface hover:opacity-75 transition-opacity cursor-pointer px-1 py-1 -ml-1"
 			>
-				<span className="material-symbols-outlined text-[20px] shrink-0 leading-none">
-					chevron_left
-				</span>
+				<ChevronLeft size={18} className="shrink-0" />
 				<span className="font-medium text-sm text-on-surface">
 					{backLabel}
 				</span>

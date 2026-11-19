@@ -5,6 +5,13 @@ import {
 	IncomeSettings,
 } from '../utils/expenseMath';
 import { parseTransactionDate } from '../utils/dateUtils';
+import { LucideIcon } from './LucideIcon';
+import {
+	ChevronDown,
+	Check,
+	History,
+	Shield,
+} from 'lucide-react';
 import {
 	format,
 	startOfWeek,
@@ -505,13 +512,12 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 						{isViewingCurrentMonth && (
 							<span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
 						)}
-						<span
-							className={`material-symbols-outlined text-[16px] text-[#6B7280] transition-transform duration-200 ${
+						<ChevronDown
+							size={16}
+							className={`text-[#6B7280] transition-transform duration-200 ${
 								isMonthDropdownOpen ? 'rotate-180' : ''
 							}`}
-						>
-							expand_more
-						</span>
+						/>
 					</button>
 
 					{/* Dropdown Menu listing last 4 active months */}
@@ -557,9 +563,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 											)}
 										</div>
 										{isSelected && (
-											<span className="material-symbols-outlined text-[18px] text-[#111111]">
-												check
-											</span>
+											<Check size={18} className="text-[#111111]" />
 										)}
 									</button>
 								);
@@ -573,9 +577,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 			{!isViewingCurrentMonth && (
 				<div className="mb-4 px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200/60 flex items-center justify-between">
 					<div className="flex items-center gap-2">
-						<span className="material-symbols-outlined text-[18px] text-amber-700">
-							history
-						</span>
+						<History size={18} className="text-amber-700" />
 						<span className="text-[12px] font-semibold text-amber-900">
 							Viewing Archive: {selectedMonthObj.label}
 						</span>
@@ -605,9 +607,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 								</span>
 							</div>
 							<div className="text-[12px] text-[#059669] font-bold mt-1 inline-flex items-center gap-1 bg-[#ECFDF5] px-2 py-0.5 rounded-full whitespace-nowrap">
-								<span className="material-symbols-outlined text-[14px]">
-									shield
-								</span>
+								<Shield size={14} />
 								<span>
 									{lifetimeStats.preservationRate}% preserved
 								</span>
@@ -777,15 +777,10 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
 										<div
 											className={`w-8 h-8 rounded-full ${item.bgColor} flex items-center justify-center shrink-0`}
 										>
-											<span className="material-symbols-outlined text-[18px]">
-												{item.icon}
-											</span>
+											<LucideIcon name={item.icon} size={18} />
 										</div>
 										<span className="text-[15px] font-bold text-[#111111] truncate">
-											{item.label}{' '}
-											{/* <span className="font-normal text-gray-500">
-												 ({item.subLabel})
-											</span> */}
+											{item.label}
 										</span>
 									</div>
 									<span className="text-[15px] font-bold text-[#111111] shrink-0">

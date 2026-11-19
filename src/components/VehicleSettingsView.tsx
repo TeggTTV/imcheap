@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { IncomeSettings } from '../utils/expenseMath';
+import { ArrowLeft, Car } from 'lucide-react';
 
 interface VehicleSettingsViewProps {
 	settings: IncomeSettings;
@@ -63,7 +64,8 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 	const maxRange = Math.round(mpg * tankSize);
 	const commuteCost = vehicleCostPerMile * 10;
 	const wagePerMin = wageRate / 60;
-	const commuteMinutes = wagePerMin > 0 ? (commuteCost / wagePerMin).toFixed(1) : '0';
+	const commuteMinutes =
+		wagePerMin > 0 ? (commuteCost / wagePerMin).toFixed(1) : '0';
 	const tankCost = gasPrice * tankSize;
 	const tankHours = wageRate > 0 ? (tankCost / wageRate).toFixed(1) : '0';
 
@@ -140,7 +142,11 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 			try {
 				localStorage.setItem(
 					'imcheap_vehicle',
-					JSON.stringify({ mpg: newMpg, gasPrice: newGas, tankSize: newTank }),
+					JSON.stringify({
+						mpg: newMpg,
+						gasPrice: newGas,
+						tankSize: newTank,
+					}),
 				);
 			} catch (e) {
 				console.warn('Failed to save vehicle settings', e);
@@ -163,7 +169,7 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 					onClick={onBack}
 					className="flex items-center gap-1.5 text-[14px] font-bold text-neutral-800 hover:text-black transition-colors cursor-pointer py-1"
 				>
-					<span className="material-symbols-outlined text-[20px]">arrow_back</span>
+					<ArrowLeft size={18} />
 					<span>Back</span>
 				</button>
 				<h2 className="text-[17px] font-black text-[#111111] tracking-tight">
@@ -179,16 +185,16 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 						Marginal Running Cost
 					</span>
 					<div className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-[#111111]">
-						<span className="material-symbols-outlined text-[18px]">
-							directions_car
-						</span>
+						<Car size={18} />
 					</div>
 				</div>
 				<div className="flex items-baseline gap-1 mt-2 mb-1">
 					<span className="text-[34px] font-black leading-none text-[#111111] tracking-tight tabular-nums">
 						${vehicleCostPerMile.toFixed(2)}
 					</span>
-					<span className="text-[16px] text-neutral-400 font-medium">/ mi</span>
+					<span className="text-[16px] text-neutral-400 font-medium">
+						/ mi
+					</span>
 				</div>
 				<p className="text-[12px] text-neutral-500 font-medium mt-1">
 					Gas only • Excludes depreciation &amp; insurance
@@ -200,7 +206,10 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 				{/* MPG Card */}
 				<div className="bg-white rounded-3xl p-5 shadow-[0_2px_16px_rgba(0,0,0,0.03)] border border-gray-100 flex items-center justify-between">
 					<div className="flex flex-col min-w-0 pr-3">
-						<label htmlFor="vehicle-mpg-input" className="text-[14px] font-bold text-[#111111]">
+						<label
+							htmlFor="vehicle-mpg-input"
+							className="text-[14px] font-bold text-[#111111]"
+						>
 							Fuel Economy
 						</label>
 						<span className="text-[12px] text-neutral-400 font-medium mt-0.5">
@@ -228,7 +237,10 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 				{/* Gas Price Card */}
 				<div className="bg-white rounded-3xl p-5 shadow-[0_2px_16px_rgba(0,0,0,0.03)] border border-gray-100 flex items-center justify-between">
 					<div className="flex flex-col min-w-0 pr-3">
-						<label htmlFor="vehicle-gas-input" className="text-[14px] font-bold text-[#111111]">
+						<label
+							htmlFor="vehicle-gas-input"
+							className="text-[14px] font-bold text-[#111111]"
+						>
 							Gas Price
 						</label>
 						<span className="text-[12px] text-neutral-400 font-medium mt-0.5">
@@ -236,7 +248,9 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 						</span>
 					</div>
 					<div className="flex items-center bg-neutral-50 hover:bg-neutral-100/80 rounded-2xl px-3.5 py-2.5 border border-neutral-200/80 focus-within:border-black focus-within:bg-white transition-all shrink-0">
-						<span className="text-[16px] font-black text-neutral-400 mr-1">$</span>
+						<span className="text-[16px] font-black text-neutral-400 mr-1">
+							$
+						</span>
 						<input
 							id="vehicle-gas-input"
 							type="number"
@@ -257,7 +271,10 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 				{/* Tank Capacity Card */}
 				<div className="bg-white rounded-3xl p-5 shadow-[0_2px_16px_rgba(0,0,0,0.03)] border border-gray-100 flex items-center justify-between">
 					<div className="flex flex-col min-w-0 pr-3">
-						<label htmlFor="vehicle-tank-input" className="text-[14px] font-bold text-[#111111]">
+						<label
+							htmlFor="vehicle-tank-input"
+							className="text-[14px] font-bold text-[#111111]"
+						>
 							Tank Capacity
 						</label>
 						<span className="text-[12px] text-neutral-400 font-medium mt-0.5">
@@ -296,8 +313,12 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 
 				<div className="flex items-center justify-between py-2 border-b border-gray-100">
 					<div className="flex flex-col">
-						<span className="text-[14px] font-bold text-[#111111]">10-mile daily drive</span>
-						<span className="text-[12px] text-neutral-400">Round trip commute</span>
+						<span className="text-[14px] font-bold text-[#111111]">
+							10-mile daily drive
+						</span>
+						<span className="text-[12px] text-neutral-400">
+							Round trip commute
+						</span>
 					</div>
 					<div className="text-right">
 						<span className="text-[14px] font-black text-[#111111]">
@@ -311,8 +332,12 @@ export const VehicleSettingsView: React.FC<VehicleSettingsViewProps> = ({
 
 				<div className="flex items-center justify-between py-2">
 					<div className="flex flex-col">
-						<span className="text-[14px] font-bold text-[#111111]">Full tank fill-up</span>
-						<span className="text-[12px] text-neutral-400">{tankSize} gallons</span>
+						<span className="text-[14px] font-bold text-[#111111]">
+							Full tank fill-up
+						</span>
+						<span className="text-[12px] text-neutral-400">
+							{tankSize} gallons
+						</span>
 					</div>
 					<div className="text-right">
 						<span className="text-[14px] font-black text-[#111111]">

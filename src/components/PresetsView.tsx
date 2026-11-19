@@ -2,6 +2,8 @@ import React from 'react';
 import { Reorder } from 'motion/react';
 import { PresetItem } from '../utils/expenseMath';
 import { SwipeablePresetItem } from './SwipeablePresetItem';
+import { LucideIcon } from './LucideIcon';
+import { GripVertical, Plus } from 'lucide-react';
 
 export interface PresetsViewProps {
 	presets: PresetItem[];
@@ -71,7 +73,8 @@ export const PresetsView: React.FC<PresetsViewProps> = ({
 							No pinned presets yet.
 						</span>
 						<span className="text-[12px] text-[#6B7280]">
-							Tap any preset in the directory below to pin it to your dashboard dock.
+							Tap any preset in the directory below to pin it to
+							your dashboard dock.
 						</span>
 					</div>
 				) : (
@@ -100,9 +103,10 @@ export const PresetsView: React.FC<PresetsViewProps> = ({
 											color: preset.iconColor,
 										}}
 									>
-										<span className="material-symbols-outlined text-[20px]">
-											{preset.icon}
-										</span>
+										<LucideIcon
+											name={preset.icon}
+											size={20}
+										/>
 									</div>
 									<div className="flex flex-col min-w-0">
 										<div className="flex items-baseline gap-1.5">
@@ -114,14 +118,16 @@ export const PresetsView: React.FC<PresetsViewProps> = ({
 											</span>
 										</div>
 										<span className="text-[13px] font-bold text-[#111111] tabular-nums">
-											${preset.calculatedAmount.toFixed(2)}
+											$
+											{preset.calculatedAmount.toFixed(2)}
 										</span>
 									</div>
 								</div>
 								<div className="flex items-center gap-2 shrink-0">
-									<span className="material-symbols-outlined text-[#9CA3AF] text-[20px] select-none cursor-grab active:cursor-grabbing p-1">
-										drag_handle
-									</span>
+									<GripVertical
+										size={18}
+										className="text-[#9CA3AF] select-none cursor-grab active:cursor-grabbing p-0.5"
+									/>
 								</div>
 							</Reorder.Item>
 						))}
@@ -134,7 +140,7 @@ export const PresetsView: React.FC<PresetsViewProps> = ({
 					onClick={onOpenNewPresetModal}
 					className="mt-3 w-full h-12 rounded-[14px] border-[1.5px] border-dashed border-[#D1D5DB] bg-[#F9FAFB] text-[14px] font-bold text-[#111111] flex items-center justify-center gap-2 hover:bg-[#F3F4F6] transition-colors active:scale-95 cursor-pointer"
 				>
-					<span className="material-symbols-outlined text-[18px]">add</span>
+					<Plus size={18} />
 					<span>Add New Preset</span>
 				</button>
 			</div>
@@ -153,7 +159,8 @@ export const PresetsView: React.FC<PresetsViewProps> = ({
 				<div className="flex flex-col overflow-hidden">
 					{presets.length === 0 ? (
 						<div className="py-6 text-center text-xs text-on-surface-variant">
-							No presets yet. Tap &quot;Add New Preset&quot; above to create one.
+							No presets yet. Tap &quot;Add New Preset&quot; above
+							to create one.
 						</div>
 					) : (
 						presets.map((preset, idx) => (

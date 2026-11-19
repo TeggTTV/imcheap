@@ -6,6 +6,17 @@ import {
 	PresetItem,
 } from '../utils/expenseMath';
 import { IconPickerDrawer } from './IconPickerDrawer';
+import { LucideIcon } from './LucideIcon';
+import {
+	Plus,
+	Minus,
+	RotateCw,
+	Clock,
+	Pencil,
+	Repeat,
+	Delete,
+	ArrowRight,
+} from 'lucide-react';
 
 interface PresetSheetModalProps {
 	isOpen: boolean;
@@ -115,7 +126,9 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 				setIsRoundTrip(initialPreset.isRoundTrip ?? false);
 				setSelectedCategory(
 					initialPreset.category ||
-						(initialPreset.type === 'income' ? 'Paycheck' : 'Driving'),
+						(initialPreset.type === 'income'
+							? 'Paycheck'
+							: 'Driving'),
 				);
 			} else {
 				// Reset all fields clean for new preset
@@ -318,11 +331,19 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 											duration: 0.28,
 											ease: 'easeInOut',
 										}}
-										className="material-symbols-outlined text-[20px] font-bold select-none"
+										className="flex items-center justify-center"
 									>
-										{presetType === 'income'
-											? 'add'
-											: 'remove'}
+										{presetType === 'income' ? (
+											<Plus
+												size={20}
+												className="font-bold select-none"
+											/>
+										) : (
+											<Minus
+												size={20}
+												className="font-bold select-none"
+											/>
+										)}
 									</motion.span>
 								</motion.button>
 							</div>
@@ -347,24 +368,28 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 											className="group inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-container-high border border-gray-300/80 shadow-xs active:bg-surface-container-highest transition-colors cursor-pointer focus:outline-none select-none whitespace-nowrap"
 											aria-label={`Cycle unit. Current: ${unit}`}
 										>
-											<span className="material-symbols-outlined text-[14px] text-on-surface-variant group-hover:text-primary transition-colors">
-												{UNIT_ICONS[unit]}
-											</span>
+											<LucideIcon
+												name={UNIT_ICONS[unit]}
+												size={14}
+												className="text-on-surface-variant group-hover:text-primary transition-colors"
+											/>
 											<span className="font-bold text-[12px] tracking-wider uppercase text-on-surface">
 												{unit}
 											</span>
-											<span className="material-symbols-outlined text-[13px] text-outline opacity-60 group-hover:opacity-100 transition-opacity">
-												sync
-											</span>
+											<RotateCw
+												size={12}
+												className="text-outline opacity-60 group-hover:opacity-100 transition-opacity"
+											/>
 										</motion.button>
 									</div>
 								</div>
 
 								{/* Equivalence Badge */}
 								<div className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container-low text-on-surface-variant">
-									<span className="material-symbols-outlined text-[13px] text-secondary">
-										schedule
-									</span>
+									<Clock
+										size={13}
+										className="text-secondary"
+									/>
 									<span
 										className="font-label-md text-label-md font-semibold text-on-surface-variant tabular-nums"
 										id="equiv-label"
@@ -372,7 +397,11 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 									>
 										≈ ${equiv.costFormatted}{' '}
 										<span className="font-normal opacity-80">
-											({equiv.minutesWork >= 60 ? `${equiv.minutesWork}m / ${(equiv.minutesWork / 60).toFixed(1)} hr` : `${equiv.minutesWork}m`} of work)
+											(
+											{equiv.minutesWork >= 60
+												? `${equiv.minutesWork}m / ${(equiv.minutesWork / 60).toFixed(1)} hr`
+												: `${equiv.minutesWork}m`}{' '}
+											of work)
 										</span>
 									</span>
 								</div>
@@ -387,16 +416,13 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 								aria-label="Open preset icon drawer"
 								className={`relative w-10 h-10 rounded-full ${currentIconMeta.bgColor} flex items-center justify-center shrink-0 active:scale-95 transition-transform cursor-pointer`}
 							>
-								<span
-									className="material-symbols-outlined text-[20px]"
+								<LucideIcon
+									name={currentIconMeta.icon}
+									size={20}
 									style={{ color: currentIconMeta.iconColor }}
-								>
-									{currentIconMeta.icon}
-								</span>
+								/>
 								<div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-primary text-on-primary rounded-full flex items-center justify-center shadow-xs overflow-hidden">
-									<span className="material-symbols-outlined text-[10px] leading-none scale-75">
-										edit
-									</span>
+									<Pencil size={8} />
 								</div>
 							</button>
 							<div className="flex-1 min-w-0 flex items-center">
@@ -421,9 +447,7 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 								className="w-7 h-7 flex items-center justify-center text-outline hover:text-on-surface cursor-pointer"
 								type="button"
 							>
-								<span className="material-symbols-outlined text-[18px]">
-									edit_note
-								</span>
+								<Pencil size={16} />
 							</button>
 						</div>
 
@@ -432,9 +456,7 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 							<div className="mt-2.5 flex items-center justify-between py-0.5">
 								<div className="flex items-center gap-2">
 									<div className="w-6 h-6 rounded-lg bg-surface-container flex items-center justify-center text-on-surface">
-										<span className="material-symbols-outlined text-[14px]">
-											sync_alt
-										</span>
+										<Repeat size={14} />
 									</div>
 									<div>
 										<p className="font-label-md text-label-md font-medium text-on-surface">
@@ -505,9 +527,7 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 								onClick={() => handleKeyPress('backspace')}
 								className="num-key h-14 rounded-full bg-transparent hover:bg-surface-container-low font-headline-lg text-headline-lg font-bold text-on-surface flex items-center justify-center transition-all active:scale-95 active:bg-surface-container cursor-pointer"
 							>
-								<span className="material-symbols-outlined text-[28px]">
-									backspace
-								</span>
+								<Delete size={24} />
 							</button>
 						</div>
 
@@ -520,9 +540,7 @@ export const PresetSheetModal: React.FC<PresetSheetModalProps> = ({
 								className="w-full h-12.5 bg-primary text-on-primary rounded-2xl flex items-center justify-center gap-2 font-label-lg text-label-lg font-bold uppercase tracking-wider shadow-lg active:scale-[0.98] transition-all hover:bg-neutral-800 cursor-pointer whitespace-nowrap"
 							>
 								<span>Save Preset</span>
-								<span className="material-symbols-outlined text-[18px]">
-									arrow_forward
-								</span>
+								<ArrowRight size={18} />
 							</button>
 						</div>
 					</motion.div>

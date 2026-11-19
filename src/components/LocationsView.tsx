@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { SavedLocation, Coordinate } from '../types/maps';
 import { SwipeableLocationItem } from './SwipeableLocationItem';
 import { LocationActionDock } from './LocationActionDock';
+import { ArrowLeft, MapPinPlus } from 'lucide-react';
 
 interface LocationsViewProps {
 	locations: SavedLocation[];
@@ -21,7 +22,8 @@ export const LocationsView: React.FC<LocationsViewProps> = ({
 	onCreateNewRequest,
 	onDockStateChange,
 }) => {
-	const [editingLocation, setEditingLocation] = useState<SavedLocation | null>(null);
+	const [editingLocation, setEditingLocation] =
+		useState<SavedLocation | null>(null);
 	const [isActionDockOpen, setIsActionDockOpen] = useState(false);
 
 	React.useEffect(() => {
@@ -83,7 +85,7 @@ export const LocationsView: React.FC<LocationsViewProps> = ({
 					onClick={onBack}
 					className="flex items-center gap-1.5 text-[14px] font-bold text-neutral-800 hover:text-black transition-colors cursor-pointer py-1"
 				>
-					<span className="material-symbols-outlined text-[20px]">arrow_back</span>
+					<ArrowLeft size={18} />
 					<span>Back</span>
 				</button>
 				<h2 className="text-[17px] font-black text-[#111111] tracking-tight">
@@ -98,7 +100,7 @@ export const LocationsView: React.FC<LocationsViewProps> = ({
 				onClick={handleOpenCreate}
 				className="w-full h-14 rounded-2xl bg-[#111111] hover:bg-neutral-800 active:scale-[0.99] text-white font-bold text-[14px] flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
 			>
-				<span className="material-symbols-outlined text-[20px]">add_location_alt</span>
+				<MapPinPlus size={18} />
 				<span>New Location</span>
 			</button>
 

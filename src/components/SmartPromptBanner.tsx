@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SmartPrompt } from '../types/maps';
+import { Route, Store, X } from 'lucide-react';
 
 interface SmartPromptBannerProps {
 	prompt: SmartPrompt | null;
@@ -41,9 +42,7 @@ export const SmartPromptBanner: React.FC<SmartPromptBannerProps> = ({
 								: 'bg-[#ECFDF5] text-[#059669]'
 						}`}
 					>
-						<span className="material-symbols-outlined text-[20px]">
-							{isFrequentRoute ? 'alt_route' : 'storefront'}
-						</span>
+						{isFrequentRoute ? <Route size={20} /> : <Store size={20} />}
 					</div>
 
 					{/* Center Description */}
@@ -72,9 +71,7 @@ export const SmartPromptBanner: React.FC<SmartPromptBannerProps> = ({
 							aria-label="Dismiss suggestion"
 							className="w-7 h-7 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center cursor-pointer transition-colors shrink-0"
 						>
-							<span className="material-symbols-outlined text-[16px]">
-								close
-							</span>
+							<X size={16} />
 						</button>
 					</div>
 				</div>

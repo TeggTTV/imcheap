@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'motion/react';
 import { Transaction } from '../utils/expenseMath';
 import { formatTransactionTimestamp } from '../utils/dateUtils';
+import { LucideIcon } from './LucideIcon';
+import { Pencil, Trash2, Clock } from 'lucide-react';
 
 interface SwipeableTransactionItemProps {
 	tx: Transaction;
@@ -124,9 +126,7 @@ export const SwipeableTransactionItem: React.FC<
 				aria-hidden="true"
 			>
 				<div className="flex items-center gap-2 font-semibold text-[13px] tracking-tight">
-					<span className="material-symbols-outlined text-[20px]">
-						edit
-					</span>
+					<Pencil size={18} />
 					<span>Editing transaction</span>
 				</div>
 			</motion.div>
@@ -139,9 +139,7 @@ export const SwipeableTransactionItem: React.FC<
 			>
 				<div className="flex items-center gap-2 font-semibold text-[13px] tracking-tight">
 					<span>Deleting transaction</span>
-					<span className="material-symbols-outlined text-[20px]">
-						delete
-					</span>
+					<Trash2 size={18} />
 				</div>
 			</motion.div>
 
@@ -167,9 +165,7 @@ export const SwipeableTransactionItem: React.FC<
 					<div
 						className={`w-11 h-11 rounded-full ${palette.bg} ${palette.iconColor} flex items-center justify-center shrink-0`}
 					>
-						<span className="material-symbols-outlined text-[22px]">
-							{tx.icon}
-						</span>
+						<LucideIcon name={tx.icon} size={20} />
 					</div>
 					<div className="flex flex-col">
 						<span className="font-bold text-[15px] text-[#111111] leading-tight">
@@ -198,9 +194,7 @@ export const SwipeableTransactionItem: React.FC<
 					<div
 						className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${tx.type === 'income' ? 'bg-[#ECFCF5]' : 'bg-[#FFE4E6]'} ${tx.type === 'income' ? 'text-secondary' : 'text-error'} text-[11px] font-semibold tracking-tight tabular-nums`}
 					>
-						<span className="material-symbols-outlined text-[12px] leading-none">
-							schedule
-						</span>
+						<Clock size={12} className="leading-none" />
 						<span>{laborText}</span>
 					</div>
 				</div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Hourglass, ArrowRight } from 'lucide-react';
 
 export interface FloatingOrbitalIcon {
 	id: string;
@@ -96,14 +97,7 @@ export const IntroStep: React.FC<IntroStepProps> = ({
 				{/* Center Core Badge: High-Elevation Time Hub */}
 				<div className="relative z-10 w-20 h-20 rounded-full bg-white/90 backdrop-blur-md shadow-xl flex flex-col items-center justify-center transform active:scale-95 transition-transform duration-300">
 					<div className="w-24 h-24 rounded-full bg-[#85f8c4]/30 flex items-center justify-center">
-						<span
-							className="material-symbols-outlined text-secondary text-[28px]"
-							style={{
-								fontVariationSettings: "'FILL' 1, 'wght' 600",
-							}}
-						>
-							hourglass_top
-						</span>
+						<Hourglass size={28} className="text-secondary" />
 					</div>
 				</div>
 
@@ -170,9 +164,7 @@ export const IntroStep: React.FC<IntroStepProps> = ({
 					className="w-full h-13 rounded-2xl bg-[#111111] hover:bg-neutral-900 active:scale-[0.98] transition-transform duration-200 text-white font-bold text-[16px] flex items-center justify-center gap-2 shadow-sm cursor-pointer"
 				>
 					<span>Get Started</span>
-					<span className="material-symbols-outlined text-[18px]">
-						arrow_forward
-					</span>
+					<ArrowRight size={18} />
 				</button>
 
 				{/* Security Lock Note */}

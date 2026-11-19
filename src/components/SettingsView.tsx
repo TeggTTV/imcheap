@@ -1,6 +1,35 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
+	CheckCircle2,
+	Check,
+	Edit,
+	Calendar,
+	Clock,
+	ChevronRight,
+	Car,
+	Gauge,
+	Fuel,
+	Droplet,
+	Milestone,
+	Briefcase,
+	Zap,
+	Search,
+	Terminal,
+	RotateCw,
+	PiggyBank,
+	Lightbulb,
+	Receipt,
+	FileText,
+	FileCode,
+	Share2,
+	CreditCard,
+	Home,
+	X,
+	MapPin,
+	LocateFixed,
+} from 'lucide-react';
+import {
 	IncomeSettings,
 	BalanceSummary,
 	Transaction,
@@ -557,20 +586,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	};
 
 	// Dev Tracking Overlay & Dwell Threshold State
-	const [devTrackingOverlay, setDevTrackingOverlay] = useState<boolean>(() => {
-		if (typeof propsDevTrackingOverlay === 'boolean') {
-			return propsDevTrackingOverlay;
-		}
-		if (typeof window !== 'undefined') {
-			try {
-				return (
-					localStorage.getItem('imcheap_dev_tracking_overlay') ===
-					'true'
-				);
-			} catch {}
-		}
-		return false;
-	});
+	const [devTrackingOverlay, setDevTrackingOverlay] = useState<boolean>(
+		() => {
+			if (typeof propsDevTrackingOverlay === 'boolean') {
+				return propsDevTrackingOverlay;
+			}
+			if (typeof window !== 'undefined') {
+				try {
+					return (
+						localStorage.getItem('imcheap_dev_tracking_overlay') ===
+						'true'
+					);
+				} catch {}
+			}
+			return false;
+		},
+	);
 
 	const [destinationDwellMins, setDestinationDwellMins] = useState<number>(
 		() => {
@@ -855,9 +886,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										</span>
 									</div>
 									{tempTaxBuffer === 0 && (
-										<span className="material-symbols-outlined text-primary text-[20px]">
-											check_circle
-										</span>
+										<CheckCircle2 className="text-primary" size={20} />
 									)}
 								</button>
 							</div>
@@ -900,9 +929,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 												</span>
 											</div>
 											{tempTaxBuffer === pct && (
-												<span className="material-symbols-outlined text-primary text-[20px]">
-													check_circle
-												</span>
+												<CheckCircle2 className="text-primary" size={20} />
 											)}
 										</button>
 									))}
@@ -989,9 +1016,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 												</span>
 											</div>
 											{isSelected && (
-												<span className="material-symbols-outlined text-primary text-[20px]">
-													check_circle
-												</span>
+												<CheckCircle2 className="text-primary" size={20} />
 											)}
 										</button>
 									);
@@ -1043,9 +1068,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</div>
 								{customMpg !== null && (
 									<p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
-										<span className="material-symbols-outlined text-[14px]">
-											check
-										</span>
+										<Check size={14} />
 										Current custom: {customMpg} MPG
 									</p>
 								)}
@@ -1120,9 +1143,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 												</span>
 											</div>
 											{isSelected && (
-												<span className="material-symbols-outlined text-primary text-[20px]">
-													check_circle
-												</span>
+												<CheckCircle2 className="text-primary" size={20} />
 											)}
 										</button>
 									);
@@ -1177,9 +1198,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</div>
 								{customGas !== null && (
 									<p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
-										<span className="material-symbols-outlined text-[14px]">
-											check
-										</span>
+										<Check size={14} />
 										Current custom: ${customGas.toFixed(2)}{' '}
 										/ gallon
 									</p>
@@ -1255,9 +1274,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 												</span>
 											</div>
 											{isSelected && (
-												<span className="material-symbols-outlined text-primary text-[20px]">
-													check_circle
-												</span>
+												<CheckCircle2 className="text-primary" size={20} />
 											)}
 										</button>
 									);
@@ -1309,9 +1326,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</div>
 								{customCap !== null && (
 									<p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
-										<span className="material-symbols-outlined text-[14px]">
-											check
-										</span>
+										<Check size={14} />
 										Current custom: {customCap.toFixed(1)}{' '}
 										Gallons
 									</p>
@@ -1498,9 +1513,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								{editingShiftId && (
 									<div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-neutral-100">
 										<span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
-											<span className="material-symbols-outlined text-[16px]">
-												edit
-											</span>
+											<Edit size={16} />
 											Editing Shift
 										</span>
 										<button
@@ -1530,9 +1543,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 													selectedShiftDate,
 												)}
 											</span>
-											<span className="material-symbols-outlined text-[16px] text-neutral-400 shrink-0">
-												calendar_today
-											</span>
+											<Calendar size={16} className="text-neutral-400 shrink-0" />
 										</button>
 									</div>
 
@@ -1551,9 +1562,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											<span className="text-[12.5px] font-semibold text-neutral-800 tabular-nums truncate">
 												{formatTimeString(startTime)}
 											</span>
-											<span className="material-symbols-outlined text-[16px] text-neutral-400 shrink-0">
-												schedule
-											</span>
+											<Clock size={16} className="text-neutral-400 shrink-0" />
 										</button>
 									</div>
 
@@ -1572,9 +1581,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											<span className="text-[12.5px] font-semibold text-neutral-800 tabular-nums truncate">
 												{formatTimeString(endTime)}
 											</span>
-											<span className="material-symbols-outlined text-[16px] text-neutral-400 shrink-0">
-												schedule
-											</span>
+											<Clock size={16} className="text-neutral-400 shrink-0" />
 										</button>
 									</div>
 								</div>
@@ -1659,9 +1666,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</span>
 								<span className="text-sm font-semibold text-gray-500 flex items-center gap-0.5">
 									{taxBufferRate}%
-									<span className="material-symbols-outlined text-[16px] text-gray-400">
-										chevron_right
-									</span>
+									<ChevronRight size={16} className="text-gray-400" />
 								</span>
 							</button>
 
@@ -1673,9 +1678,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										: 'opacity-0 pointer-events-none translate-y-2'
 								}`}
 							>
-								<span className="material-symbols-outlined text-[16px] text-secondary">
-									check_circle
-								</span>
+								<CheckCircle2 size={16} className="text-secondary" />
 								<span>Shift logged successfully</span>
 							</div>
 						</div>
@@ -1708,9 +1711,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 									Marginal Running Cost
 								</span>
 								<div className="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface">
-									<span className="material-symbols-outlined text-[18px]">
-										directions_car
-									</span>
+									<Car size={18} />
 								</div>
 							</div>
 							<div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-2 mb-2">
@@ -1723,9 +1724,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 									</span>
 								</div>
 								<div className="inline-flex items-center gap-1.5 bg-secondary-container/30 px-2.5 py-1 rounded-full">
-									<span className="material-symbols-outlined text-[14px] text-secondary">
-										schedule
-									</span>
+									<Clock size={14} className="text-secondary" />
 									<span className="text-xs text-secondary font-semibold">
 										≈ 30s of work
 									</span>
@@ -1740,9 +1739,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								/>
 							</div>
 							<div className="flex items-center gap-1 text-on-surface-variant">
-								<span className="material-symbols-outlined text-[15px] text-outline">
-									local_gas_station
-								</span>
+								<Fuel size={15} className="text-outline" />
 								<p className="text-xs text-on-surface-variant">
 									Gas only • Excludes baseline vehicle
 									depreciation
@@ -1769,9 +1766,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								>
 									<div className="flex items-center gap-3">
 										<div className="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center text-on-surface">
-											<span className="material-symbols-outlined text-[16px]">
-												speed
-											</span>
+											<Gauge size={16} />
 										</div>
 										<span className="text-sm font-semibold text-on-surface">
 											Fuel Economy
@@ -1781,9 +1776,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										<span className="text-sm font-semibold text-primary">
 											{currentMpg} MPG
 										</span>
-										<span className="material-symbols-outlined text-outline text-[18px]">
-											chevron_right
-										</span>
+										<ChevronRight size={18} className="text-outline" />
 									</div>
 								</button>
 								<div className="h-px bg-slate-100 mx-4" />
@@ -1796,9 +1789,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								>
 									<div className="flex items-center gap-3">
 										<div className="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center text-on-surface">
-											<span className="material-symbols-outlined text-[16px]">
-												payments
-											</span>
+											<CreditCard size={16} />
 										</div>
 										<span className="text-sm font-semibold text-on-surface">
 											Gas Price
@@ -1808,9 +1799,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										<span className="text-sm font-semibold text-primary">
 											${currentGas.toFixed(2)}/gal
 										</span>
-										<span className="material-symbols-outlined text-outline text-[18px]">
-											chevron_right
-										</span>
+										<ChevronRight size={18} className="text-outline" />
 									</div>
 								</button>
 								<div className="h-px bg-slate-100 mx-4" />
@@ -1823,9 +1812,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								>
 									<div className="flex items-center gap-3">
 										<div className="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center text-on-surface">
-											<span className="material-symbols-outlined text-[16px]">
-												water_drop
-											</span>
+											<Droplet size={16} />
 										</div>
 										<span className="text-sm font-semibold text-on-surface">
 											Fuel Tank Capacity
@@ -1835,9 +1822,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										<span className="text-sm font-semibold text-primary">
 											{currentCap.toFixed(1)} gal
 										</span>
-										<span className="material-symbols-outlined text-outline text-[18px]">
-											chevron_right
-										</span>
+										<ChevronRight size={18} className="text-outline" />
 									</div>
 								</button>
 								<div className="h-px bg-slate-100 mx-4" />
@@ -1846,9 +1831,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								<div className="py-3.5 px-4 flex items-center justify-between bg-surface-container-lowest">
 									<div className="flex items-center gap-3">
 										<div className="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center text-outline">
-											<span className="material-symbols-outlined text-[16px]">
-												social_distance
-											</span>
+											<Milestone size={16} />
 										</div>
 										<div className="flex flex-col">
 											<span className="text-sm font-semibold text-on-surface">
@@ -1880,9 +1863,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								<div className="py-3.5 px-4 flex items-center justify-between">
 									<div className="flex items-center gap-3">
 										<div className="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface">
-											<span className="material-symbols-outlined text-[18px]">
-												work_history
-											</span>
+											<Briefcase size={18} />
 										</div>
 										<div className="flex flex-col">
 											<span className="text-sm font-semibold text-on-surface">
@@ -1906,9 +1887,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								<div className="py-3.5 px-4 flex items-center justify-between">
 									<div className="flex items-center gap-3">
 										<div className="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface">
-											<span className="material-symbols-outlined text-[18px]">
-												ev_station
-											</span>
+											<Zap size={18} />
 										</div>
 										<div className="flex flex-col">
 											<span className="text-sm font-semibold text-on-surface">
@@ -1941,9 +1920,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							<div className="bg-white rounded-xl shadow-sm border border-[#F3F4F6] p-4 flex items-center justify-between">
 								<div className="flex items-center gap-3 pr-2 min-w-0">
 									<div className="w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface shrink-0">
-										<span className="material-symbols-outlined text-[18px]">
-											location_searching
-										</span>
+										<Search size={18} />
 									</div>
 									<div className="flex flex-col min-w-0">
 										<span className="text-sm font-semibold text-on-surface truncate">
@@ -1982,16 +1959,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							<div className="bg-white rounded-xl shadow-sm border border-[#F3F4F6] p-4 flex items-center justify-between">
 								<div className="flex items-center gap-3 pr-2 min-w-0">
 									<div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center text-[#059669] shrink-0">
-										<span className="material-symbols-outlined text-[18px]">
-											terminal
-										</span>
+										<Terminal size={18} />
 									</div>
 									<div className="flex flex-col min-w-0">
 										<span className="text-sm font-semibold text-on-surface truncate">
 											Dev Tracking Overlay
 										</span>
 										<span className="text-xs text-outline leading-snug">
-											Shows live 4-state engine telemetry and desk test triggers
+											Shows live 4-state engine telemetry
+											and desk test triggers
 										</span>
 									</div>
 								</div>
@@ -2026,7 +2002,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											Destination Dwell Time
 										</span>
 										<span className="text-xs text-outline leading-snug">
-											Stationary duration before declaring a destination
+											Stationary duration before declaring
+											a destination
 										</span>
 									</div>
 									<span className="text-xs font-mono font-bold text-[#059669] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
@@ -2039,7 +2016,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										<button
 											key={mins}
 											type="button"
-											onClick={() => handleChangeDestinationDwell(mins)}
+											onClick={() =>
+												handleChangeDestinationDwell(
+													mins,
+												)
+											}
 											className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
 												destinationDwellMins === mins
 													? 'bg-[#111111] text-white shadow-xs'
@@ -2064,9 +2045,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										: 'bg-primary text-on-primary'
 								}`}
 							>
-								<span className="material-symbols-outlined text-[18px]">
-									{vehicleSaved ? 'sync' : 'check'}
-								</span>
+								{vehicleSaved ? (
+									<RotateCw size={18} className="animate-spin" />
+								) : (
+									<Check size={18} />
+								)}
 								<span>
 									{vehicleSaved ? 'SAVED!' : 'SAVE CHANGES'}
 								</span>
@@ -2103,14 +2086,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								<span className="text-[10px] font-bold uppercase text-on-surface-variant tracking-wider">
 									Lifetime Unspent Surplus
 								</span>
-								<span
-									className="material-symbols-outlined text-secondary text-[20px]"
-									style={{
-										fontVariationSettings: "'FILL' 1",
-									}}
-								>
-									savings
-								</span>
+								<PiggyBank className="text-secondary" size={20} />
 							</div>
 							<div className="text-[32px] font-bold text-secondary tracking-tight mt-1 flex items-baseline gap-1 tabular-nums">
 								{lifetimeSurplus >= 0
@@ -2143,9 +2119,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										>
 											<div className="flex items-center gap-3.5 min-w-0">
 												<div className="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center shrink-0">
-													<span className="material-symbols-outlined text-on-surface text-[20px]">
-														calendar_today
-													</span>
+													<Calendar className="text-on-surface" size={20} />
 												</div>
 												<div className="min-w-0">
 													<h4 className="font-semibold text-sm text-primary truncate">
@@ -2181,9 +2155,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						{/* Rollover Rules Callout */}
 						<div className="bg-surface-container-low rounded-xl p-4 flex items-start gap-3 shadow-sm">
 							<div className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center shrink-0 mt-0.5">
-								<span className="material-symbols-outlined text-primary text-[18px]">
-									lightbulb
-								</span>
+								<Lightbulb className="text-primary" size={18} />
 							</div>
 							<div className="space-y-1">
 								<h5 className="font-semibold text-sm text-on-surface">
@@ -2317,15 +2289,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								<div className="flex items-center justify-between p-4">
 									<div className="flex items-center gap-3 min-w-0 pr-2">
 										<div className="w-9 h-9 rounded-lg bg-surface-container-high text-primary flex items-center justify-center shrink-0">
-											<span
-												className="material-symbols-outlined text-[20px]"
-												style={{
-													fontVariationSettings:
-														"'FILL' 1",
-												}}
-											>
-												receipt_long
-											</span>
+											<Receipt size={20} />
 										</div>
 										<div className="flex flex-col min-w-0">
 											<span className="text-sm font-semibold text-primary truncate">
@@ -2365,15 +2329,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								<div className="flex items-center justify-between p-4">
 									<div className="flex items-center gap-3 min-w-0 pr-2">
 										<div className="w-9 h-9 rounded-lg bg-surface-container-high text-primary flex items-center justify-center shrink-0">
-											<span
-												className="material-symbols-outlined text-[20px]"
-												style={{
-													fontVariationSettings:
-														"'FILL' 1",
-												}}
-											>
-												schedule
-											</span>
+											<Clock size={20} />
 										</div>
 										<div className="flex flex-col min-w-0">
 											<span className="text-sm font-semibold text-primary truncate">
@@ -2413,15 +2369,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								<div className="flex items-center justify-between p-4">
 									<div className="flex items-center gap-3 min-w-0 pr-2">
 										<div className="w-9 h-9 rounded-lg bg-surface-container-high text-primary flex items-center justify-center shrink-0">
-											<span
-												className="material-symbols-outlined text-[20px]"
-												style={{
-													fontVariationSettings:
-														"'FILL' 1",
-												}}
-											>
-												directions_car
-											</span>
+											<Car size={20} />
 										</div>
 										<div className="flex flex-col min-w-0">
 											<span className="text-sm font-semibold text-primary truncate">
@@ -2473,9 +2421,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											: 'text-on-surface-variant'
 									}`}
 								>
-									<span className="material-symbols-outlined text-[18px]">
-										description
-									</span>
+									<FileText size={18} />
 									<span>Standard CSV</span>
 								</button>
 								<button
@@ -2487,9 +2433,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											: 'text-on-surface-variant'
 									}`}
 								>
-									<span className="material-symbols-outlined text-[18px]">
-										data_object
-									</span>
+									<FileCode size={18} />
 									<span>Raw JSON</span>
 								</button>
 							</div>
@@ -2502,9 +2446,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								onClick={handleExecuteExport}
 								className="w-full h-13 bg-primary text-on-primary rounded-xl text-sm font-semibold tracking-wide shadow-md active:scale-[0.98] transition-transform flex items-center justify-center gap-2 cursor-pointer"
 							>
-								<span className="material-symbols-outlined text-[20px]">
-									ios_share
-								</span>
+								<Share2 size={20} />
 								<span>
 									{exportingStatus ||
 										`SHARE / DOWNLOAD ${exportFormat}`}
@@ -2545,13 +2487,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								>
 									<div className="flex items-center gap-3.5">
 										<div className="w-10 h-10 rounded-xl bg-[#EEF2F6] flex items-center justify-center text-[#1E293B] shrink-0">
-											<span className="material-symbols-outlined text-[20px]">
-												payments
-											</span>
+											<CreditCard size={20} />
 										</div>
 										<div className="flex flex-col">
 											<span className="text-[16px] font-bold text-[#111111] leading-snug">
-												Paycheck &amp; Hours Engine
+												Paycheck &amp; Hours
 											</span>
 											<span className="text-[13px] text-[#6B7280] mt-0.5">
 												$
@@ -2561,9 +2501,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											</span>
 										</div>
 									</div>
-									<span className="material-symbols-outlined text-[22px] text-[#9CA3AF] shrink-0">
-										chevron_right
-									</span>
+									<ChevronRight size={22} className="text-[#9CA3AF] shrink-0" />
 								</button>
 							</div>
 						</section>
@@ -2607,7 +2545,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										/>
 									</button>
 								</div>
-								<div className="flex items-center justify-between p-4">
+								{/* <div className="flex items-center justify-between p-4">
 									<div className="flex flex-col pr-3">
 										<span className="text-[15px] font-semibold text-[#111111]">
 											Animations
@@ -2632,7 +2570,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											}`}
 										/>
 									</button>
-								</div>
+								</div> */}
 							</div>
 						</section>
 
@@ -2658,9 +2596,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											surplus
 										</span>
 									</div>
-									<span className="material-symbols-outlined text-[22px] text-[#9CA3AF] shrink-0">
-										chevron_right
-									</span>
+									<ChevronRight size={22} className="text-[#9CA3AF] shrink-0" />
 								</button>
 								<button
 									type="button"
@@ -2675,9 +2611,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											Download local ledger file
 										</span>
 									</div>
-									<span className="material-symbols-outlined text-[22px] text-[#9CA3AF] shrink-0">
-										chevron_right
-									</span>
+									<ChevronRight size={22} className="text-[#9CA3AF] shrink-0" />
 								</button>
 							</div>
 						</section>
@@ -2886,9 +2820,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						<div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-4 border border-gray-100">
 							<div className="flex items-center justify-between">
 								<div className="flex items-center gap-2">
-									<span className="material-symbols-outlined text-[22px] text-secondary">
-										home
-									</span>
+									<Home size={22} className="text-secondary" />
 									<h3 className="text-[16px] font-bold text-[#111111]">
 										Set Home Address
 									</h3>
@@ -2901,9 +2833,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 									data-testid="close-address-modal-btn"
 									className="w-8 h-8 rounded-full text-gray-400 hover:text-gray-700 flex items-center justify-center cursor-pointer"
 								>
-									<span className="material-symbols-outlined text-[20px]">
-										close
-									</span>
+									<X size={20} />
 								</button>
 							</div>
 
@@ -2927,9 +2857,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								/>
 								{isSearchingAddress && (
 									<div className="absolute right-3 top-2.5">
-										<span className="material-symbols-outlined text-[18px] text-gray-400 animate-spin">
-											progress_activity
-										</span>
+										<RotateCw size={18} className="text-gray-400 animate-spin" />
 									</div>
 								)}
 							</div>
@@ -2947,9 +2875,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											}
 											className="w-full text-left p-2.5 hover:bg-neutral-50 transition-colors text-[13px] text-[#111111] font-medium flex items-start gap-2 cursor-pointer"
 										>
-											<span className="material-symbols-outlined text-[16px] text-gray-400 shrink-0 mt-0.5">
-												place
-											</span>
+											<MapPin size={16} className="text-gray-400 shrink-0 mt-0.5" />
 											<span className="truncate">
 												{item.label}
 											</span>
@@ -2964,9 +2890,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 									onClick={handleUseCurrentGpsAsHome}
 									className="w-full py-2.5 px-3 rounded-xl border border-gray-200 text-[#111111] font-bold text-[13px] hover:bg-neutral-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
 								>
-									<span className="material-symbols-outlined text-[18px]">
-										my_location
-									</span>
+									<LocateFixed size={18} />
 									<span>Use Current Location as Home</span>
 								</button>
 							</div>

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { motion, useMotionValue, useTransform, PanInfo } from 'motion/react';
 import { PresetItem } from '../utils/expenseMath';
+import { LucideIcon } from './LucideIcon';
+import { Pencil, Trash2, Pin } from 'lucide-react';
 
 interface SwipeablePresetItemProps {
 	preset: PresetItem;
@@ -71,9 +73,7 @@ export const SwipeablePresetItem: React.FC<SwipeablePresetItemProps> = ({
 				aria-hidden="true"
 			>
 				<div className="flex items-center gap-2 font-semibold text-[13px] tracking-tight">
-					<span className="material-symbols-outlined text-[20px]">
-						edit
-					</span>
+					<Pencil size={18} />
 					<span>Editing preset</span>
 				</div>
 			</motion.div>
@@ -86,9 +86,7 @@ export const SwipeablePresetItem: React.FC<SwipeablePresetItemProps> = ({
 			>
 				<div className="flex items-center gap-2 font-semibold text-[13px] tracking-tight">
 					<span>Deleting preset</span>
-					<span className="material-symbols-outlined text-[20px]">
-						delete
-					</span>
+					<Trash2 size={18} />
 				</div>
 			</motion.div>
 
@@ -120,9 +118,7 @@ export const SwipeablePresetItem: React.FC<SwipeablePresetItemProps> = ({
 							color: preset.iconColor,
 						}}
 					>
-						<span className="material-symbols-outlined text-[20px]">
-							{preset.icon}
-						</span>
+						<LucideIcon name={preset.icon} size={20} />
 					</div>
 					<div className="flex flex-col min-w-0">
 						<span className="text-[14px] font-bold text-[#111111] truncate">
@@ -144,9 +140,7 @@ export const SwipeablePresetItem: React.FC<SwipeablePresetItemProps> = ({
 						</span>
 					) : (
 						<span className="bg-neutral-100 text-neutral-600 hover:bg-neutral-200 px-2.5 py-0.5 rounded-full text-[11px] font-semibold flex items-center gap-1 transition-colors">
-							<span className="material-symbols-outlined text-[13px]">
-								push_pin
-							</span>
+							<Pin size={12} />
 							Pin
 						</span>
 					)}

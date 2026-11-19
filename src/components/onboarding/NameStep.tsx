@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface NameStepProps {
 	onNext: () => void;
@@ -142,9 +143,7 @@ export const NameStep: React.FC<NameStepProps> = ({
 							transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
 							className="fixed bottom-28 inset-x-4 max-w-[340px] mx-auto bg-black text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center justify-center gap-2 z-50 pointer-events-none"
 						>
-							<span className="material-symbols-outlined text-[18px] text-emerald-400">
-								auto_awesome
-							</span>
+							<Sparkles size={18} className="text-emerald-400" />
 							<span className="text-[17px] font-bold tracking-tight">
 								Nice to meet you, {displayName}!
 							</span>
@@ -177,9 +176,7 @@ export const NameStep: React.FC<NameStepProps> = ({
 						onClick={onBack}
 						className="h-[52px] px-6 rounded-2xl bg-neutral-100 hover:bg-neutral-200 text-[#1c1b1b] text-[14px] font-semibold flex items-center justify-center gap-1 active:scale-[0.98] transition-all cursor-pointer"
 					>
-						<span className="material-symbols-outlined text-[18px]">
-							chevron_left
-						</span>
+						<ChevronLeft size={18} />
 						<span>Back</span>
 					</button>
 
@@ -190,9 +187,7 @@ export const NameStep: React.FC<NameStepProps> = ({
 						className="flex-1 h-[52px] px-6 rounded-2xl bg-[#111111] hover:bg-neutral-800 text-white text-[14px] font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-md cursor-pointer uppercase tracking-wider disabled:opacity-80"
 					>
 						<span>Continue</span>
-						<span className="material-symbols-outlined text-[18px]">
-							chevron_right
-						</span>
+						<ChevronRight size={18} />
 					</button>
 				</div>
 			</div>
