@@ -3,7 +3,7 @@ import { Reorder } from 'motion/react';
 import { PresetItem } from '../utils/expenseMath';
 import { SwipeablePresetItem } from './SwipeablePresetItem';
 import { LucideIcon } from './LucideIcon';
-import { GripVertical, Plus } from 'lucide-react';
+import { GripVertical, Plus, Bookmark } from 'lucide-react';
 
 export interface PresetsViewProps {
 	presets: PresetItem[];
@@ -65,9 +65,7 @@ export const PresetsView: React.FC<PresetsViewProps> = ({
 				{pinnedPresets.length === 0 ? (
 					<div className="py-8 text-center text-on-surface-variant flex flex-col items-center justify-center gap-1.5">
 						<div className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant mb-1">
-							<span className="material-symbols-outlined text-[20px]">
-								bookmark_border
-							</span>
+							<Bookmark size={20} />
 						</div>
 						<span className="text-[14px] font-semibold text-[#111111]">
 							No pinned presets yet.

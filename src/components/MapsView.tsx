@@ -850,6 +850,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 								<span className="material-symbols-outlined text-[20px]">
 									directions_car
 								</span>
+								<Car size={20} />
 							</div>
 							<p className="text-body-sm font-medium text-neutral-600">
 								No recorded trips yet.

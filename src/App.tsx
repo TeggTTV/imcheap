@@ -1120,16 +1120,15 @@ export default function App() {
 												className="flex flex-col items-center bg-white justify-center active:scale-95 transition-all rounded-2xl p-3 w-21 h-24.5 shrink-0 cursor-pointer shadow-xs"
 											>
 												<div className="w-10 h-10 rounded-full flex items-center justify-center mb-2">
-													<span
-														className="material-symbols-outlined text-[20px]"
+													<LucideIcon
+														name={preset.icon}
+														size={20}
 														style={{
 															color:
 																preset.iconColor ||
 																'#111111',
 														}}
-													>
-														{preset.icon}
-													</span>
+													/>
 												</div>
 												<span className="text-[12px] font-bold text-[#111111] truncate w-full text-center">
 													{preset.label}
