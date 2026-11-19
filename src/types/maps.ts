@@ -72,6 +72,7 @@ export interface SavedLocation {
 	lat: number;
 	lng: number;
 	icon: string;
+	radius?: number; // Geofence radius in meters (50m - 1000m, default 150m)
 	isHome?: boolean;
 	isVisibleOnMap: boolean;
 	createdAt?: string;

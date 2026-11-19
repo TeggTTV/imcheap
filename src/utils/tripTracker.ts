@@ -13,6 +13,7 @@ import {
 	fetchRoadRoute,
 	reverseGeocode,
 } from './mapRouting';
+import { getSavedLocations } from './savedLocations';
 import { chaikinSmooth } from './geoSmoothing';
 
 export type { SavedHomeAddress };
@@ -90,6 +91,7 @@ export function saveTripEngineConfig(config: Partial<TripEngineConfig>): void {
 interface ActiveTripInternal {
 	originName: string;
 	originCoord: Coordinate;
+	destinationName?: string;
 	startTime: number;
 	path: Array<{ lat: number; lng: number; timestamp: number }>;
 	waypoints: TripWaypoint[];
@@ -562,6 +564,12 @@ export class AutomaticTripDetectionService {
 						) {
 							// TRANSITION: DRIVING -> STOPPED_EVALUATING
 							this.engineState = 'STOPPED_EVALUATING';
+							// Check if user is already inside a saved marker radius upon stopping
+							this.resolveLocationName(coord).then((name) => {
+								if (this.activeTrip && name && name !== 'Stationary Stop' && name !== 'Waypoint') {
+									this.activeTrip.destinationName = name;
+								}
+							});
 						}
 					}
 				} else {
@@ -857,6 +865,23 @@ export class AutomaticTripDetectionService {
 	}
 
 	public async resolveLocationName(coord: Coordinate): Promise<string> {
+		// Check all saved locations first, matching within their custom radius (converted to miles)
+		try {
+			const saved = getSavedLocations();
+			for (const loc of saved) {
+				const radiusMiles = (loc.radius || 150) / 1609.344;
+				const dist = haversineDistanceMiles(coord, {
+					lat: loc.lat,
+					lng: loc.lng,
+				});
+				if (dist <= radiusMiles) {
+					return loc.name;
+				}
+			}
+		} catch (e) {
+			console.warn('Error reading saved locations in resolveLocationName', e);
+		}
+
 		const distToHome = haversineDistanceMiles(coord, {
 			lat: this.homeAddress.lat,
 			lng: this.homeAddress.lng,

@@ -22,6 +22,7 @@ interface LocationActionDockProps {
 	onSave: (location: SavedLocation) => void;
 	initialLocation?: SavedLocation | null;
 	currentGps?: Coordinate;
+	onPreviewRadiusChange?: (preview: { lat: number; lng: number; radius: number } | null) => void;
 }
 
 export const LocationActionDock: React.FC<LocationActionDockProps> = ({
@@ -30,12 +31,14 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 	onSave,
 	initialLocation,
 	currentGps,
+	onPreviewRadiusChange,
 }) => {
 	const [name, setName] = useState('');
 	const [address, setAddress] = useState('');
 	const [lat, setLat] = useState<number>(39.7032);
 	const [lng, setLng] = useState<number>(-75.122);
 	const [icon, setIcon] = useState('pin_drop');
+	const [radius, setRadius] = useState<number>(150);
 	const [isVisibleOnMap, setIsVisibleOnMap] = useState(true);
 	const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
 	const [isSearchingGps, setIsSearchingGps] = useState(false);
@@ -56,6 +59,7 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 				setLat(initialLocation.lat);
 				setLng(initialLocation.lng);
 				setIcon(initialLocation.icon || (initialLocation.isHome ? 'home' : 'pin_drop'));
+				setRadius(initialLocation.radius || 150);
 				setIsVisibleOnMap(initialLocation.isVisibleOnMap !== false);
 			} else {
 				setName('');
@@ -69,10 +73,22 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 					setAddress('');
 				}
 				setIcon('pin_drop');
+				setRadius(150);
 				setIsVisibleOnMap(true);
 			}
+		} else {
+			onPreviewRadiusChange?.(null);
 		}
-	}, [isOpen, initialLocation, currentGps]);
+	}, [isOpen, initialLocation, currentGps, onPreviewRadiusChange]);
+
+	// Keep parent map notified of live marker coordinates and radius changes
+	useEffect(() => {
+		if (isOpen) {
+			onPreviewRadiusChange?.({ lat, lng, radius });
+		} else {
+			onPreviewRadiusChange?.(null);
+		}
+	}, [isOpen, lat, lng, radius, onPreviewRadiusChange]);
 
 	const handleAddressChange = (val: string) => {
 		setAddress(val);
@@ -128,6 +144,7 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 			lat,
 			lng,
 			icon,
+			radius,
 			isHome: initialLocation?.isHome || false,
 			isVisibleOnMap,
 			createdAt: initialLocation?.createdAt || new Date().toISOString(),
@@ -140,22 +157,12 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 		<AnimatePresence>
 			{isOpen && (
 				<div
-					className="fixed inset-0 z-50 flex flex-col justify-end"
+					className="fixed inset-0 z-50 flex flex-col justify-end pointer-events-none"
 					role="dialog"
 					aria-modal="true"
 					aria-label={initialLocation ? 'Edit Location' : 'New Marker'}
 				>
-					{/* Dimmed Scrim with fade */}
-					<motion.div
-						initial={{ opacity: 0 }}
-						animate={{ opacity: 1 }}
-						exit={{ opacity: 0 }}
-						transition={{ duration: 0.22, ease: 'easeOut' }}
-						onClick={onClose}
-						className="fixed inset-0 bg-primary/40 backdrop-blur-[2px] cursor-pointer"
-					/>
-
-					{/* Modal Bottom Sheet presentation matching dashboard dock */}
+					{/* Modal Bottom Sheet presentation matching dashboard dock - no dimmed scrim */}
 					<motion.div
 						drag="y"
 						dragConstraints={{ top: 0, bottom: 0 }}
@@ -174,7 +181,7 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 							damping: 28,
 							stiffness: 320,
 						}}
-						className="relative z-50 w-full max-w-120 mx-auto bg-white rounded-t-[28px] shadow-2xl flex flex-col max-h-[88vh] overflow-hidden select-none pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
+						className="relative z-50 w-full max-w-120 mx-auto bg-white rounded-t-[28px] shadow-2xl flex flex-col max-h-[75vh] overflow-hidden select-none pb-[calc(1.5rem+env(safe-area-inset-bottom))] pointer-events-auto border-t border-neutral-100"
 					>
 						{/* Top Pill Grab Handle */}
 						<div
@@ -338,29 +345,35 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 									)}
 								</div>
 
-								{/* Show on Map Toggle */}
-								<div className="flex items-center justify-between p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200/70 mt-1">
-									<div className="flex flex-col">
-										<span className="text-[14px] font-bold text-[#111111]">
-											Show marker on map
-										</span>
-										<span className="text-[12px] text-neutral-500 font-medium">
-											Always render this location's pin on the map
+								{/* Radius Slider Input */}
+								<div className="flex flex-col gap-2.5 p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200/70 mt-1">
+									<div className="flex items-center justify-between">
+										<div className="flex flex-col">
+											<span className="text-[14px] font-bold text-[#111111]">
+												Marker Radius
+											</span>
+											<span className="text-[12px] text-neutral-500 font-medium">
+												Geofence zone for detecting arrivals
+											</span>
+										</div>
+										<span className="text-[14px] font-bold font-mono tabular-nums text-[#059669] bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200/60">
+											{radius}m
 										</span>
 									</div>
-									<button
-										type="button"
-										onClick={() => setIsVisibleOnMap(!isVisibleOnMap)}
-										className={`w-12 h-7 rounded-full p-1 transition-colors cursor-pointer flex items-center ${
-											isVisibleOnMap ? 'bg-[#111111]' : 'bg-neutral-300'
-										}`}
-									>
-										<div
-											className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${
-												isVisibleOnMap ? 'translate-x-5' : 'translate-x-0'
-											}`}
-										/>
-									</button>
+									<input
+										type="range"
+										min="50"
+										max="1000"
+										step="10"
+										value={radius}
+										onChange={(e) => setRadius(parseInt(e.target.value, 10) || 150)}
+										className="w-full custom-slider cursor-pointer my-1"
+									/>
+									<div className="flex justify-between text-[11px] font-medium text-neutral-400 px-0.5">
+										<span>50m (single spot)</span>
+										<span>500m</span>
+										<span>1000m (campus)</span>
+									</div>
 								</div>
 
 								{/* Submit Button */}

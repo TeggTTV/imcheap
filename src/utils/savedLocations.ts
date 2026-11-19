@@ -30,11 +30,17 @@ export function getSavedLocations(): SavedLocation[] {
 		lat: home.lat,
 		lng: home.lng,
 		icon: 'home',
+		radius: homeIndex >= 0 ? storedLocations[homeIndex].radius || 150 : 150,
 		isHome: true,
 		isVisibleOnMap: homeIndex >= 0 ? storedLocations[homeIndex].isVisibleOnMap : true,
 	};
 
-	const nonHomeLocations = storedLocations.filter((loc) => !loc.isHome);
+	const nonHomeLocations = storedLocations
+		.filter((loc) => !loc.isHome)
+		.map((loc) => ({
+			...loc,
+			radius: loc.radius || 150,
+		}));
 	return [homeLocation, ...nonHomeLocations];
 }
 

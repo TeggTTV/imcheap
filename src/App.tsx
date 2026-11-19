@@ -32,6 +32,7 @@ import { IconPickerDrawer } from './components/IconPickerDrawer';
 import { LocationsView } from './components/LocationsView';
 import { VehicleSettingsView } from './components/VehicleSettingsView';
 import { getSavedLocations, saveLocations } from './utils/savedLocations';
+import { SavedLocation } from './types/maps';
 import { LucideIcon } from './components/LucideIcon';
 import {
 	Plus,
@@ -562,6 +563,9 @@ export default function App() {
 	const [savedLocations, setSavedLocations] = useState(() => {
 		return getSavedLocations();
 	});
+
+	// Marker being edited on the map from Locations view
+	const [editingLocationFromLocationsList, setEditingLocationFromLocationsList] = useState<SavedLocation | null>(null);
 
 	const [trackingStatus, setTrackingStatus] = useState<LiveTrackingStatus>({
 		state: 'LOCATING',
@@ -1733,6 +1737,11 @@ export default function App() {
 									lng: homeLoc.lng,
 								});
 							}}
+							initialEditLocation={editingLocationFromLocationsList}
+							onCloseEditLocation={() => {
+								setEditingLocationFromLocationsList(null);
+								setActiveTab('locations');
+							}}
 							onDockStateChange={setIsSecondaryDockOpen}
 						/>
 					)}
@@ -1754,6 +1763,10 @@ export default function App() {
 							}}
 							onBack={() => setActiveTab('maps')}
 							currentGps={userLocation}
+							onEditLocationOnMap={(location) => {
+								setEditingLocationFromLocationsList(location);
+								setActiveTab('maps');
+							}}
 							onDockStateChange={setIsSecondaryDockOpen}
 						/>
 					)}

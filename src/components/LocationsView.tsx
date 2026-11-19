@@ -11,6 +11,7 @@ interface LocationsViewProps {
 	onBack: () => void;
 	currentGps?: Coordinate;
 	onCreateNewRequest?: () => void;
+	onEditLocationOnMap?: (location: SavedLocation) => void;
 	onDockStateChange?: (isOpen: boolean) => void;
 }
 
@@ -20,6 +21,7 @@ export const LocationsView: React.FC<LocationsViewProps> = ({
 	onBack,
 	currentGps,
 	onCreateNewRequest,
+	onEditLocationOnMap,
 	onDockStateChange,
 }) => {
 	const [editingLocation, setEditingLocation] =
@@ -40,6 +42,10 @@ export const LocationsView: React.FC<LocationsViewProps> = ({
 	};
 
 	const handleOpenEdit = (loc: SavedLocation) => {
+		if (onEditLocationOnMap) {
+			onEditLocationOnMap(loc);
+			return;
+		}
 		setEditingLocation(loc);
 		setIsActionDockOpen(true);
 	};

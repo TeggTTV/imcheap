@@ -52,6 +52,8 @@ export interface MapsViewProps {
 	onEndTripDirect?: (destName?: string, coord?: Coordinate) => void;
 	onUpdateHomeLocation?: (homeLocation: SavedLocation) => void;
 	onDockStateChange?: (isOpen: boolean) => void;
+	initialEditLocation?: SavedLocation | null;
+	onCloseEditLocation?: () => void;
 }
 
 const DEFAULT_CENTER: [number, number] = [39.7032, -75.122]; // Glassboro, NJ
@@ -77,6 +79,8 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	onEndTripDirect,
 	onUpdateHomeLocation,
 	onDockStateChange,
+	initialEditLocation,
+	onCloseEditLocation,
 }) => {
 	// Check if Maps Onboarding is required
 	const [isMapsOnboardingOpen, setIsMapsOnboardingOpen] = useState<boolean>(
@@ -102,6 +106,36 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	// Floating 3-option menu state
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const [isCreateMarkerOpen, setIsCreateMarkerOpen] = useState(false);
+	const [activeEditingLocation, setActiveEditingLocation] = useState<SavedLocation | null>(null);
+
+	// Sync initialEditLocation passed from parent (e.g. from Locations page)
+	useEffect(() => {
+		if (initialEditLocation) {
+			setActiveEditingLocation(initialEditLocation);
+			setIsCreateMarkerOpen(true);
+			if (mapInstanceRef.current) {
+				mapInstanceRef.current.invalidateSize();
+				mapInstanceRef.current.setView(
+					[initialEditLocation.lat, initialEditLocation.lng],
+					17,
+					{ animate: true },
+				);
+			} else {
+				// If map container is still mounting, retry right after render
+				const timer = setTimeout(() => {
+					if (mapInstanceRef.current) {
+						mapInstanceRef.current.invalidateSize();
+						mapInstanceRef.current.setView(
+							[initialEditLocation.lat, initialEditLocation.lng],
+							17,
+							{ animate: true },
+						);
+					}
+				}, 100);
+				return () => clearTimeout(timer);
+			}
+		}
+	}, [initialEditLocation]);
 
 	// Arrival prompt state
 	const [arrivalPromptLocation, setArrivalPromptLocation] =
@@ -156,6 +190,12 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	const devRadiusCircleRef = useRef<L.Circle | null>(null);
 	const markersLayerRef = useRef<L.LayerGroup | null>(null);
 	const savedLocationsMarkersRef = useRef<L.LayerGroup | null>(null);
+	const previewCircleRef = useRef<L.Circle | null>(null);
+	const [previewRadiusData, setPreviewRadiusData] = useState<{
+		lat: number;
+		lng: number;
+		radius: number;
+	} | null>(null);
 	const userMarkerRef = useRef<L.Marker | null>(null);
 	const animFrameRef = useRef<number | null>(null);
 	const currentAnimPosRef = useRef<Coordinate>(userLocation);
@@ -277,9 +317,14 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		if (!mapContainerRef.current) return;
 		if (mapInstanceRef.current) return;
 
+		const targetCenter: [number, number] = initialEditLocation
+			? [initialEditLocation.lat, initialEditLocation.lng]
+			: [displayedUserLocation.lat, displayedUserLocation.lng];
+		const targetZoom = initialEditLocation ? 17 : 15;
+
 		const map = L.map(mapContainerRef.current, {
-			center: [displayedUserLocation.lat, displayedUserLocation.lng],
-			zoom: 15,
+			center: targetCenter,
+			zoom: targetZoom,
 			zoomControl: false,
 			attributionControl: false,
 		});
@@ -324,7 +369,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		};
 	}, []);
 
-	// Render / Update Saved Location Markers on map
+	// Render / Update Saved Location Markers & Radius Circles on map
 	useEffect(() => {
 		if (!mapInstanceRef.current || !savedLocationsMarkersRef.current)
 			return;
@@ -335,6 +380,18 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			if (loc.isVisibleOnMap === false) return;
 
 			const isHome = loc.isHome;
+			const radius = loc.radius || 150;
+
+			// Always display the radius of markers on the map: faint background color, no border
+			L.circle([loc.lat, loc.lng], {
+				radius,
+				color: isHome ? '#059669' : '#111111',
+				weight: 0,
+				fillColor: isHome ? '#059669' : '#111111',
+				fillOpacity: 0.08,
+				interactive: false,
+			}).addTo(group);
+
 			const svgContent = isHome
 				? getLucideIconSvgString('home', '#059669', 18)
 				: getLucideIconSvgString(loc.icon || 'pin_drop', '#111111', 17);
@@ -352,14 +409,61 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				iconAnchor: [16, 16],
 			});
 
-			L.marker([loc.lat, loc.lng], {
+			const marker = L.marker([loc.lat, loc.lng], {
 				icon: pinIcon,
 				zIndexOffset: isHome ? 900 : 850,
 			})
 				.addTo(group)
 				.bindTooltip(loc.name, { direction: 'top', offset: [0, -12] });
+
+			// Tap marker on map to center on it and open the edit dock
+			marker.on('click', () => {
+				setActiveEditingLocation(loc);
+				setIsCreateMarkerOpen(true);
+				if (mapInstanceRef.current) {
+					mapInstanceRef.current.setView([loc.lat, loc.lng], 17, {
+						animate: true,
+					});
+				}
+			});
 		});
 	}, [savedLocations]);
+
+	// Render dynamic preview radius circle when creating or editing a marker in the dock
+	useEffect(() => {
+		if (!mapInstanceRef.current) return;
+		const map = mapInstanceRef.current;
+
+		if (!previewRadiusData) {
+			if (previewCircleRef.current) {
+				map.removeLayer(previewCircleRef.current);
+				previewCircleRef.current = null;
+			}
+			return;
+		}
+
+		if (previewCircleRef.current) {
+			previewCircleRef.current.setLatLng([
+				previewRadiusData.lat,
+				previewRadiusData.lng,
+			]);
+			previewCircleRef.current.setRadius(previewRadiusData.radius);
+		} else {
+			const circle = L.circle(
+				[previewRadiusData.lat, previewRadiusData.lng],
+				{
+					radius: previewRadiusData.radius,
+					color: '#059669',
+					weight: 1.5,
+					dashArray: '4, 4',
+					fillColor: '#059669',
+					fillOpacity: 0.15,
+					interactive: false,
+				},
+			).addTo(map);
+			previewCircleRef.current = circle;
+		}
+	}, [previewRadiusData]);
 
 	// Animate user marker position smoothly
 	useEffect(() => {
@@ -400,7 +504,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		};
 	}, [displayedUserLocation]);
 
-	// Draw live driving trail
+	// Draw live driving trail (hidden if viewing a selected historical trip to avoid 2 lines showing)
 	useEffect(() => {
 		if (!mapInstanceRef.current) return;
 		const map = mapInstanceRef.current;
@@ -410,7 +514,8 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			trackingStatus?.isDriving ||
 			trackingStatus?.state === 'TRACKING_TRIP';
 
-		if (!isDriving || liveBreadcrumbs.length < 2) {
+		// If user selected a past trip, or is not actively tracking, remove the live polyline
+		if (activeTripId !== null || !isDriving || liveBreadcrumbs.length < 2) {
 			if (livePolylineLayerRef.current) {
 				map.removeLayer(livePolylineLayerRef.current);
 				livePolylineLayerRef.current = null;
@@ -444,6 +549,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		trackingStatus?.liveBreadcrumbs,
 		trackingStatus?.isDriving,
 		trackingStatus?.state,
+		activeTripId,
 	]);
 
 	// Draw static 100m departure geofence circle around Home when dev indicator is active
@@ -492,15 +598,16 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			return;
 		}
 
-		// Check distance to all saved locations
+		// Check distance to all saved locations against each marker's configured radius
 		let arrivedLoc: SavedLocation | null = null;
 		for (const loc of savedLocations) {
+			const markerRadiusMeters = loc.radius || 150;
 			const distMeters =
 				haversineDistanceMiles(userLocation, {
 					lat: loc.lat,
 					lng: loc.lng,
 				}) * 1609.344;
-			if (distMeters <= 85) {
+			if (distMeters <= markerRadiusMeters) {
 				arrivedLoc = loc;
 				break;
 			}
@@ -514,13 +621,14 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				setArrivalPromptLocation(arrivedLoc);
 			}
 		} else if (arrivalPromptLocation) {
-			// Auto dismiss once user drives away (> 150m)
+			// Auto dismiss once user drives away (> radius + 50m)
+			const dismissThreshold = (arrivalPromptLocation.radius || 150) + 50;
 			const distAwayMeters =
 				haversineDistanceMiles(userLocation, {
 					lat: arrivalPromptLocation.lat,
 					lng: arrivalPromptLocation.lng,
 				}) * 1609.344;
-			if (distAwayMeters > 150) {
+			if (distAwayMeters > dismissThreshold) {
 				setArrivalPromptLocation(null);
 			}
 		}
@@ -648,10 +756,51 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		);
 	};
 
-	const handleSaveNewLocation = (newLoc: SavedLocation) => {
-		const next = [...savedLocations, newLoc];
-		onUpdateLocations(next);
+	const handleSaveLocation = (savedLoc: SavedLocation) => {
+		const existingIndex = savedLocations.findIndex((l) => l.id === savedLoc.id);
+		let updated: SavedLocation[];
+		if (existingIndex >= 0) {
+			updated = [...savedLocations];
+			updated[existingIndex] = savedLoc;
+		} else {
+			updated = [...savedLocations, savedLoc];
+		}
+		onUpdateLocations(updated);
 		setIsCreateMarkerOpen(false);
+		setActiveEditingLocation(null);
+		setPreviewRadiusData(null);
+
+		// Re-center on user position with standard zoom when closed/saved
+		if (mapInstanceRef.current && displayedUserLocation) {
+			mapInstanceRef.current.setView(
+				[displayedUserLocation.lat, displayedUserLocation.lng],
+				15,
+				{ animate: true },
+			);
+		}
+
+		if (initialEditLocation && onCloseEditLocation) {
+			onCloseEditLocation();
+		}
+	};
+
+	const handleCloseMarkerDock = () => {
+		setIsCreateMarkerOpen(false);
+		setActiveEditingLocation(null);
+		setPreviewRadiusData(null);
+
+		// Re-center on user position with standard zoom when closed
+		if (mapInstanceRef.current && displayedUserLocation) {
+			mapInstanceRef.current.setView(
+				[displayedUserLocation.lat, displayedUserLocation.lng],
+				15,
+				{ animate: true },
+			);
+		}
+
+		if (initialEditLocation && onCloseEditLocation) {
+			onCloseEditLocation();
+		}
 	};
 
 	const handleEndTripConfirmed = () => {
@@ -702,93 +851,15 @@ export const MapsView: React.FC<MapsViewProps> = ({
 					}}
 				/>
 
-				{/* Floating Bottom-Right Buttons Stack */}
-				<div className="absolute bottom-3.5 right-3.5 z-20 flex flex-col items-end gap-2.5">
-					{/* Pop-up 3-Option Select Menu */}
-					<AnimatePresence>
-						{isMenuOpen && (
-							<motion.div
-								initial={{ opacity: 0, scale: 0.9, y: 10 }}
-								animate={{ opacity: 1, scale: 1, y: 0 }}
-								exit={{ opacity: 0, scale: 0.9, y: 10 }}
-								transition={{ duration: 0.16, ease: 'easeOut' }}
-								className="bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 flex flex-col gap-1 w-48 mb-1"
-							>
-								{/* Option 1: Locations */}
-								<button
-									type="button"
-									onClick={() => {
-										setIsMenuOpen(false);
-										onOpenLocationsPage();
-									}}
-									className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
-								>
-									<List
-										size={18}
-										className="text-[#059669]"
-									/>
-									<span>Locations</span>
-								</button>
-
-								{/* Option 2: Create Marker */}
-								<button
-									type="button"
-									onClick={() => {
-										setIsMenuOpen(false);
-										setIsCreateMarkerOpen(true);
-									}}
-									className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
-								>
-									<MapPinPlus
-										size={18}
-										className="text-[#111111]"
-									/>
-									<span>Create Marker</span>
-								</button>
-
-								{/* Option 3: Vehicle Settings */}
-								<button
-									type="button"
-									onClick={() => {
-										setIsMenuOpen(false);
-										onOpenVehicleSettings();
-									}}
-									className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
-								>
-									<Car
-										size={18}
-										className="text-neutral-600"
-									/>
-									<span>Vehicle Settings</span>
-								</button>
-							</motion.div>
-						)}
-					</AnimatePresence>
-
-					{/* Marker Options Floating Trigger Button */}
-					<button
-						type="button"
-						onClick={() => setIsMenuOpen(!isMenuOpen)}
-						aria-label="Locations and Vehicle Menu"
-						className={`w-10 h-10 rounded-full bg-white shadow-md border border-neutral-200/60 flex items-center justify-center transition-all cursor-pointer ${
-							isMenuOpen
-								? 'bg-neutral-900 text-white'
-								: 'text-[#111111] hover:bg-neutral-50'
-						}`}
-					>
-						{isMenuOpen ? <X size={18} /> : <MapPin size={18} />}
-					</button>
-
-					{/* Recenter Target Button */}
-					<button
-						type="button"
-						onClick={handleCenterOnMe}
-						aria-label="Center on live location"
-						className="w-10 h-10 rounded-full bg-white shadow-md border border-neutral-200/60 flex items-center justify-center text-[#111111] hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
-					>
-						<LocateFixed size={18} />
-					</button>
-				</div>
+				{/* Recenter Target Button on Map */}
+				<button
+					type="button"
+					onClick={handleCenterOnMe}
+					aria-label="Center on live location"
+					className="absolute bottom-3.5 right-3.5 z-20 w-10 h-10 rounded-full bg-white shadow-md border border-neutral-200/60 flex items-center justify-center text-[#111111] hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
+				>
+					<LocateFixed size={18} />
+				</button>
 
 				{/* Location Access Disabled Dimmed Overlay */}
 				{!isLocationEnabled && (
@@ -878,13 +949,94 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				</div>
 			</section>
 
-			{/* Create Marker Action Dock */}
+			{/* Create / Edit Marker Action Dock */}
 			<LocationActionDock
 				isOpen={isCreateMarkerOpen}
-				onClose={() => setIsCreateMarkerOpen(false)}
-				onSave={handleSaveNewLocation}
+				onClose={handleCloseMarkerDock}
+				onSave={handleSaveLocation}
+				initialLocation={activeEditingLocation}
 				currentGps={userLocation}
+				onPreviewRadiusChange={setPreviewRadiusData}
 			/>
+
+			{/* Floating Bottom-Right 3-Option Select Menu on Screen (above bottom nav bar) */}
+			<div className="fixed bottom-20 right-4 z-40 flex flex-col items-end gap-2.5 pointer-events-auto">
+				{/* Pop-up 3-Option Select Menu */}
+				<AnimatePresence>
+					{isMenuOpen && (
+						<motion.div
+							initial={{ opacity: 0, scale: 0.9, y: 10 }}
+							animate={{ opacity: 1, scale: 1, y: 0 }}
+							exit={{ opacity: 0, scale: 0.9, y: 10 }}
+							transition={{ duration: 0.16, ease: 'easeOut' }}
+							className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-1.5 flex flex-col gap-1 w-48 mb-1"
+						>
+							{/* Option 1: Locations */}
+							<button
+								type="button"
+								onClick={() => {
+									setIsMenuOpen(false);
+									onOpenLocationsPage();
+								}}
+								className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
+							>
+								<List
+									size={18}
+									className="text-[#059669]"
+								/>
+								<span>Locations</span>
+							</button>
+
+							{/* Option 2: Create Marker */}
+							<button
+								type="button"
+								onClick={() => {
+									setIsMenuOpen(false);
+									setActiveEditingLocation(null);
+									setIsCreateMarkerOpen(true);
+								}}
+								className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
+							>
+								<MapPinPlus
+									size={18}
+									className="text-[#111111]"
+								/>
+								<span>Create Marker</span>
+							</button>
+
+							{/* Option 3: Vehicle Settings */}
+							<button
+								type="button"
+								onClick={() => {
+									setIsMenuOpen(false);
+									onOpenVehicleSettings();
+								}}
+								className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
+							>
+								<Car
+									size={18}
+									className="text-neutral-600"
+								/>
+								<span>Vehicle Settings</span>
+							</button>
+						</motion.div>
+					)}
+				</AnimatePresence>
+
+				{/* Floating Trigger Button */}
+				<button
+					type="button"
+					onClick={() => setIsMenuOpen(!isMenuOpen)}
+					aria-label="Locations and Vehicle Menu"
+					className={`w-12 h-12 rounded-full shadow-lg border border-neutral-200/60 flex items-center justify-center transition-all cursor-pointer ${
+						isMenuOpen
+							? 'bg-neutral-900 text-white'
+							: 'bg-white text-[#111111] hover:bg-neutral-50'
+					}`}
+				>
+					{isMenuOpen ? <X size={20} /> : <MapPin size={20} />}
+				</button>
+			</div>
 
 			{/* Arrival End Trip Action Dock */}
 			<ArrivalEndTripModal
