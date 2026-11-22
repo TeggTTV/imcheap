@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -10,6 +10,7 @@ interface NameStepProps {
 	totalSteps?: number;
 	initialName?: string;
 	onNameChange?: (name: string) => void;
+	isActive?: boolean;
 }
 
 export const NameStep: React.FC<NameStepProps> = ({
@@ -20,6 +21,7 @@ export const NameStep: React.FC<NameStepProps> = ({
 	totalSteps = 9,
 	initialName = '',
 	onNameChange,
+	isActive = true,
 }) => {
 	const [name, setName] = useState<string>(() => {
 		if (initialName) return initialName;
@@ -33,6 +35,13 @@ export const NameStep: React.FC<NameStepProps> = ({
 	});
 
 	const [isAnimatingGreeting, setIsAnimatingGreeting] = useState(false);
+
+	// Reset greeting animation if user moves away and returns
+	useEffect(() => {
+		if (!isActive) {
+			setIsAnimatingGreeting(false);
+		}
+	}, [isActive]);
 
 	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const val = e.target.value;
@@ -62,6 +71,7 @@ export const NameStep: React.FC<NameStepProps> = ({
 		// Trigger animated floating text: slide up for 500ms, hold for 250ms, then proceed
 		setIsAnimatingGreeting(true);
 		setTimeout(() => {
+			setIsAnimatingGreeting(false);
 			onNext();
 		}, 750);
 	};
@@ -115,7 +125,8 @@ export const NameStep: React.FC<NameStepProps> = ({
 						What's your name?
 					</h1>
 					<p className="text-[14px] text-[#6d7a72] mt-2 max-w-[280px] mx-auto leading-relaxed">
-						We'll use this to personalize your daily runway and dashboard greeting.
+						We'll use this to personalize your daily runway and
+						dashboard greeting.
 					</p>
 				</div>
 
@@ -137,14 +148,20 @@ export const NameStep: React.FC<NameStepProps> = ({
 				<AnimatePresence>
 					{isAnimatingGreeting && (
 						<motion.div
-							initial={{ opacity: 0, y: 50 }}
-							animate={{ opacity: 1, y: 0 }}
+							initial={{ opacity: 0, y: 30, scale: 0.95 }}
+							animate={{ opacity: 1, y: 0, scale: 1 }}
 							exit={{ opacity: 0, y: 20 }}
-							transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-							className="fixed bottom-28 inset-x-4 max-w-[340px] mx-auto bg-black text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center justify-center gap-2 z-50 pointer-events-none"
+							transition={{
+								duration: 0.35,
+								ease: [0.16, 1, 0.3, 1],
+							}}
+							className="absolute bottom-6 inset-x-4 max-w-[320px] mx-autopx-5 py-3.5 rounded-2xl shadow-2xl flex items-center justify-center gap-2.5 z-50 pointer-events-none"
 						>
-							<Sparkles size={18} className="text-emerald-400" />
-							<span className="text-[17px] font-bold tracking-tight">
+							<Sparkles
+								size={18}
+								className="text-emerald-400 shrink-0"
+							/>
+							<span className="text-[16px] font-bold tracking-tight truncate">
 								Nice to meet you, {displayName}!
 							</span>
 						</motion.div>
@@ -155,7 +172,10 @@ export const NameStep: React.FC<NameStepProps> = ({
 			{/* Bottom Controls */}
 			<div className="relative z-20 w-full max-w-[360px] mx-auto flex flex-col items-center">
 				{/* Pagination Dots */}
-				<nav aria-label="Onboarding Progress" className="flex items-center justify-center gap-1.5 mb-6">
+				<nav
+					aria-label="Onboarding Progress"
+					className="flex items-center justify-center gap-1.5 mb-6"
+				>
 					{Array.from({ length: totalSteps }).map((_, i) => (
 						<button
 							key={i}
@@ -163,7 +183,9 @@ export const NameStep: React.FC<NameStepProps> = ({
 							onClick={() => onDotClick(i)}
 							aria-label={`Go to step ${i + 1}`}
 							className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
-								i === 1 ? 'w-5 bg-[#1c1b1b]' : 'w-2 bg-neutral-200 hover:bg-neutral-300'
+								i === 1
+									? 'w-5 bg-[#1c1b1b]'
+									: 'w-2 bg-neutral-200 hover:bg-neutral-300'
 							}`}
 						/>
 					))}

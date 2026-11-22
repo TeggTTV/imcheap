@@ -444,6 +444,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 										totalSteps={screens.length}
 										initialName={userName}
 										onNameChange={setUserName}
+										isActive={currentIndex === 1}
 									/>
 								) : idx === 6 ? (
 									<LocationStep
