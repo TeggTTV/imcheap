@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { RotateCw, CheckCircle2, MapPinOff, Navigation, Lock } from 'lucide-react';
 import { reverseGeocode } from '../../utils/mapRouting';
+import { isNativePlatform, requestAlwaysLocationPermission, openNativeAppSettings } from '../../services/nativeBridge';
 
 interface LocationStepProps {
 	onNext: () => void;
@@ -91,8 +92,16 @@ export const LocationStep: React.FC<LocationStepProps> = ({
 		);
 	}, []);
 
-	const handleTurnOnLocation = () => {
+	const handleTurnOnLocation = async () => {
 		if (status === 'loading') return;
+		if (isNativePlatform()) {
+			setStatus('loading');
+			const granted = await requestAlwaysLocationPermission();
+			if (!granted) {
+				setStatus('error');
+				return;
+			}
+		}
 		requestLocation();
 	};
 

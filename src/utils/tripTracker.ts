@@ -15,6 +15,7 @@ import {
 } from './mapRouting';
 import { getSavedLocations } from './savedLocations';
 import { chaikinSmooth } from './geoSmoothing';
+import { startTripLocationWatcher } from '../services/nativeBridge';
 
 export type { SavedHomeAddress };
 
@@ -118,6 +119,7 @@ export class AutomaticTripDetectionService {
 
 	private engineState: TrackingEngineState = 'IDLE_ANCHORED';
 	private watchId: number | null = null;
+	private stopNativeWatcher: (() => void) | null = null;
 	private tickerId: any = null;
 
 	// Anchor state
@@ -303,6 +305,20 @@ export class AutomaticTripDetectionService {
 			},
 		);
 
+		// Also start native background geolocation if running in mobile app container
+		startTripLocationWatcher(
+			(coords) => {
+				const c: Coordinate = { lat: coords.latitude, lng: coords.longitude };
+				const speedMph = typeof coords.speed === 'number' && coords.speed >= 0 ? coords.speed * 2.23694 : null;
+				this.processPosition(c, speedMph, 10);
+			},
+			(err) => console.warn('Native background geolocation notice:', err)
+		).then((stopFn) => {
+			this.stopNativeWatcher = stopFn;
+		}).catch((err) => {
+			console.warn('Native location watcher initialization error:', err);
+		});
+
 		// Visibility change listener for signal loss recovery (Rule E)
 		if (typeof document !== 'undefined') {
 			document.addEventListener(
@@ -315,6 +331,10 @@ export class AutomaticTripDetectionService {
 	private lastCoordTime: number = Date.now();
 
 	public stop() {
+		if (this.stopNativeWatcher) {
+			this.stopNativeWatcher();
+			this.stopNativeWatcher = null;
+		}
 		if (this.watchId !== null && typeof window !== 'undefined') {
 			navigator.geolocation.clearWatch(this.watchId);
 			this.watchId = null;
