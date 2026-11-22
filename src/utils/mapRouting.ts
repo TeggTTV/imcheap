@@ -273,6 +273,66 @@ export async function reverseGeocode(coord: Coordinate): Promise<string> {
 	return `${coord.lat.toFixed(4)}, ${coord.lng.toFixed(4)}`;
 }
 
+/**
+ * Resolves a friendly origin location name for trip and commute logs:
+ * 1. Checks if within 120m of a saved location (returns location.name)
+ * 2. Parses reverse-geocoded address down to number and street (e.g. "201 Mullica Hill Rd")
+ * 3. Falls back to "Near [Closest Location]" if geocoding fails or offline
+ */
+export async function resolveOriginLocationName(
+	coord: Coordinate,
+	savedLocations: { name: string; lat: number; lng: number }[],
+): Promise<string> {
+	// 1. Check if within 120m of any saved location
+	for (const loc of savedLocations) {
+		const distMeters =
+			haversineDistanceMiles(coord, { lat: loc.lat, lng: loc.lng }) * 1609.344;
+		if (distMeters <= 120) {
+			return loc.name;
+		}
+	}
+
+	// 2. Try reverse geocoding to number and street
+	try {
+		const fullAddress = await reverseGeocode(coord);
+		if (fullAddress && !fullAddress.includes(coord.lat.toFixed(4))) {
+			// Extract number and street name: e.g. "201 Mullica Hill Rd" from "201 Mullica Hill Rd, Glassboro, NJ"
+			const match = fullAddress.match(/^\s*(\d+[-\w]*\s+[^,]+)/);
+			if (match && match[1]) {
+				return match[1].trim();
+			}
+			const firstSegment = fullAddress.split(',')[0]?.trim();
+			if (firstSegment && !firstSegment.match(/^\d+\.\d+$/)) {
+				return firstSegment;
+			}
+		}
+	} catch {
+		// Ignore and proceed to fallback
+	}
+
+	// 3. Fallback to "Near [Closest Location]"
+	if (savedLocations.length > 0) {
+		let closestLoc = savedLocations[0];
+		let minDist = haversineDistanceMiles(coord, {
+			lat: closestLoc.lat,
+			lng: closestLoc.lng,
+		});
+		for (let i = 1; i < savedLocations.length; i++) {
+			const dist = haversineDistanceMiles(coord, {
+				lat: savedLocations[i].lat,
+				lng: savedLocations[i].lng,
+			});
+			if (dist < minDist) {
+				minDist = dist;
+				closestLoc = savedLocations[i];
+			}
+		}
+		return `Near ${closestLoc.name}`;
+	}
+
+	return 'Current Location';
+}
+
 const addressCache = new Map<string, Array<{ label: string; lat: number; lng: number }>>();
 
 /**

@@ -67,6 +67,19 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 					setLat(currentGps.lat);
 					setLng(currentGps.lng);
 					setAddress('');
+				} else if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+					navigator.geolocation.getCurrentPosition(
+						(pos) => {
+							setLat(pos.coords.latitude);
+							setLng(pos.coords.longitude);
+						},
+						() => {
+							setLat(39.7032);
+							setLng(-75.122);
+						},
+						{ enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
+					);
+					setAddress('');
 				} else {
 					setLat(39.7032);
 					setLng(-75.122);

@@ -14,6 +14,7 @@ import {
 	haversineDistanceMiles,
 	fetchRouteDirections,
 	RouteDirections,
+	resolveOriginLocationName,
 } from '../utils/mapRouting';
 import { chaikinSmooth, lerpCoordinate } from '../utils/geoSmoothing';
 import { getSavedHomeAddress } from '../utils/tripTracker';
@@ -38,6 +39,11 @@ import {
 	CornerUpRight,
 	CornerUpLeft,
 	ArrowUp,
+	Compass,
+	Pause,
+	Play,
+	Square,
+	RefreshCw,
 } from 'lucide-react';
 
 export interface MapsViewProps {
@@ -53,6 +59,7 @@ export interface MapsViewProps {
 	isLocationEnabled?: boolean;
 	onEnableLocation?: (coords?: Coordinate) => void;
 	devTrackingOverlay?: boolean;
+	enableRouteSimulation?: boolean;
 	devTelemetry?: DevTrackingTelemetry | null;
 	locations: SavedLocation[];
 	onUpdateLocations: (locations: SavedLocation[]) => void;
@@ -80,6 +87,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	isLocationEnabled = false,
 	onEnableLocation,
 	devTrackingOverlay = false,
+	enableRouteSimulation = true,
 	devTelemetry,
 	locations: savedLocations,
 	onUpdateLocations,
@@ -164,6 +172,9 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	const [navStepIndex, setNavStepIndex] = useState(0);
 	const [isSimulating, setIsSimulating] = useState(false);
 	const [simProgressIndex, setSimProgressIndex] = useState(0);
+	const [isRerouting, setIsRerouting] = useState(false);
+	const offRouteCountRef = useRef(0);
+	const arrivalStopStartTimeRef = useRef<number | null>(null);
 
 	const navRouteLayerRef = useRef<L.Polyline | null>(null);
 	const navDestMarkerRef = useRef<L.Marker | null>(null);
@@ -264,23 +275,141 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		trackingStatus?.state,
 	]);
 
-	// Invalidate Leaflet map size when toggling between card and Apple Maps full-screen
+	// Helper to center coordinate in the visible map canvas above the dock
+	const setViewVisibleCenter = (
+		map: L.Map,
+		coord: Coordinate,
+		zoom: number,
+		bottomCoveredPx: number = 0,
+	) => {
+		map.invalidateSize();
+		if (bottomCoveredPx <= 0) {
+			map.setView([coord.lat, coord.lng], zoom, { animate: true });
+			return;
+		}
+		const targetPx = map.project([coord.lat, coord.lng], zoom);
+		targetPx.y += bottomCoveredPx / 2;
+		const centerLatLng = map.unproject(targetPx, zoom);
+		map.setView(centerLatLng, zoom, { animate: true });
+	};
+
+	// Invalidate Leaflet map size and recenter user location when toggling between card and Apple Maps full-screen
 	useEffect(() => {
 		if (!mapInstanceRef.current) return;
+		if (activeNavRoute || selectedNavDestination) return;
+
+		const bottomCovered = isAppleMapsMode ? 250 : 0;
+		const targetZoom = isAppleMapsMode ? 16 : 15;
+
+		// Initial resize
+		const timer1 = setTimeout(() => {
+			if (mapInstanceRef.current) {
+				mapInstanceRef.current.invalidateSize({ animate: false });
+			}
+		}, 120);
+
+		// Synchronized centering strictly after CSS transition (duration-300) finishes
+		const timer2 = setTimeout(() => {
+			if (
+				mapInstanceRef.current &&
+				!activeNavRoute &&
+				!selectedNavDestination
+			) {
+				mapInstanceRef.current.invalidateSize({ animate: false });
+				setViewVisibleCenter(
+					mapInstanceRef.current,
+					displayedUserLocation,
+					targetZoom,
+					bottomCovered,
+				);
+			}
+		}, 340);
+
+		// Second frame check for full layout stability
+		const timer3 = setTimeout(() => {
+			if (
+				mapInstanceRef.current &&
+				!activeNavRoute &&
+				!selectedNavDestination
+			) {
+				mapInstanceRef.current.invalidateSize({ animate: false });
+				setViewVisibleCenter(
+					mapInstanceRef.current,
+					displayedUserLocation,
+					targetZoom,
+					bottomCovered,
+				);
+			}
+		}, 480);
+
+		return () => {
+			clearTimeout(timer1);
+			clearTimeout(timer2);
+			clearTimeout(timer3);
+		};
+	}, [
+		isAppleMapsMode,
+		displayedUserLocation,
+		activeNavRoute,
+		selectedNavDestination,
+	]);
+
+	// Fetch fresh GPS immediately when Create Marker dock opens
+	useEffect(() => {
+		if (!isCreateMarkerOpen) return;
+		if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+			navigator.geolocation.getCurrentPosition(
+				(pos) => {
+					const coords = {
+						lat: pos.coords.latitude,
+						lng: pos.coords.longitude,
+					};
+					setUserLocation(coords);
+					onUserLocationChange?.(coords);
+				},
+				() => {},
+				{ enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 },
+			);
+		}
+	}, [isCreateMarkerOpen, onUserLocationChange]);
+
+	// Center user in visible map canvas initially when Create/Edit Marker dock opens
+	useEffect(() => {
+		if (!isCreateMarkerOpen || !mapInstanceRef.current) return;
 		const timer = setTimeout(() => {
 			if (mapInstanceRef.current) {
-				mapInstanceRef.current.invalidateSize();
-				if (displayedUserLocation) {
-					mapInstanceRef.current.setView(
-						[displayedUserLocation.lat, displayedUserLocation.lng],
-						isAppleMapsMode ? 16 : 15,
-						{ animate: true },
-					);
-				}
+				mapInstanceRef.current.invalidateSize({ animate: false });
+				const centerCoord = activeEditingLocation
+					? { lat: activeEditingLocation.lat, lng: activeEditingLocation.lng }
+					: userLocation;
+				setViewVisibleCenter(
+					mapInstanceRef.current,
+					centerCoord,
+					16,
+					380, // covers bottom ~380px marker dock so GPS dot is centered in visible upper canvas
+				);
 			}
-		}, 150);
+		}, 320);
 		return () => clearTimeout(timer);
-	}, [isAppleMapsMode, displayedUserLocation]);
+	}, [isCreateMarkerOpen, activeEditingLocation, userLocation]);
+
+	// Keep focus on the entered/selected address coordinates while creating or editing marker
+	useEffect(() => {
+		if (
+			!isCreateMarkerOpen ||
+			!previewRadiusData ||
+			!mapInstanceRef.current
+		) {
+			return;
+		}
+		// Pan/center to the target address coordinate with 380px bottom covered clearance
+		setViewVisibleCenter(
+			mapInstanceRef.current,
+			{ lat: previewRadiusData.lat, lng: previewRadiusData.lng },
+			16,
+			380,
+		);
+	}, [isCreateMarkerOpen, previewRadiusData?.lat, previewRadiusData?.lng]);
 
 	// Synchronize when external user location changes from tracker
 	useEffect(() => {
@@ -796,10 +925,12 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			markersLayerRef.current.clearLayers();
 		}
 
-		mapInstanceRef.current.setView(
-			[displayedUserLocation.lat, displayedUserLocation.lng],
-			16,
-			{ animate: true },
+		const bottomCovered = isAppleMapsMode ? 250 : 0;
+		setViewVisibleCenter(
+			mapInstanceRef.current,
+			displayedUserLocation,
+			isAppleMapsMode ? 16 : 15,
+			bottomCovered,
 		);
 	};
 
@@ -818,10 +949,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		setPreviewRadiusData(null);
 
 		// Re-center on user position with standard zoom when closed/saved
-		if (mapInstanceRef.current && displayedUserLocation) {
+		if (mapInstanceRef.current && userLocation) {
 			mapInstanceRef.current.setView(
-				[displayedUserLocation.lat, displayedUserLocation.lng],
-				15,
+				[userLocation.lat, userLocation.lng],
+				16,
 				{ animate: true },
 			);
 		}
@@ -837,10 +968,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		setPreviewRadiusData(null);
 
 		// Re-center on user position with standard zoom when closed
-		if (mapInstanceRef.current && displayedUserLocation) {
+		if (mapInstanceRef.current && userLocation) {
 			mapInstanceRef.current.setView(
-				[displayedUserLocation.lat, displayedUserLocation.lng],
-				15,
+				[userLocation.lat, userLocation.lng],
+				16,
 				{ animate: true },
 			);
 		}
@@ -949,7 +1080,8 @@ export const MapsView: React.FC<MapsViewProps> = ({
 
 		const bounds = L.latLngBounds(latLngs);
 		map.fitBounds(bounds, {
-			padding: [60, 60],
+			paddingTopLeft: [30, 90],
+			paddingBottomRight: [30, isAppleMapsMode ? 260 : 30],
 			maxZoom: 16,
 			animate: true,
 		});
@@ -972,10 +1104,12 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				mapInstanceRef.current.removeLayer(navDestMarkerRef.current);
 				navDestMarkerRef.current = null;
 			}
-			mapInstanceRef.current.setView(
-				[displayedUserLocation.lat, displayedUserLocation.lng],
-				16,
-				{ animate: true },
+			const bottomCovered = isAppleMapsMode ? 250 : 0;
+			setViewVisibleCenter(
+				mapInstanceRef.current,
+				displayedUserLocation,
+				isAppleMapsMode ? 16 : 15,
+				bottomCovered,
 			);
 		}
 	};
@@ -985,37 +1119,74 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		setIsAppleMapsMode(false);
 		if (mapInstanceRef.current) {
 			setTimeout(() => {
-				mapInstanceRef.current?.invalidateSize();
-				mapInstanceRef.current?.setView(
-					[displayedUserLocation.lat, displayedUserLocation.lng],
-					15,
-					{ animate: true },
-				);
-			}, 150);
+				if (mapInstanceRef.current) {
+					mapInstanceRef.current.invalidateSize();
+					mapInstanceRef.current.setView(
+						[userLocation.lat, userLocation.lng],
+						15,
+						{ animate: true },
+					);
+				}
+			}, 100);
 		}
 	};
 
+	const isNearDestination = useMemo(() => {
+		if (!isNavigating || !activeNavRoute || !selectedNavDestination) return false;
+		const currentPos = isSimulating
+			? activeNavRoute.coordinates[simProgressIndex] || displayedUserLocation
+			: displayedUserLocation;
+		const destCoord = selectedNavDestination.coord;
+		const distMeters = haversineDistanceMiles(currentPos, destCoord) * 1609.344;
+		const reachedEnd =
+			isSimulating &&
+			simProgressIndex >= Math.max(0, activeNavRoute.coordinates.length - 1);
+		return distMeters <= 80 || reachedEnd;
+	}, [
+		isNavigating,
+		activeNavRoute,
+		selectedNavDestination,
+		isSimulating,
+		simProgressIndex,
+		displayedUserLocation,
+	]);
+
 	const handleStartNavigation = () => {
 		setIsNavigating(true);
-		setIsSimulating(true);
+		setIsSimulating(enableRouteSimulation);
 		setSimProgressIndex(0);
 		setNavStepIndex(0);
 		if (mapInstanceRef.current && displayedUserLocation) {
-			mapInstanceRef.current.setView(
-				[displayedUserLocation.lat, displayedUserLocation.lng],
+			setViewVisibleCenter(
+				mapInstanceRef.current,
+				displayedUserLocation,
 				17,
-				{ animate: true },
+				140,
 			);
 		}
 	};
 
-	const handleEndNavigation = () => {
+	const handleEndNavigation = async () => {
 		if (selectedNavDestination && activeNavRoute) {
-			const miles = activeNavRoute.distanceMiles;
+			const simRatio = Math.min(
+				1,
+				Math.max(
+					0,
+					simProgressIndex /
+						Math.max(1, activeNavRoute.coordinates.length - 1),
+				),
+			);
+			const miles = isSimulating
+				? Number((activeNavRoute.distanceMiles * simRatio).toFixed(2))
+				: activeNavRoute.distanceMiles;
 			const cost = Number((miles * mileageRate).toFixed(2));
+			const fromLocation = await resolveOriginLocationName(
+				displayedUserLocation,
+				savedLocations,
+			);
 			onLogTrip({
 				id: `trip-nav-${Date.now()}`,
-				from: 'Current Location',
+				from: fromLocation,
 				to: selectedNavDestination.name,
 				miles,
 				cost,
@@ -1026,6 +1197,107 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		}
 		handleCancelNavRoute();
 	};
+
+	// 30-second dwell auto-close when stopped at destination
+	useEffect(() => {
+		if (!isNavigating || !isNearDestination) {
+			arrivalStopStartTimeRef.current = null;
+			return;
+		}
+
+		const isUserStopped = isSimulating
+			? simProgressIndex >=
+				Math.max(0, (activeNavRoute?.coordinates.length || 1) - 1)
+			: !trackingStatus?.isDriving;
+
+		if (!isUserStopped) {
+			arrivalStopStartTimeRef.current = null;
+			return;
+		}
+
+		if (!arrivalStopStartTimeRef.current) {
+			arrivalStopStartTimeRef.current = Date.now();
+		}
+
+		const interval = setInterval(() => {
+			if (
+				arrivalStopStartTimeRef.current &&
+				Date.now() - arrivalStopStartTimeRef.current >= 30000
+			) {
+				handleEndNavigation();
+			}
+		}, 1000);
+
+		return () => clearInterval(interval);
+	}, [
+		isNavigating,
+		isNearDestination,
+		isSimulating,
+		simProgressIndex,
+		activeNavRoute,
+		trackingStatus?.isDriving,
+	]);
+
+	// Automatic rerouting if off route by >60 meters
+	useEffect(() => {
+		if (
+			!isNavigating ||
+			isSimulating ||
+			!activeNavRoute ||
+			!selectedNavDestination ||
+			activeNavRoute.coordinates.length < 2 ||
+			isRerouting
+		) {
+			return;
+		}
+
+		let minDistanceMeters = Infinity;
+		for (const pt of activeNavRoute.coordinates) {
+			const dist =
+				haversineDistanceMiles(displayedUserLocation, pt) * 1609.344;
+			if (dist < minDistanceMeters) {
+				minDistanceMeters = dist;
+			}
+		}
+
+		if (minDistanceMeters > 60) {
+			offRouteCountRef.current += 1;
+			if (offRouteCountRef.current >= 2) {
+				offRouteCountRef.current = 0;
+				setIsRerouting(true);
+				fetchRouteDirections(
+					displayedUserLocation,
+					selectedNavDestination.coord,
+					selectedNavDestination.address,
+				)
+					.then((newRoute) => {
+						setActiveNavRoute(newRoute);
+						setNavStepIndex(0);
+						setSimProgressIndex(0);
+						const latLngs: [number, number][] =
+							newRoute.coordinates.map((c) => [c.lat, c.lng]);
+						if (navRouteLayerRef.current) {
+							navRouteLayerRef.current.setLatLngs(latLngs);
+						}
+					})
+					.catch((err) => {
+						console.warn('Rerouting error:', err);
+					})
+					.finally(() => {
+						setIsRerouting(false);
+					});
+			}
+		} else {
+			offRouteCountRef.current = 0;
+		}
+	}, [
+		isNavigating,
+		isSimulating,
+		displayedUserLocation,
+		activeNavRoute,
+		selectedNavDestination,
+		isRerouting,
+	]);
 
 	// Simulation timer along road coordinates
 	useEffect(() => {
@@ -1076,17 +1348,15 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			<div
 				className={`transition-all duration-300 ${
 					isAppleMapsMode
-						? 'fixed inset-0 z-50 w-screen h-dvh rounded-none border-none shadow-none bg-neutral-900'
+						? 'fixed inset-0 z-40 w-screen h-dvh rounded-none border-none shadow-none bg-[#E5E7EB]'
 						: 'relative w-full h-80 rounded-3xl overflow-hidden border border-gray-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.04)] bg-white'
 				}`}
 			>
 				<div
 					ref={mapContainerRef}
-					className="w-full h-full z-0"
+					className="w-full h-full z-0 bg-[#E5E7EB]"
 					style={{
-						filter: isAppleMapsMode
-							? 'none'
-							: 'grayscale(100%) contrast(1.1) brightness(1.03)',
+						filter: 'grayscale(100%) contrast(1.1) brightness(1.03)',
 					}}
 				/>
 
@@ -1096,26 +1366,24 @@ export const MapsView: React.FC<MapsViewProps> = ({
 						<button
 							type="button"
 							onClick={handleExitAppleMaps}
-							className="h-10 px-3.5 rounded-full bg-white/95 backdrop-blur-md shadow-md border border-neutral-200/70 text-[#111111] font-bold text-[13px] flex items-center gap-1.5 hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
+							className="h-10 px-3.5 rounded-full bg-white shadow-md border border-neutral-200/70 text-[#111111] font-bold text-[13px] flex items-center gap-1.5 hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
 						>
 							<X size={16} />
 							<span>Exit Maps</span>
 						</button>
 
-						<div className="h-9 px-3 rounded-full bg-white/90 backdrop-blur-md shadow-sm border border-neutral-200/60 text-neutral-700 font-bold text-[12px] flex items-center gap-1.5">
+						<div className="h-9 px-3 rounded-full bg-white shadow-sm border border-neutral-200/60 text-neutral-700 font-bold text-[12px] flex items-center gap-1.5">
 							<span>72° ☀️</span>
-							<span className="text-neutral-300">|</span>
-							<span className="text-[#007AFF]">Apple Maps Mode</span>
 						</div>
 					</div>
 				)}
 
-				{/* Recenter & Zoom Controls (Apple Maps stacked style with zoom buttons above centering) */}
+				{/* Floating Map Controls: [ + ], [ — ], and circular target/crosshair [ 🧭 ] icons stacked vertically, right-aligned */}
 				<div
 					className={`absolute z-30 flex flex-col items-center gap-2 transition-all ${
 						isAppleMapsMode
 							? isNavigating
-								? 'bottom-28 right-4'
+								? 'top-28 right-4'
 								: 'top-20 right-4'
 							: 'bottom-3.5 right-3.5'
 					}`}
@@ -1140,14 +1408,14 @@ export const MapsView: React.FC<MapsViewProps> = ({
 						</button>
 					</div>
 
-					{/* Recenter Target Button */}
+					{/* Circular Target / Crosshair Button */}
 					<button
 						type="button"
 						onClick={handleCenterOnMe}
 						aria-label="Center on live location"
 						className="w-10 h-10 rounded-full bg-white shadow-md border border-neutral-200/70 flex items-center justify-center text-[#111111] hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
 					>
-						<LocateFixed size={18} />
+						<Compass size={18} className="text-[#111111]" />
 					</button>
 				</div>
 
@@ -1191,120 +1459,190 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			{/* Active Turn-by-Turn Driving HUD: Top Maneuver Banner */}
 			{isAppleMapsMode && isNavigating && activeNavRoute && (
 				<div className="fixed top-4 inset-x-4 max-w-120 mx-auto z-50 pointer-events-auto">
-					<div className="bg-[#0D3823] text-white rounded-3xl p-4 shadow-2xl border border-emerald-500/40 flex items-center justify-between">
+					<div className="bg-white text-[#111111] rounded-2xl p-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-neutral-200/80 flex items-center justify-between">
 						<div className="flex items-center gap-3.5 min-w-0 pr-2">
-							<div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-emerald-400 shrink-0 font-black">
-								{activeNavRoute.steps[navStepIndex]?.maneuverModifier?.includes('left') ? (
-									<CornerUpLeft size={28} />
+							<div
+								className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+									isNearDestination
+										? 'bg-red-50 text-[#FF3B30]'
+										: isRerouting
+										? 'bg-amber-50 text-amber-600'
+										: 'bg-blue-50 text-[#007AFF]'
+								}`}
+							>
+								{isRerouting ? (
+									<RefreshCw
+										size={24}
+										className="animate-spin text-amber-600"
+									/>
+								) : isNearDestination ? (
+									<MapPin
+										size={26}
+										strokeWidth={2.5}
+										className="text-[#FF3B30]"
+									/>
+								) : activeNavRoute.steps[navStepIndex]?.maneuverModifier?.includes('left') ? (
+									<CornerUpLeft size={26} strokeWidth={2.5} />
 								) : activeNavRoute.steps[navStepIndex]?.maneuverModifier?.includes('right') ? (
-									<CornerUpRight size={28} />
+									<CornerUpRight size={26} strokeWidth={2.5} />
 								) : (
-									<ArrowUp size={28} />
+									<ArrowUp size={26} strokeWidth={2.5} />
 								)}
 							</div>
 							<div className="min-w-0">
-								<div className="text-[12px] font-bold text-emerald-300 uppercase tracking-wide">
-									In {activeNavRoute.steps[navStepIndex]?.distanceMiles || 0.4} mi
+								<div
+									className={`text-[11.5px] font-bold uppercase tracking-wide ${
+										isNearDestination
+											? 'text-[#FF3B30]'
+											: isRerouting
+											? 'text-amber-600'
+											: 'text-[#007AFF]'
+									}`}
+								>
+									{isRerouting
+										? 'Recalculating...'
+										: isNearDestination
+										? 'Destination'
+										: `In ${activeNavRoute.steps[navStepIndex]?.distanceMiles || 0.4} mi`}
 								</div>
-								<div className="text-[17px] font-black leading-tight text-white truncate">
-									{activeNavRoute.steps[navStepIndex]?.instruction || 'Continue on route'}
+								<div className="text-[17px] font-black leading-tight text-[#111111] truncate">
+									{isRerouting
+										? 'Finding new route...'
+										: isNearDestination
+										? `Arrived at ${selectedNavDestination?.name || 'Destination'}`
+										: activeNavRoute.steps[navStepIndex]?.instruction || 'Continue on route'}
 								</div>
-								{activeNavRoute.steps[navStepIndex + 1] && (
-									<div className="text-[11.5px] text-white/70 font-medium truncate mt-0.5">
+								{!isNearDestination && !isRerouting && activeNavRoute.steps[navStepIndex + 1] && (
+									<div className="text-[11.5px] text-neutral-500 font-medium truncate mt-0.5">
 										Then {activeNavRoute.steps[navStepIndex + 1].instruction}
 									</div>
 								)}
 							</div>
 						</div>
 
-						<div className="px-2.5 py-1 rounded-xl bg-white/10 text-emerald-300 font-extrabold text-[12px] shrink-0 text-center">
-							35 <span className="text-[10px] block font-medium text-white/60">MPH</span>
+						<div className="px-2.5 py-1 rounded-xl bg-neutral-100 text-neutral-800 font-extrabold text-[12px] shrink-0 text-center border border-neutral-200/60">
+							35 <span className="text-[10px] block font-medium text-neutral-500">MPH</span>
 						</div>
 					</div>
 				</div>
 			)}
 
 			{/* Active Turn-by-Turn Driving Bottom Bar with ImCheap Live Cost Counter */}
-			{isAppleMapsMode && isNavigating && activeNavRoute && (
-				<div className="fixed bottom-6 inset-x-4 max-w-120 mx-auto z-50 pointer-events-auto">
-					<div className="bg-white rounded-3xl p-4 shadow-[0_12px_40px_rgba(0,0,0,0.22)] border border-neutral-200/80 flex items-center justify-between">
-						<div>
-							<div className="flex items-baseline gap-1.5">
-								<span className="text-[26px] leading-none font-black text-[#111111] tracking-tight">
-									{Math.max(
-										1,
-										Math.round(
-											activeNavRoute.durationMinutes *
-												(1 -
-													simProgressIndex /
-														Math.max(
-															1,
-															activeNavRoute.coordinates
-																.length,
-														)),
-										),
-									)}
-								</span>
-								<span className="text-[14px] font-bold text-neutral-600">min</span>
-							</div>
-							<div className="text-[12px] text-neutral-500 font-semibold mt-0.5">
-								{Math.max(
-									0.1,
-									Number(
-										(
-											activeNavRoute.distanceMiles *
-											(1 -
-												simProgressIndex /
-													Math.max(
-														1,
-														activeNavRoute.coordinates
-															.length,
-													))
-										).toFixed(1),
-									),
-								)}{' '}
-								mi · ETA{' '}
-								{new Date(
-									Date.now() +
-										activeNavRoute.durationMinutes * 60000,
-								).toLocaleTimeString([], {
-									hour: 'numeric',
-									minute: '2-digit',
-								})}
-							</div>
-							<div className="text-[11.5px] font-bold text-emerald-600 mt-1">
-								ImCheap: ${(simProgressIndex * 0.08 + 0.25).toFixed(2)} cost (
-								{Math.max(
-									1,
-									Math.round(
-										((simProgressIndex * 0.08 + 0.25) /
-											Math.max(hourlyWage, 5)) *
-											60,
-									),
-								)}
-								m work)
-							</div>
-						</div>
+			{isAppleMapsMode && isNavigating && activeNavRoute && (() => {
+				const simRatio = Math.min(
+					1,
+					Math.max(
+						0,
+						simProgressIndex /
+							Math.max(1, activeNavRoute.coordinates.length - 1),
+					),
+				);
+				const drivenMiles = Number(
+					(activeNavRoute.distanceMiles * simRatio).toFixed(2),
+				);
+				const drivenCost = Number(
+					(drivenMiles * mileageRate).toFixed(2),
+				);
+				const laborMins = Math.max(
+					1,
+					Math.round(
+						(drivenCost / Math.max(hourlyWage, 5)) * 60,
+					),
+				);
+				const remainingRatio = Math.max(0, 1 - simRatio);
+				const remainingMins = Math.max(
+					1,
+					Math.round(
+						activeNavRoute.durationMinutes * remainingRatio,
+					),
+				);
+				const remainingMiles = Math.max(
+					0,
+					Number(
+						(
+							activeNavRoute.distanceMiles * remainingRatio
+						).toFixed(1),
+					),
+				);
 
-						<div className="flex items-center gap-2">
-							<button
-								type="button"
-								onClick={() => setIsSimulating(!isSimulating)}
-								className="h-12 px-3.5 rounded-2xl bg-neutral-100 hover:bg-neutral-200 text-[#111111] font-bold text-[12px] transition-colors cursor-pointer"
-							>
-								{isSimulating ? 'Pause' : 'Simulate'}
-							</button>
-							<button
-								type="button"
-								onClick={handleEndNavigation}
-								className="h-12 px-5 rounded-2xl bg-[#FF3B30] hover:bg-red-600 text-white font-black text-[14px] shadow-md shadow-red-500/20 active:scale-95 transition-all cursor-pointer"
-							>
-								End
-							</button>
+				return (
+					<div className="fixed bottom-6 inset-x-4 max-w-120 mx-auto z-50 pointer-events-auto">
+						<div className="bg-white rounded-3xl p-4 shadow-[0_12px_40px_rgba(0,0,0,0.22)] border border-neutral-200/80 flex items-center justify-between">
+							<div>
+								<div className="flex items-baseline gap-1.5">
+									<span className="text-[26px] leading-none font-black text-[#111111] tracking-tight">
+										{remainingMins}
+									</span>
+									<span className="text-[14px] font-bold text-neutral-600">min</span>
+								</div>
+								<div className="text-[12px] text-neutral-500 font-semibold mt-0.5">
+									{remainingMiles} mi · ETA{' '}
+									{new Date(
+										Date.now() +
+											remainingMins * 60000,
+									).toLocaleTimeString([], {
+										hour: 'numeric',
+										minute: '2-digit',
+									})}
+								</div>
+								<div className="text-[11.5px] font-bold text-emerald-600 mt-1">
+									ImCheap: ${drivenCost.toFixed(2)} cost ({laborMins}m work)
+								</div>
+							</div>
+
+							{isNearDestination ? (
+								<button
+									type="button"
+									onClick={handleEndNavigation}
+									aria-label="End Route"
+									className="h-12 px-5 rounded-2xl bg-[#FF3B30] hover:bg-red-600 text-white font-extrabold text-[15px] flex items-center gap-2 shadow-lg shadow-red-500/30 active:scale-95 transition-all cursor-pointer animate-pulse"
+								>
+									<Square size={16} className="fill-white text-white" />
+									<span>End Route</span>
+								</button>
+							) : (
+								<div className="flex items-center gap-2.5">
+									{enableRouteSimulation && (
+										<button
+											type="button"
+											onClick={() => setIsSimulating(!isSimulating)}
+											aria-label={
+												isSimulating
+													? 'Pause route simulation'
+													: 'Play route simulation'
+											}
+											className="w-12 h-12 rounded-2xl bg-neutral-100 hover:bg-neutral-200 text-[#111111] flex items-center justify-center transition-all active:scale-95 cursor-pointer shadow-xs"
+										>
+											{isSimulating ? (
+												<Pause
+													size={20}
+													className="fill-current text-[#111111]"
+												/>
+											) : (
+												<Play
+													size={20}
+													className="fill-current text-[#111111] translate-x-0.5"
+												/>
+											)}
+										</button>
+									)}
+									<button
+										type="button"
+										onClick={handleEndNavigation}
+										aria-label="End Navigation"
+										className="w-12 h-12 rounded-2xl bg-[#FF3B30] hover:bg-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/25 active:scale-95 transition-all cursor-pointer"
+									>
+										<Square
+											size={18}
+											className="fill-white text-white"
+										/>
+									</button>
+								</div>
+							)}
 						</div>
 					</div>
-				</div>
-			)}
+				);
+			})()}
 
 			{/* Apple Maps Action Dock */}
 			<AppleMapsDock
@@ -1321,6 +1659,14 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				onCancelRoute={handleCancelNavRoute}
 				isNavigating={isNavigating}
 				onEndNavigation={handleEndNavigation}
+				onOpenLocationsPage={onOpenLocationsPage}
+				onOpenCreateMarker={() => {
+					handleExitAppleMaps();
+					setActiveEditingLocation(null);
+					setTimeout(() => {
+						setIsCreateMarkerOpen(true);
+					}, 250);
+				}}
 			/>
 
 			{/* Recorded Trips Section (in default card state) */}

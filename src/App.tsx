@@ -608,6 +608,19 @@ export default function App() {
 			return false;
 		},
 	);
+	const [enableRouteSimulation, setEnableRouteSimulation] = useState<boolean>(
+		() => {
+			if (typeof window !== 'undefined') {
+				try {
+					const stored = localStorage.getItem(
+						'imcheap_enable_route_simulation',
+					);
+					if (stored !== null) return stored === 'true';
+				} catch {}
+			}
+			return true;
+		},
+	);
 
 	// Location Permission State (defaults to false until user turns on in Onboarding or Maps overlay)
 	const [isLocationEnabled, setIsLocationEnabled] = useState<boolean>(() => {
@@ -1704,6 +1717,7 @@ export default function App() {
 								}
 							}}
 							devTrackingOverlay={devTrackingOverlay}
+							enableRouteSimulation={enableRouteSimulation}
 							devTelemetry={devTelemetry}
 							locations={savedLocations}
 							onUpdateLocations={(updated) => {
@@ -1828,6 +1842,10 @@ export default function App() {
 								devTrackingOverlay={devTrackingOverlay}
 								onToggleDevTrackingOverlay={
 									setDevTrackingOverlay
+								}
+								enableRouteSimulation={enableRouteSimulation}
+								onToggleRouteSimulation={
+									setEnableRouteSimulation
 								}
 								onUpdateHomeAddress={(home) =>
 									tripDetectorRef.current?.updateHomeAddress(

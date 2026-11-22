@@ -896,14 +896,44 @@ export class AutomaticTripDetectionService {
 
 		try {
 			const addr = await reverseGeocode(coord);
-			if (addr) {
+			if (addr && !addr.includes(coord.lat.toFixed(4))) {
+				const match = addr.match(/^\s*(\d+[-\w]*\s+[^,]+)/);
+				if (match && match[1]) {
+					return match[1].trim();
+				}
 				const shortPart = addr.split(',')[0].trim();
-				return shortPart || 'Waypoint';
+				if (shortPart && !shortPart.match(/^\d+\.\d+$/)) {
+					return shortPart;
+				}
 			}
 		} catch (e) {
 			console.warn('Location name fallback', e);
 		}
-		return 'Stationary Stop';
+
+		// Fallback to "Near [Closest Location]"
+		try {
+			const saved = getSavedLocations();
+			if (saved.length > 0) {
+				let closest = saved[0];
+				let minDist = haversineDistanceMiles(coord, {
+					lat: closest.lat,
+					lng: closest.lng,
+				});
+				for (let i = 1; i < saved.length; i++) {
+					const dist = haversineDistanceMiles(coord, {
+						lat: saved[i].lat,
+						lng: saved[i].lng,
+					});
+					if (dist < minDist) {
+						minDist = dist;
+						closest = saved[i];
+					}
+				}
+				return `Near ${closest.name}`;
+			}
+		} catch {}
+
+		return 'Near Home';
 	}
 
 	private emitTelemetry() {

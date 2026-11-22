@@ -28,6 +28,7 @@ import {
 	X,
 	MapPin,
 	LocateFixed,
+	Navigation,
 } from 'lucide-react';
 import {
 	IncomeSettings,
@@ -141,6 +142,8 @@ export interface SettingsViewProps {
 	onToggleAutoTripDetection?: (enabled: boolean) => void;
 	devTrackingOverlay?: boolean;
 	onToggleDevTrackingOverlay?: (enabled: boolean) => void;
+	enableRouteSimulation?: boolean;
+	onToggleRouteSimulation?: (enabled: boolean) => void;
 	onUpdateHomeAddress?: (home: SavedHomeAddress) => void;
 }
 
@@ -179,6 +182,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 	onToggleAutoTripDetection,
 	devTrackingOverlay: propsDevTrackingOverlay,
 	onToggleDevTrackingOverlay,
+	enableRouteSimulation: propsEnableRouteSimulation,
+	onToggleRouteSimulation,
 	onUpdateHomeAddress,
 }) => {
 	const [currentSubpage, setCurrentSubpage] =
@@ -633,6 +638,38 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 		}
 	};
 
+	// Dev Route Simulation State
+	const [enableRouteSimulation, setEnableRouteSimulation] = useState<boolean>(
+		() => {
+			if (typeof propsEnableRouteSimulation === 'boolean') {
+				return propsEnableRouteSimulation;
+			}
+			if (typeof window !== 'undefined') {
+				try {
+					const stored = localStorage.getItem(
+						'imcheap_enable_route_simulation',
+					);
+					if (stored !== null) return stored === 'true';
+				} catch {}
+			}
+			return true;
+		},
+	);
+
+	const handleToggleRouteSimulation = () => {
+		const next = !enableRouteSimulation;
+		setEnableRouteSimulation(next);
+		try {
+			localStorage.setItem(
+				'imcheap_enable_route_simulation',
+				String(next),
+			);
+		} catch {}
+		if (onToggleRouteSimulation) {
+			onToggleRouteSimulation(next);
+		}
+	};
+
 	const handleChangeDestinationDwell = (mins: number) => {
 		setDestinationDwellMins(mins);
 		saveTripEngineConfig({ destinationDwellMinutes: mins });
@@ -886,7 +923,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										</span>
 									</div>
 									{tempTaxBuffer === 0 && (
-										<CheckCircle2 className="text-primary" size={20} />
+										<CheckCircle2
+											className="text-primary"
+											size={20}
+										/>
 									)}
 								</button>
 							</div>
@@ -929,7 +969,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 												</span>
 											</div>
 											{tempTaxBuffer === pct && (
-												<CheckCircle2 className="text-primary" size={20} />
+												<CheckCircle2
+													className="text-primary"
+													size={20}
+												/>
 											)}
 										</button>
 									))}
@@ -1016,7 +1059,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 												</span>
 											</div>
 											{isSelected && (
-												<CheckCircle2 className="text-primary" size={20} />
+												<CheckCircle2
+													className="text-primary"
+													size={20}
+												/>
 											)}
 										</button>
 									);
@@ -1143,7 +1189,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 												</span>
 											</div>
 											{isSelected && (
-												<CheckCircle2 className="text-primary" size={20} />
+												<CheckCircle2
+													className="text-primary"
+													size={20}
+												/>
 											)}
 										</button>
 									);
@@ -1199,7 +1248,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								{customGas !== null && (
 									<p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
 										<Check size={14} />
-										Current custom: ${customGas.toFixed(2)}{' '}
+										Current custom: ${customGas.toFixed(
+											2,
+										)}{' '}
 										/ gallon
 									</p>
 								)}
@@ -1274,7 +1325,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 												</span>
 											</div>
 											{isSelected && (
-												<CheckCircle2 className="text-primary" size={20} />
+												<CheckCircle2
+													className="text-primary"
+													size={20}
+												/>
 											)}
 										</button>
 									);
@@ -1327,7 +1381,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								{customCap !== null && (
 									<p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
 										<Check size={14} />
-										Current custom: {customCap.toFixed(1)}{' '}
+										Current custom: {customCap.toFixed(
+											1,
+										)}{' '}
 										Gallons
 									</p>
 								)}
@@ -1543,7 +1599,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 													selectedShiftDate,
 												)}
 											</span>
-											<Calendar size={16} className="text-neutral-400 shrink-0" />
+											<Calendar
+												size={16}
+												className="text-neutral-400 shrink-0"
+											/>
 										</button>
 									</div>
 
@@ -1562,7 +1621,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											<span className="text-[12.5px] font-semibold text-neutral-800 tabular-nums truncate">
 												{formatTimeString(startTime)}
 											</span>
-											<Clock size={16} className="text-neutral-400 shrink-0" />
+											<Clock
+												size={16}
+												className="text-neutral-400 shrink-0"
+											/>
 										</button>
 									</div>
 
@@ -1581,7 +1643,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											<span className="text-[12.5px] font-semibold text-neutral-800 tabular-nums truncate">
 												{formatTimeString(endTime)}
 											</span>
-											<Clock size={16} className="text-neutral-400 shrink-0" />
+											<Clock
+												size={16}
+												className="text-neutral-400 shrink-0"
+											/>
 										</button>
 									</div>
 								</div>
@@ -1666,7 +1731,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</span>
 								<span className="text-sm font-semibold text-gray-500 flex items-center gap-0.5">
 									{taxBufferRate}%
-									<ChevronRight size={16} className="text-gray-400" />
+									<ChevronRight
+										size={16}
+										className="text-gray-400"
+									/>
 								</span>
 							</button>
 
@@ -1678,7 +1746,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										: 'opacity-0 pointer-events-none translate-y-2'
 								}`}
 							>
-								<CheckCircle2 size={16} className="text-secondary" />
+								<CheckCircle2
+									size={16}
+									className="text-secondary"
+								/>
 								<span>Shift logged successfully</span>
 							</div>
 						</div>
@@ -1703,7 +1774,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 							backLabel="Settings"
 							onBack={() => navigateBack('main')}
 						/>
-
 						{/* Hero Stat Card */}
 						<section className="relative overflow-hidden bg-white rounded-xl p-5 mb-4 shadow-sm border border-[#F3F4F6]">
 							<div className="flex items-start justify-between">
@@ -1724,7 +1794,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 									</span>
 								</div>
 								<div className="inline-flex items-center gap-1.5 bg-secondary-container/30 px-2.5 py-1 rounded-full">
-									<Clock size={14} className="text-secondary" />
+									<Clock
+										size={14}
+										className="text-secondary"
+									/>
 									<span className="text-xs text-secondary font-semibold">
 										≈ 30s of work
 									</span>
@@ -1746,7 +1819,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</p>
 							</div>
 						</section>
-
 						{/* Efficiency & Fuel Card - EACH OPENS A NEW SUBPAGE */}
 						<section className="mb-4">
 							<div className="flex items-center justify-between mb-2 px-1">
@@ -1776,7 +1848,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										<span className="text-sm font-semibold text-primary">
 											{currentMpg} MPG
 										</span>
-										<ChevronRight size={18} className="text-outline" />
+										<ChevronRight
+											size={18}
+											className="text-outline"
+										/>
 									</div>
 								</button>
 								<div className="h-px bg-slate-100 mx-4" />
@@ -1799,7 +1874,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										<span className="text-sm font-semibold text-primary">
 											${currentGas.toFixed(2)}/gal
 										</span>
-										<ChevronRight size={18} className="text-outline" />
+										<ChevronRight
+											size={18}
+											className="text-outline"
+										/>
 									</div>
 								</button>
 								<div className="h-px bg-slate-100 mx-4" />
@@ -1822,7 +1900,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										<span className="text-sm font-semibold text-primary">
 											{currentCap.toFixed(1)} gal
 										</span>
-										<ChevronRight size={18} className="text-outline" />
+										<ChevronRight
+											size={18}
+											className="text-outline"
+										/>
 									</div>
 								</button>
 								<div className="h-px bg-slate-100 mx-4" />
@@ -1848,7 +1929,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</div>
 							</div>
 						</section>
-
 						{/* Trip Cost Examples */}
 						<section className="mb-5">
 							<div className="flex items-center justify-between mb-2 px-1">
@@ -1909,7 +1989,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</div>
 							</div>
 						</section>
-
 						{/* Automatic Trip Detection Section */}
 						<section className="mb-5 flex flex-col gap-3">
 							<div className="flex items-center justify-between px-1">
@@ -1994,6 +2073,45 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</button>
 							</div>
 
+							{/* Simulated Route Driving Toggle */}
+							<div className="bg-white rounded-xl shadow-sm border border-[#F3F4F6] p-4 flex items-center justify-between">
+								<div className="flex items-center gap-3">
+									<div className="w-10 h-10 rounded-full bg-blue-50 text-[#007AFF] flex items-center justify-center shrink-0">
+										<Navigation size={20} />
+									</div>
+									<div className="flex flex-col min-w-0">
+										<span className="text-sm font-semibold text-on-surface truncate">
+											Simulate Route Driving
+										</span>
+										<span className="text-xs text-outline leading-snug">
+											Step marker along roads for testing.
+											Turn off for live GPS driving.
+										</span>
+									</div>
+								</div>
+
+								<button
+									type="button"
+									role="switch"
+									aria-checked={enableRouteSimulation}
+									onClick={handleToggleRouteSimulation}
+									data-testid="enable-route-simulation-toggle"
+									className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
+										enableRouteSimulation
+											? 'bg-[#10B981]'
+											: 'bg-[#E5E7EB]'
+									}`}
+								>
+									<span
+										className={`pointer-events-none inline-block h-[24px] w-[24px] transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+											enableRouteSimulation
+												? 'translate-x-5'
+												: 'translate-x-0'
+										}`}
+									/>
+								</button>
+							</div>
+
 							{/* Destination Dwell Threshold Selector */}
 							<div className="bg-white rounded-xl shadow-sm border border-[#F3F4F6] p-4 flex flex-col gap-2.5">
 								<div className="flex items-center justify-between">
@@ -2033,7 +2151,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</div>
 							</div>
 						</section>
-
 						{/* Save CTA */}
 						{/* <div className="pt-2">
 							<button
@@ -2086,7 +2203,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								<span className="text-[10px] font-bold uppercase text-on-surface-variant tracking-wider">
 									Lifetime Unspent Surplus
 								</span>
-								<PiggyBank className="text-secondary" size={20} />
+								<PiggyBank
+									className="text-secondary"
+									size={20}
+								/>
 							</div>
 							<div className="text-[32px] font-bold text-secondary tracking-tight mt-1 flex items-baseline gap-1 tabular-nums">
 								{lifetimeSurplus >= 0
@@ -2119,7 +2239,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 										>
 											<div className="flex items-center gap-3.5 min-w-0">
 												<div className="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center shrink-0">
-													<Calendar className="text-on-surface" size={20} />
+													<Calendar
+														className="text-on-surface"
+														size={20}
+													/>
 												</div>
 												<div className="min-w-0">
 													<h4 className="font-semibold text-sm text-primary truncate">
@@ -2479,7 +2602,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								</span>
 							</div>
 							<div className="bg-white rounded-[18px] border border-[#F3F4F6] shadow-sm overflow-hidden divide-y divide-[#F3F4F6]">
-								{/* Subpage 1 link */}
+								{/* Subpage 1 link: Paycheck */}
 								<button
 									type="button"
 									onClick={() => navigateTo('paycheck')}
@@ -2501,8 +2624,120 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											</span>
 										</div>
 									</div>
-									<ChevronRight size={22} className="text-[#9CA3AF] shrink-0" />
+									<ChevronRight
+										size={22}
+										className="text-[#9CA3AF] shrink-0"
+									/>
 								</button>
+
+								{/* Subpage 2 link: Vehicle & Commute Costs */}
+								<button
+									type="button"
+									onClick={() => navigateTo('vehicle')}
+									className="w-full flex items-center justify-between p-4 text-left transition-colors active:bg-[#F9FAFB] focus:outline-none cursor-pointer"
+								>
+									<div className="flex items-center gap-3.5">
+										<div className="w-10 h-10 rounded-xl bg-[#ECFDF5] flex items-center justify-center text-[#059669] shrink-0">
+											<Car size={20} />
+										</div>
+										<div className="flex flex-col">
+											<span className="text-[16px] font-bold text-[#111111] leading-snug">
+												Vehicle &amp; Commute Costs
+											</span>
+											<span className="text-[13px] text-[#6B7280] mt-0.5">
+												${vehicleCostPerMile.toFixed(2)}/mi benchmark • {currentMpg} MPG @ ${currentGas.toFixed(2)}
+											</span>
+										</div>
+									</div>
+									<ChevronRight
+										size={22}
+										className="text-[#9CA3AF] shrink-0"
+									/>
+								</button>
+							</div>
+						</section>
+
+						{/* SECTION: DEVELOPER CONTROLS */}
+						<section className="flex flex-col mt-6">
+							<div className="px-1 mb-2">
+								<span className="text-[11px] font-bold uppercase tracking-wider text-[#9CA3AF]">
+									Developer Controls
+								</span>
+							</div>
+							<div className="bg-white rounded-[18px] border border-[#F3F4F6] shadow-sm overflow-hidden divide-y divide-[#F3F4F6]">
+								{/* Simulate Route Driving */}
+								<div className="flex items-center justify-between p-4">
+									<div className="flex items-center gap-3 pr-2 min-w-0">
+										<div className="w-9 h-9 rounded-xl bg-blue-50 text-[#007AFF] flex items-center justify-center shrink-0">
+											<Navigation size={18} />
+										</div>
+										<div className="flex flex-col min-w-0">
+											<span className="text-[15px] font-semibold text-[#111111]">
+												Simulate Route Driving
+											</span>
+											<span className="text-[12px] text-[#6B7280] leading-snug mt-0.5">
+												Steps along roads for testing. Disable for live GPS driving.
+											</span>
+										</div>
+									</div>
+									<button
+										type="button"
+										role="switch"
+										aria-checked={enableRouteSimulation}
+										onClick={handleToggleRouteSimulation}
+										data-testid="main-enable-route-simulation-toggle"
+										className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
+											enableRouteSimulation
+												? 'bg-[#10B981]'
+												: 'bg-[#E5E7EB]'
+										}`}
+									>
+										<span
+											className={`pointer-events-none inline-block h-[24px] w-[24px] transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+												enableRouteSimulation
+													? 'translate-x-5'
+													: 'translate-x-0'
+											}`}
+										/>
+									</button>
+								</div>
+
+								{/* Dev Tracking Overlay */}
+								<div className="flex items-center justify-between p-4">
+									<div className="flex items-center gap-3 pr-2 min-w-0">
+										<div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#059669] flex items-center justify-center shrink-0">
+											<Terminal size={18} />
+										</div>
+										<div className="flex flex-col min-w-0">
+											<span className="text-[15px] font-semibold text-[#111111]">
+												Dev Tracking Overlay
+											</span>
+											<span className="text-[12px] text-[#6B7280] leading-snug mt-0.5">
+												Shows live 4-state engine telemetry and test triggers
+											</span>
+										</div>
+									</div>
+									<button
+										type="button"
+										role="switch"
+										aria-checked={devTrackingOverlay}
+										onClick={handleToggleDevTrackingOverlay}
+										data-testid="main-dev-tracking-overlay-toggle"
+										className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none ${
+											devTrackingOverlay
+												? 'bg-[#10B981]'
+												: 'bg-[#E5E7EB]'
+										}`}
+									>
+										<span
+											className={`pointer-events-none inline-block h-[24px] w-[24px] transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+												devTrackingOverlay
+													? 'translate-x-5'
+													: 'translate-x-0'
+											}`}
+										/>
+									</button>
+								</div>
 							</div>
 						</section>
 
@@ -2596,7 +2831,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											surplus
 										</span>
 									</div>
-									<ChevronRight size={22} className="text-[#9CA3AF] shrink-0" />
+									<ChevronRight
+										size={22}
+										className="text-[#9CA3AF] shrink-0"
+									/>
 								</button>
 								<button
 									type="button"
@@ -2611,7 +2849,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											Download local ledger file
 										</span>
 									</div>
-									<ChevronRight size={22} className="text-[#9CA3AF] shrink-0" />
+									<ChevronRight
+										size={22}
+										className="text-[#9CA3AF] shrink-0"
+									/>
 								</button>
 							</div>
 						</section>
@@ -2820,7 +3061,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 						<div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl flex flex-col gap-4 border border-gray-100">
 							<div className="flex items-center justify-between">
 								<div className="flex items-center gap-2">
-									<Home size={22} className="text-secondary" />
+									<Home
+										size={22}
+										className="text-secondary"
+									/>
 									<h3 className="text-[16px] font-bold text-[#111111]">
 										Set Home Address
 									</h3>
@@ -2857,7 +3101,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 								/>
 								{isSearchingAddress && (
 									<div className="absolute right-3 top-2.5">
-										<RotateCw size={18} className="text-gray-400 animate-spin" />
+										<RotateCw
+											size={18}
+											className="text-gray-400 animate-spin"
+										/>
 									</div>
 								)}
 							</div>
@@ -2875,7 +3122,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 											}
 											className="w-full text-left p-2.5 hover:bg-neutral-50 transition-colors text-[13px] text-[#111111] font-medium flex items-start gap-2 cursor-pointer"
 										>
-											<MapPin size={16} className="text-gray-400 shrink-0 mt-0.5" />
+											<MapPin
+												size={16}
+												className="text-gray-400 shrink-0 mt-0.5"
+											/>
 											<span className="truncate">
 												{item.label}
 											</span>
