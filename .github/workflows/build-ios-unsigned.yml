@@ -18,7 +18,7 @@ jobs:
 
             - name: Install dependencies & sync Capacitor
               run: |
-                  npm ci || npm install
+                  npm ci || npm install --legacy-peer-deps
                   npm run build
                   npx cap sync ios
 
