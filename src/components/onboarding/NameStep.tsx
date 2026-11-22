@@ -155,7 +155,7 @@ export const NameStep: React.FC<NameStepProps> = ({
 								duration: 0.35,
 								ease: [0.16, 1, 0.3, 1],
 							}}
-							className="absolute bottom-6 inset-x-4 max-w-[320px] mx-autopx-5 py-3.5 rounded-2xl shadow-2xl flex items-center justify-center gap-2.5 z-50 pointer-events-none"
+							className="absolute bottom-6 inset-x-4 max-w-[320px] mx-auto px-5 py-3.5 rounded-2xl shadow-2xl flex items-center justify-center gap-2.5 z-50 pointer-events-none"
 						>
 							<Sparkles
 								size={18}

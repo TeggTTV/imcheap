@@ -8,6 +8,22 @@ export const DEFAULT_ROAD_ROUTES: Record<string, Coordinate[]> = {
 	'trip-rowan-home': (roadRoutes as Record<string, any>)['trip-rowan-home'] || [],
 };
 
+export interface DirectionStep {
+	instruction: string;
+	street: string;
+	distanceMiles: number;
+	durationMinutes: number;
+	maneuverType: string;
+	maneuverModifier?: string;
+}
+
+export interface RouteDirections {
+	coordinates: Coordinate[];
+	distanceMiles: number;
+	durationMinutes: number;
+	steps: DirectionStep[];
+}
+
 /**
  * Calculates straight-line distance in miles between two coordinates using Haversine formula.
  */
@@ -53,6 +69,169 @@ export async function fetchRoadRoute(
 		console.warn('Failed to fetch road route from OSRM', e);
 	}
 	return null;
+}
+
+function formatManeuverInstruction(
+	maneuver: { type?: string; modifier?: string },
+	streetName: string,
+): string {
+	const name = streetName && streetName.trim().length > 0 ? streetName : 'the road';
+	const mod = maneuver.modifier ? maneuver.modifier.replace(/_/g, ' ') : '';
+
+	switch (maneuver.type) {
+		case 'depart':
+			return mod ? `Head ${mod} on ${name}` : `Head onto ${name}`;
+		case 'arrive':
+			return `Arrive at destination`;
+		case 'turn':
+			return `Turn ${mod || 'right'} onto ${name}`;
+		case 'continue':
+		case 'new name':
+			return `Continue onto ${name}`;
+		case 'roundabout':
+		case 'rotary':
+			return `Enter roundabout and take exit onto ${name}`;
+		case 'merge':
+			return `Merge onto ${name}`;
+		case 'on ramp':
+			return `Take ramp onto ${name}`;
+		case 'off ramp':
+			return `Take exit onto ${name}`;
+		case 'fork':
+			return `Take the ${mod || 'right'} fork onto ${name}`;
+		case 'end of road':
+			return `Turn ${mod || 'right'} at end of road onto ${name}`;
+		default:
+			return mod ? `Turn ${mod} onto ${name}` : `Continue onto ${name}`;
+	}
+}
+
+/**
+ * Fetches turn-by-turn routing with geometry, steps, distance, and duration.
+ * Falls back to synthesized road route if offline or rate-limited.
+ */
+export async function fetchRouteDirections(
+	start: Coordinate,
+	end: Coordinate,
+	destStreetHint?: string,
+): Promise<RouteDirections> {
+	try {
+		const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson&steps=true`;
+		const res = await fetch(url);
+		if (res.ok) {
+			const data = await res.json();
+			if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+				const route = data.routes[0];
+				const coordinates: Coordinate[] = route.geometry.coordinates.map(
+					([lng, lat]: [number, number]) => ({
+						lat: Number(lat.toFixed(5)),
+						lng: Number(lng.toFixed(5)),
+					}),
+				);
+				const distanceMiles = Number((route.distance / 1609.344).toFixed(1));
+				const durationMinutes = Math.max(1, Math.round(route.duration / 60));
+
+				const steps: DirectionStep[] = [];
+				if (route.legs && route.legs[0] && Array.isArray(route.legs[0].steps)) {
+					for (const s of route.legs[0].steps) {
+						const stepDistMiles = Number((s.distance / 1609.344).toFixed(1));
+						const stepDurationMin = Math.max(0.5, Math.round((s.duration / 60) * 10) / 10);
+						const instruction = formatManeuverInstruction(s.maneuver || {}, s.name || '');
+						steps.push({
+							instruction,
+							street: s.name || destStreetHint || 'Local Road',
+							distanceMiles: stepDistMiles,
+							durationMinutes: stepDurationMin,
+							maneuverType: s.maneuver?.type || 'turn',
+							maneuverModifier: s.maneuver?.modifier || 'straight',
+						});
+					}
+				}
+
+				if (steps.length === 0) {
+					steps.push(
+						{
+							instruction: `Head toward ${destStreetHint || 'destination'}`,
+							street: 'Main Road',
+							distanceMiles: Number((distanceMiles * 0.4).toFixed(1)),
+							durationMinutes: Math.round(durationMinutes * 0.4),
+							maneuverType: 'depart',
+						},
+						{
+							instruction: `Continue toward ${destStreetHint || 'destination'}`,
+							street: destStreetHint || 'Local Route',
+							distanceMiles: Number((distanceMiles * 0.6).toFixed(1)),
+							durationMinutes: Math.round(durationMinutes * 0.6),
+							maneuverType: 'turn',
+						},
+						{
+							instruction: 'Arrive at destination',
+							street: destStreetHint || 'Destination',
+							distanceMiles: 0.1,
+							durationMinutes: 1,
+							maneuverType: 'arrive',
+						},
+					);
+				}
+
+				return {
+					coordinates,
+					distanceMiles,
+					durationMinutes,
+					steps,
+				};
+			}
+		}
+	} catch (e) {
+		console.warn('OSRM routing request failed, generating fallback directions', e);
+	}
+
+	// Fallback road route geometry & directions
+	const straightMiles = haversineDistanceMiles(start, end);
+	const estMiles = Number(Math.max(0.3, straightMiles * 1.25).toFixed(1));
+	const estMinutes = Math.max(2, Math.round((estMiles / 28) * 60));
+
+	// Generate intermediate waypoints with slight bend
+	const midLat = (start.lat + end.lat) / 2 + (end.lng - start.lng) * 0.15;
+	const midLng = (start.lng + end.lng) / 2 - (end.lat - start.lat) * 0.15;
+	const coordinates: Coordinate[] = [
+		start,
+		{ lat: Number(midLat.toFixed(5)), lng: Number(midLng.toFixed(5)) },
+		end,
+	];
+
+	const steps: DirectionStep[] = [
+		{
+			instruction: `Head toward ${destStreetHint || 'main avenue'}`,
+			street: 'Starting Road',
+			distanceMiles: Number((estMiles * 0.35).toFixed(1)),
+			durationMinutes: Math.max(1, Math.round(estMinutes * 0.35)),
+			maneuverType: 'depart',
+			maneuverModifier: 'straight',
+		},
+		{
+			instruction: `Turn toward ${destStreetHint || 'destination'}`,
+			street: destStreetHint || 'Connecting Road',
+			distanceMiles: Number((estMiles * 0.6).toFixed(1)),
+			durationMinutes: Math.max(1, Math.round(estMinutes * 0.6)),
+			maneuverType: 'turn',
+			maneuverModifier: 'right',
+		},
+		{
+			instruction: `Arrive at ${destStreetHint || 'destination'}`,
+			street: destStreetHint || 'Destination',
+			distanceMiles: 0.1,
+			durationMinutes: 1,
+			maneuverType: 'arrive',
+		},
+	];
+
+	return {
+		coordinates,
+		distanceMiles: estMiles,
+		durationMinutes: estMinutes,
+		steps,
+	};
 }
 
 /**

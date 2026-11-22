@@ -12,6 +12,8 @@ import {
 import {
 	DEFAULT_ROAD_ROUTES,
 	haversineDistanceMiles,
+	fetchRouteDirections,
+	RouteDirections,
 } from '../utils/mapRouting';
 import { chaikinSmooth, lerpCoordinate } from '../utils/geoSmoothing';
 import { getSavedHomeAddress } from '../utils/tripTracker';
@@ -19,6 +21,7 @@ import { SwipeableTripItem } from './SwipeableTripItem';
 import { LocationActionDock } from './LocationActionDock';
 import { ArrivalEndTripModal } from './ArrivalEndTripModal';
 import { MapsOnboardingModal } from './MapsOnboardingModal';
+import { AppleMapsDock } from './AppleMapsDock';
 import { getLucideIconSvgString } from './LucideIcon';
 import {
 	List,
@@ -29,6 +32,12 @@ import {
 	LocateFixed,
 	MapPinOff,
 	Navigation,
+	Plus,
+	Minus,
+	Search,
+	CornerUpRight,
+	CornerUpLeft,
+	ArrowUp,
 } from 'lucide-react';
 
 export interface MapsViewProps {
@@ -141,14 +150,34 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	const [arrivalPromptLocation, setArrivalPromptLocation] =
 		useState<SavedLocation | null>(null);
 
+	// Apple Maps Mode & Routing State
+	const [isAppleMapsMode, setIsAppleMapsMode] = useState(false);
+	const [selectedNavDestination, setSelectedNavDestination] = useState<{
+		name: string;
+		address: string;
+		coord: Coordinate;
+		category?: string;
+		dealBadge?: string;
+	} | null>(null);
+	const [activeNavRoute, setActiveNavRoute] = useState<RouteDirections | null>(null);
+	const [isNavigating, setIsNavigating] = useState(false);
+	const [navStepIndex, setNavStepIndex] = useState(0);
+	const [isSimulating, setIsSimulating] = useState(false);
+	const [simProgressIndex, setSimProgressIndex] = useState(0);
+
+	const navRouteLayerRef = useRef<L.Polyline | null>(null);
+	const navDestMarkerRef = useRef<L.Marker | null>(null);
+
 	// Notify parent to slide bottom navigation bar down when any modal dock is active
 	useEffect(() => {
 		const isAnyDockOpen =
+			isAppleMapsMode ||
 			isCreateMarkerOpen ||
 			Boolean(arrivalPromptLocation) ||
 			isMapsOnboardingOpen;
 		onDockStateChange?.(isAnyDockOpen);
 	}, [
+		isAppleMapsMode,
 		isCreateMarkerOpen,
 		arrivalPromptLocation,
 		isMapsOnboardingOpen,
@@ -234,6 +263,24 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		trackingStatus?.isDriving,
 		trackingStatus?.state,
 	]);
+
+	// Invalidate Leaflet map size when toggling between card and Apple Maps full-screen
+	useEffect(() => {
+		if (!mapInstanceRef.current) return;
+		const timer = setTimeout(() => {
+			if (mapInstanceRef.current) {
+				mapInstanceRef.current.invalidateSize();
+				if (displayedUserLocation) {
+					mapInstanceRef.current.setView(
+						[displayedUserLocation.lat, displayedUserLocation.lng],
+						isAppleMapsMode ? 16 : 15,
+						{ animate: true },
+					);
+				}
+			}
+		}, 150);
+		return () => clearTimeout(timer);
+	}, [isAppleMapsMode, displayedUserLocation]);
 
 	// Synchronize when external user location changes from tracker
 	useEffect(() => {
@@ -839,27 +886,270 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		}
 	};
 
+	const handleSelectNavDestination = async (dest: {
+		name: string;
+		address: string;
+		coord: Coordinate;
+		category?: string;
+		dealBadge?: string;
+	}) => {
+		setSelectedNavDestination(dest);
+		const route = await fetchRouteDirections(
+			displayedUserLocation,
+			dest.coord,
+			dest.name,
+		);
+		setActiveNavRoute(route);
+		setNavStepIndex(0);
+		setSimProgressIndex(0);
+
+		if (!mapInstanceRef.current) return;
+		const map = mapInstanceRef.current;
+
+		if (navRouteLayerRef.current) {
+			map.removeLayer(navRouteLayerRef.current);
+			navRouteLayerRef.current = null;
+		}
+		if (navDestMarkerRef.current) {
+			map.removeLayer(navDestMarkerRef.current);
+			navDestMarkerRef.current = null;
+		}
+
+		// Draw vibrant Apple Maps route polyline
+		const latLngs: [number, number][] = route.coordinates.map((c) => [
+			c.lat,
+			c.lng,
+		]);
+		const polyline = L.polyline(latLngs, {
+			color: '#007AFF',
+			weight: 6,
+			opacity: 0.95,
+			lineCap: 'round',
+			lineJoin: 'round',
+		}).addTo(map);
+		navRouteLayerRef.current = polyline;
+
+		// Apple Maps Destination Marker
+		const destIcon = L.divIcon({
+			className: 'bg-transparent',
+			html: `
+				<div class="relative flex items-center justify-center w-8 h-8 rounded-full bg-[#FF3B30] text-white shadow-xl border-2 border-white font-bold">
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+				</div>
+			`,
+			iconSize: [32, 32],
+			iconAnchor: [16, 28],
+		});
+
+		const marker = L.marker([dest.coord.lat, dest.coord.lng], {
+			icon: destIcon,
+			zIndexOffset: 1200,
+		}).addTo(map);
+		navDestMarkerRef.current = marker;
+
+		const bounds = L.latLngBounds(latLngs);
+		map.fitBounds(bounds, {
+			padding: [60, 60],
+			maxZoom: 16,
+			animate: true,
+		});
+	};
+
+	const handleCancelNavRoute = () => {
+		setSelectedNavDestination(null);
+		setActiveNavRoute(null);
+		setIsNavigating(false);
+		setIsSimulating(false);
+		setSimProgressIndex(0);
+		setNavStepIndex(0);
+
+		if (mapInstanceRef.current) {
+			if (navRouteLayerRef.current) {
+				mapInstanceRef.current.removeLayer(navRouteLayerRef.current);
+				navRouteLayerRef.current = null;
+			}
+			if (navDestMarkerRef.current) {
+				mapInstanceRef.current.removeLayer(navDestMarkerRef.current);
+				navDestMarkerRef.current = null;
+			}
+			mapInstanceRef.current.setView(
+				[displayedUserLocation.lat, displayedUserLocation.lng],
+				16,
+				{ animate: true },
+			);
+		}
+	};
+
+	const handleExitAppleMaps = () => {
+		handleCancelNavRoute();
+		setIsAppleMapsMode(false);
+		if (mapInstanceRef.current) {
+			setTimeout(() => {
+				mapInstanceRef.current?.invalidateSize();
+				mapInstanceRef.current?.setView(
+					[displayedUserLocation.lat, displayedUserLocation.lng],
+					15,
+					{ animate: true },
+				);
+			}, 150);
+		}
+	};
+
+	const handleStartNavigation = () => {
+		setIsNavigating(true);
+		setIsSimulating(true);
+		setSimProgressIndex(0);
+		setNavStepIndex(0);
+		if (mapInstanceRef.current && displayedUserLocation) {
+			mapInstanceRef.current.setView(
+				[displayedUserLocation.lat, displayedUserLocation.lng],
+				17,
+				{ animate: true },
+			);
+		}
+	};
+
+	const handleEndNavigation = () => {
+		if (selectedNavDestination && activeNavRoute) {
+			const miles = activeNavRoute.distanceMiles;
+			const cost = Number((miles * mileageRate).toFixed(2));
+			onLogTrip({
+				id: `trip-nav-${Date.now()}`,
+				from: 'Current Location',
+				to: selectedNavDestination.name,
+				miles,
+				cost,
+				timestamp: new Date().toISOString(),
+				status: 'LOGGED',
+				coordinates: activeNavRoute.coordinates,
+			});
+		}
+		handleCancelNavRoute();
+	};
+
+	// Simulation timer along road coordinates
+	useEffect(() => {
+		if (
+			!isNavigating ||
+			!isSimulating ||
+			!activeNavRoute ||
+			activeNavRoute.coordinates.length < 2
+		) {
+			return;
+		}
+
+		const interval = setInterval(() => {
+			setSimProgressIndex((prev) => {
+				const next = prev + 1;
+				if (next >= activeNavRoute.coordinates.length) {
+					setIsSimulating(false);
+					return prev;
+				}
+
+				const pt = activeNavRoute.coordinates[next];
+				if (userMarkerRef.current) {
+					userMarkerRef.current.setLatLng([pt.lat, pt.lng]);
+				}
+				mapInstanceRef.current?.panTo([pt.lat, pt.lng], { animate: true });
+
+				// Step progression
+				const totalPts = activeNavRoute.coordinates.length;
+				const totalSteps = activeNavRoute.steps.length;
+				if (totalSteps > 1) {
+					const stepIdx = Math.min(
+						totalSteps - 1,
+						Math.floor((next / totalPts) * totalSteps),
+					);
+					setNavStepIndex(stepIdx);
+				}
+
+				return next;
+			});
+		}, 1000);
+
+		return () => clearInterval(interval);
+	}, [isNavigating, isSimulating, activeNavRoute]);
+
 	return (
 		<div className="w-full flex flex-col gap-4">
-			{/* Leaflet Map Card */}
-			<div className="relative w-full h-80 rounded-3xl overflow-hidden border border-gray-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.04)] bg-white">
+			{/* Leaflet Map Card or Full-Screen Apple Maps Container */}
+			<div
+				className={`transition-all duration-300 ${
+					isAppleMapsMode
+						? 'fixed inset-0 z-50 w-screen h-dvh rounded-none border-none shadow-none bg-neutral-900'
+						: 'relative w-full h-80 rounded-3xl overflow-hidden border border-gray-200/80 shadow-[0_4px_20px_rgba(0,0,0,0.04)] bg-white'
+				}`}
+			>
 				<div
 					ref={mapContainerRef}
 					className="w-full h-full z-0"
 					style={{
-						filter: 'grayscale(100%) contrast(1.1) brightness(1.03)',
+						filter: isAppleMapsMode
+							? 'none'
+							: 'grayscale(100%) contrast(1.1) brightness(1.03)',
 					}}
 				/>
 
-				{/* Recenter Target Button on Map */}
-				<button
-					type="button"
-					onClick={handleCenterOnMe}
-					aria-label="Center on live location"
-					className="absolute bottom-3.5 right-3.5 z-20 w-10 h-10 rounded-full bg-white shadow-md border border-neutral-200/60 flex items-center justify-center text-[#111111] hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
+				{/* Full-Screen Apple Maps Header */}
+				{isAppleMapsMode && !isNavigating && (
+					<div className="absolute top-4 inset-x-4 z-30 flex items-center justify-between pointer-events-auto">
+						<button
+							type="button"
+							onClick={handleExitAppleMaps}
+							className="h-10 px-3.5 rounded-full bg-white/95 backdrop-blur-md shadow-md border border-neutral-200/70 text-[#111111] font-bold text-[13px] flex items-center gap-1.5 hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
+						>
+							<X size={16} />
+							<span>Exit Maps</span>
+						</button>
+
+						<div className="h-9 px-3 rounded-full bg-white/90 backdrop-blur-md shadow-sm border border-neutral-200/60 text-neutral-700 font-bold text-[12px] flex items-center gap-1.5">
+							<span>72° ☀️</span>
+							<span className="text-neutral-300">|</span>
+							<span className="text-[#007AFF]">Apple Maps Mode</span>
+						</div>
+					</div>
+				)}
+
+				{/* Recenter & Zoom Controls (Apple Maps stacked style with zoom buttons above centering) */}
+				<div
+					className={`absolute z-30 flex flex-col items-center gap-2 transition-all ${
+						isAppleMapsMode
+							? isNavigating
+								? 'bottom-28 right-4'
+								: 'top-20 right-4'
+							: 'bottom-3.5 right-3.5'
+					}`}
 				>
-					<LocateFixed size={18} />
-				</button>
+					{/* Zoom In & Out Pill */}
+					<div className="flex flex-col bg-white rounded-2xl shadow-md border border-neutral-200/70 overflow-hidden divide-y divide-neutral-100">
+						<button
+							type="button"
+							onClick={() => mapInstanceRef.current?.zoomIn()}
+							aria-label="Zoom in"
+							className="w-10 h-10 flex items-center justify-center text-[#111111] hover:bg-neutral-50 active:bg-neutral-100 transition-colors cursor-pointer"
+						>
+							<Plus size={18} />
+						</button>
+						<button
+							type="button"
+							onClick={() => mapInstanceRef.current?.zoomOut()}
+							aria-label="Zoom out"
+							className="w-10 h-10 flex items-center justify-center text-[#111111] hover:bg-neutral-50 active:bg-neutral-100 transition-colors cursor-pointer"
+						>
+							<Minus size={18} />
+						</button>
+					</div>
+
+					{/* Recenter Target Button */}
+					<button
+						type="button"
+						onClick={handleCenterOnMe}
+						aria-label="Center on live location"
+						className="w-10 h-10 rounded-full bg-white shadow-md border border-neutral-200/70 flex items-center justify-center text-[#111111] hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
+					>
+						<LocateFixed size={18} />
+					</button>
+				</div>
 
 				{/* Location Access Disabled Dimmed Overlay */}
 				{!isLocationEnabled && (
@@ -898,56 +1188,193 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				)}
 			</div>
 
-			{/* Recorded Trips Section */}
-			<section className="w-full flex flex-col gap-2.5">
-				<div className="flex items-center justify-between px-1">
-					<div className="flex items-center gap-2">
-						<span className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">
-							Recorded Trips
-						</span>
-						<span className="text-[11px] font-bold bg-[#E5E7EB] text-[#4B5563] px-1.5 py-0.5 rounded-full">
-							{trips.length}
+			{/* Active Turn-by-Turn Driving HUD: Top Maneuver Banner */}
+			{isAppleMapsMode && isNavigating && activeNavRoute && (
+				<div className="fixed top-4 inset-x-4 max-w-120 mx-auto z-50 pointer-events-auto">
+					<div className="bg-[#0D3823] text-white rounded-3xl p-4 shadow-2xl border border-emerald-500/40 flex items-center justify-between">
+						<div className="flex items-center gap-3.5 min-w-0 pr-2">
+							<div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-emerald-400 shrink-0 font-black">
+								{activeNavRoute.steps[navStepIndex]?.maneuverModifier?.includes('left') ? (
+									<CornerUpLeft size={28} />
+								) : activeNavRoute.steps[navStepIndex]?.maneuverModifier?.includes('right') ? (
+									<CornerUpRight size={28} />
+								) : (
+									<ArrowUp size={28} />
+								)}
+							</div>
+							<div className="min-w-0">
+								<div className="text-[12px] font-bold text-emerald-300 uppercase tracking-wide">
+									In {activeNavRoute.steps[navStepIndex]?.distanceMiles || 0.4} mi
+								</div>
+								<div className="text-[17px] font-black leading-tight text-white truncate">
+									{activeNavRoute.steps[navStepIndex]?.instruction || 'Continue on route'}
+								</div>
+								{activeNavRoute.steps[navStepIndex + 1] && (
+									<div className="text-[11.5px] text-white/70 font-medium truncate mt-0.5">
+										Then {activeNavRoute.steps[navStepIndex + 1].instruction}
+									</div>
+								)}
+							</div>
+						</div>
+
+						<div className="px-2.5 py-1 rounded-xl bg-white/10 text-emerald-300 font-extrabold text-[12px] shrink-0 text-center">
+							35 <span className="text-[10px] block font-medium text-white/60">MPH</span>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Active Turn-by-Turn Driving Bottom Bar with ImCheap Live Cost Counter */}
+			{isAppleMapsMode && isNavigating && activeNavRoute && (
+				<div className="fixed bottom-6 inset-x-4 max-w-120 mx-auto z-50 pointer-events-auto">
+					<div className="bg-white rounded-3xl p-4 shadow-[0_12px_40px_rgba(0,0,0,0.22)] border border-neutral-200/80 flex items-center justify-between">
+						<div>
+							<div className="flex items-baseline gap-1.5">
+								<span className="text-[26px] leading-none font-black text-[#111111] tracking-tight">
+									{Math.max(
+										1,
+										Math.round(
+											activeNavRoute.durationMinutes *
+												(1 -
+													simProgressIndex /
+														Math.max(
+															1,
+															activeNavRoute.coordinates
+																.length,
+														)),
+										),
+									)}
+								</span>
+								<span className="text-[14px] font-bold text-neutral-600">min</span>
+							</div>
+							<div className="text-[12px] text-neutral-500 font-semibold mt-0.5">
+								{Math.max(
+									0.1,
+									Number(
+										(
+											activeNavRoute.distanceMiles *
+											(1 -
+												simProgressIndex /
+													Math.max(
+														1,
+														activeNavRoute.coordinates
+															.length,
+													))
+										).toFixed(1),
+									),
+								)}{' '}
+								mi · ETA{' '}
+								{new Date(
+									Date.now() +
+										activeNavRoute.durationMinutes * 60000,
+								).toLocaleTimeString([], {
+									hour: 'numeric',
+									minute: '2-digit',
+								})}
+							</div>
+							<div className="text-[11.5px] font-bold text-emerald-600 mt-1">
+								ImCheap: ${(simProgressIndex * 0.08 + 0.25).toFixed(2)} cost (
+								{Math.max(
+									1,
+									Math.round(
+										((simProgressIndex * 0.08 + 0.25) /
+											Math.max(hourlyWage, 5)) *
+											60,
+									),
+								)}
+								m work)
+							</div>
+						</div>
+
+						<div className="flex items-center gap-2">
+							<button
+								type="button"
+								onClick={() => setIsSimulating(!isSimulating)}
+								className="h-12 px-3.5 rounded-2xl bg-neutral-100 hover:bg-neutral-200 text-[#111111] font-bold text-[12px] transition-colors cursor-pointer"
+							>
+								{isSimulating ? 'Pause' : 'Simulate'}
+							</button>
+							<button
+								type="button"
+								onClick={handleEndNavigation}
+								className="h-12 px-5 rounded-2xl bg-[#FF3B30] hover:bg-red-600 text-white font-black text-[14px] shadow-md shadow-red-500/20 active:scale-95 transition-all cursor-pointer"
+							>
+								End
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Apple Maps Action Dock */}
+			<AppleMapsDock
+				isOpen={isAppleMapsMode}
+				onClose={handleExitAppleMaps}
+				userLocation={displayedUserLocation}
+				savedLocations={savedLocations}
+				hourlyWage={hourlyWage}
+				mileageRate={mileageRate}
+				onSelectDestination={handleSelectNavDestination}
+				activeRoute={activeNavRoute}
+				selectedDestination={selectedNavDestination}
+				onStartNavigation={handleStartNavigation}
+				onCancelRoute={handleCancelNavRoute}
+				isNavigating={isNavigating}
+				onEndNavigation={handleEndNavigation}
+			/>
+
+			{/* Recorded Trips Section (in default card state) */}
+			{!isAppleMapsMode && (
+				<section className="w-full flex flex-col gap-2.5">
+					<div className="flex items-center justify-between px-1">
+						<div className="flex items-center gap-2">
+							<span className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">
+								Recorded Trips
+							</span>
+							<span className="text-[11px] font-bold bg-[#E5E7EB] text-[#4B5563] px-1.5 py-0.5 rounded-full">
+								{trips.length}
+							</span>
+						</div>
+						<span className="text-[11px] font-semibold text-neutral-400">
+							Tap a trip to view path
 						</span>
 					</div>
-					<span className="text-[11px] font-semibold text-neutral-400">
-						Tap a trip to view path
-					</span>
-				</div>
 
-				<div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_16px_rgba(0,0,0,0.03)] overflow-hidden">
-					{trips.length === 0 ? (
-						<div className="p-8 text-center text-on-surface-variant flex flex-col items-center justify-center gap-2">
-							<div className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant">
-								<Car size={20} />
+					<div className="bg-white rounded-3xl border border-gray-100 shadow-[0_2px_16px_rgba(0,0,0,0.03)] overflow-hidden">
+						{trips.length === 0 ? (
+							<div className="p-8 text-center text-on-surface-variant flex flex-col items-center justify-center gap-2">
+								<div className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant">
+									<Car size={20} />
+								</div>
+								<p className="text-body-sm font-medium text-neutral-600">
+									No recorded trips yet.
+								</p>
+								<p className="text-label-sm text-outline max-w-[240px]">
+									Drive or simulate a commute to track mileage
+									against your working hours.
+								</p>
 							</div>
-							<p className="text-body-sm font-medium text-neutral-600">
-								No recorded trips yet.
-							</p>
-							<p className="text-label-sm text-outline max-w-[240px]">
-								Drive or simulate a commute to track mileage
-								against your working hours.
-							</p>
-						</div>
-					) : (
-						<div className="divide-y divide-gray-100">
-							{trips.map((trip) => (
-								<SwipeableTripItem
-									key={trip.id}
-									trip={trip}
-									hourlyWage={hourlyWage}
-									mileageRate={mileageRate}
-									isSelected={activeTripId === trip.id}
-									onSelect={() => handleSelectTrip(trip)}
-									onLog={onLogTrip}
-									onDelete={(id) =>
-										onDeleteTrip && onDeleteTrip(id)
-									}
-								/>
-							))}
-						</div>
-					)}
-				</div>
-			</section>
+						) : (
+							<div className="divide-y divide-gray-100">
+								{trips.map((trip) => (
+									<SwipeableTripItem
+										key={trip.id}
+										trip={trip}
+										hourlyWage={hourlyWage}
+										mileageRate={mileageRate}
+										isSelected={activeTripId === trip.id}
+										onSelect={() => handleSelectTrip(trip)}
+										onLog={onLogTrip}
+										onDelete={(id) =>
+											onDeleteTrip && onDeleteTrip(id)
+										}
+									/>
+								))}
+							</div>
+						)}
+					</div>
+				</section>
+			)}
 
 			{/* Create / Edit Marker Action Dock */}
 			<LocationActionDock
@@ -959,84 +1386,107 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				onPreviewRadiusChange={setPreviewRadiusData}
 			/>
 
-			{/* Floating Bottom-Right 3-Option Select Menu on Screen (above bottom nav bar) */}
-			<div className="fixed bottom-20 right-4 z-40 flex flex-col items-end gap-2.5 pointer-events-auto">
-				{/* Pop-up 3-Option Select Menu */}
-				<AnimatePresence>
-					{isMenuOpen && (
-						<motion.div
-							initial={{ opacity: 0, scale: 0.9, y: 10 }}
-							animate={{ opacity: 1, scale: 1, y: 0 }}
-							exit={{ opacity: 0, scale: 0.9, y: 10 }}
-							transition={{ duration: 0.16, ease: 'easeOut' }}
-							className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-1.5 flex flex-col gap-1 w-48 mb-1"
+			{/* Floating Bottom Row on Screen (Search Bar + 3-Option Select Menu) */}
+			{!isAppleMapsMode && (
+				<div className="fixed bottom-20 inset-x-4 max-w-120 mx-auto z-40 flex items-end gap-2.5 pointer-events-auto">
+					{/* Search Bar filling the horizontal space between left edge and menu button */}
+					<div
+						onClick={() => setIsAppleMapsMode(true)}
+						role="button"
+						tabIndex={0}
+						onKeyDown={(e) => {
+							if (e.key === 'Enter' || e.key === ' ') {
+								e.preventDefault();
+								setIsAppleMapsMode(true);
+							}
+						}}
+						aria-label="Search Maps, directions, and nearby deals"
+						className="flex-1 h-12 bg-white/95 backdrop-blur-md rounded-2xl shadow-lg border border-neutral-200/70 px-3.5 flex items-center gap-2.5 cursor-pointer hover:bg-neutral-50/90 active:scale-[0.99] transition-all group"
+					>
+						<div className="w-7 h-7 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-500 group-hover:text-neutral-700 transition-colors">
+							<Search size={15} />
+						</div>
+						<span className="text-[13.5px] font-medium text-neutral-500 group-hover:text-neutral-700 transition-colors select-none truncate">
+							Search Maps, directions, deals...
+						</span>
+					</div>
+
+					{/* Menu Opening Button & Dropup Menu */}
+					<div className="relative flex flex-col items-end">
+						<AnimatePresence>
+							{isMenuOpen && (
+								<motion.div
+									initial={{ opacity: 0, scale: 0.9, y: 10 }}
+									animate={{ opacity: 1, scale: 1, y: 0 }}
+									exit={{ opacity: 0, scale: 0.9, y: 10 }}
+									transition={{ duration: 0.16, ease: 'easeOut' }}
+									className="absolute bottom-14 right-0 bg-white rounded-2xl shadow-2xl border border-gray-100 p-1.5 flex flex-col gap-1 w-48 mb-1"
+								>
+									{/* Option 1: Locations */}
+									<button
+										type="button"
+										onClick={() => {
+											setIsMenuOpen(false);
+											onOpenLocationsPage();
+										}}
+										className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
+									>
+										<List size={18} className="text-[#059669]" />
+										<span>Locations</span>
+									</button>
+
+									{/* Option 2: Create Marker */}
+									<button
+										type="button"
+										onClick={() => {
+											setIsMenuOpen(false);
+											setActiveEditingLocation(null);
+											setIsCreateMarkerOpen(true);
+										}}
+										className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
+									>
+										<MapPinPlus
+											size={18}
+											className="text-[#111111]"
+										/>
+										<span>Create Marker</span>
+									</button>
+
+									{/* Option 3: Vehicle Settings */}
+									<button
+										type="button"
+										onClick={() => {
+											setIsMenuOpen(false);
+											onOpenVehicleSettings();
+										}}
+										className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
+									>
+										<Car
+											size={18}
+											className="text-neutral-600"
+										/>
+										<span>Vehicle Settings</span>
+									</button>
+								</motion.div>
+							)}
+						</AnimatePresence>
+
+						{/* Floating Trigger Button */}
+						<button
+							type="button"
+							onClick={() => setIsMenuOpen(!isMenuOpen)}
+							aria-label="Locations and Vehicle Menu"
+							className={`w-12 h-12 rounded-full shadow-lg border border-neutral-200/60 flex items-center justify-center transition-all cursor-pointer ${
+								isMenuOpen
+									? 'bg-neutral-900 text-white'
+									: 'bg-white text-[#111111] hover:bg-neutral-50'
+							}`}
 						>
-							{/* Option 1: Locations */}
-							<button
-								type="button"
-								onClick={() => {
-									setIsMenuOpen(false);
-									onOpenLocationsPage();
-								}}
-								className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
-							>
-								<List
-									size={18}
-									className="text-[#059669]"
-								/>
-								<span>Locations</span>
-							</button>
-
-							{/* Option 2: Create Marker */}
-							<button
-								type="button"
-								onClick={() => {
-									setIsMenuOpen(false);
-									setActiveEditingLocation(null);
-									setIsCreateMarkerOpen(true);
-								}}
-								className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
-							>
-								<MapPinPlus
-									size={18}
-									className="text-[#111111]"
-								/>
-								<span>Create Marker</span>
-							</button>
-
-							{/* Option 3: Vehicle Settings */}
-							<button
-								type="button"
-								onClick={() => {
-									setIsMenuOpen(false);
-									onOpenVehicleSettings();
-								}}
-								className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
-							>
-								<Car
-									size={18}
-									className="text-neutral-600"
-								/>
-								<span>Vehicle Settings</span>
-							</button>
-						</motion.div>
-					)}
-				</AnimatePresence>
-
-				{/* Floating Trigger Button */}
-				<button
-					type="button"
-					onClick={() => setIsMenuOpen(!isMenuOpen)}
-					aria-label="Locations and Vehicle Menu"
-					className={`w-12 h-12 rounded-full shadow-lg border border-neutral-200/60 flex items-center justify-center transition-all cursor-pointer ${
-						isMenuOpen
-							? 'bg-neutral-900 text-white'
-							: 'bg-white text-[#111111] hover:bg-neutral-50'
-					}`}
-				>
-					{isMenuOpen ? <X size={20} /> : <MapPin size={20} />}
-				</button>
-			</div>
+							{isMenuOpen ? <X size={20} /> : <MapPin size={20} />}
+						</button>
+					</div>
+				</div>
+			)}
 
 			{/* Arrival End Trip Action Dock */}
 			<ArrivalEndTripModal
