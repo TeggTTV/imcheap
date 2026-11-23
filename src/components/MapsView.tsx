@@ -129,28 +129,9 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	useEffect(() => {
 		if (initialEditLocation) {
 			setActiveEditingLocation(initialEditLocation);
+			wasCardModeBeforeMarkerRef.current = !isAppleMapsMode;
+			setIsAppleMapsMode(true);
 			setIsCreateMarkerOpen(true);
-			if (mapInstanceRef.current) {
-				mapInstanceRef.current.invalidateSize();
-				mapInstanceRef.current.setView(
-					[initialEditLocation.lat, initialEditLocation.lng],
-					17,
-					{ animate: true },
-				);
-			} else {
-				// If map container is still mounting, retry right after render
-				const timer = setTimeout(() => {
-					if (mapInstanceRef.current) {
-						mapInstanceRef.current.invalidateSize();
-						mapInstanceRef.current.setView(
-							[initialEditLocation.lat, initialEditLocation.lng],
-							17,
-							{ animate: true },
-						);
-					}
-				}, 100);
-				return () => clearTimeout(timer);
-			}
 		}
 	}, [initialEditLocation]);
 
@@ -173,6 +154,12 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	const [isSimulating, setIsSimulating] = useState(false);
 	const [simProgressIndex, setSimProgressIndex] = useState(0);
 	const [isRerouting, setIsRerouting] = useState(false);
+	const [isCameraFollowLocked, setIsCameraFollowLocked] = useState(true);
+	const isAppleMapsModeRef = useRef(isAppleMapsMode);
+	useEffect(() => {
+		isAppleMapsModeRef.current = isAppleMapsMode;
+	}, [isAppleMapsMode]);
+	const wasCardModeBeforeMarkerRef = useRef(false);
 	const offRouteCountRef = useRef(0);
 	const arrivalStopStartTimeRef = useRef<number | null>(null);
 
@@ -275,6 +262,18 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		trackingStatus?.state,
 	]);
 
+	// Helper to calculate latLng bounds for a geofence radius without requiring an attached map layer
+	const getGeofenceBounds = (coord: Coordinate, radiusMeters: number): L.LatLngBounds => {
+		const latOffset = radiusMeters / 111320;
+		const lngOffset =
+			radiusMeters /
+			(111320 * Math.max(0.1, Math.cos((coord.lat * Math.PI) / 180)));
+		return L.latLngBounds(
+			[coord.lat - latOffset, coord.lng - lngOffset],
+			[coord.lat + latOffset, coord.lng + lngOffset],
+		);
+	};
+
 	// Helper to center coordinate in the visible map canvas above the dock
 	const setViewVisibleCenter = (
 		map: L.Map,
@@ -296,7 +295,15 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	// Invalidate Leaflet map size and recenter user location when toggling between card and Apple Maps full-screen
 	useEffect(() => {
 		if (!mapInstanceRef.current) return;
-		if (activeNavRoute || selectedNavDestination) return;
+		if (
+			activeNavRoute ||
+			selectedNavDestination ||
+			activeTripId ||
+			isCreateMarkerOpen ||
+			activeEditingLocation
+		) {
+			return;
+		}
 
 		const bottomCovered = isAppleMapsMode ? 250 : 0;
 		const targetZoom = isAppleMapsMode ? 16 : 15;
@@ -313,7 +320,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			if (
 				mapInstanceRef.current &&
 				!activeNavRoute &&
-				!selectedNavDestination
+				!selectedNavDestination &&
+				!activeTripId &&
+				!isCreateMarkerOpen &&
+				!activeEditingLocation
 			) {
 				mapInstanceRef.current.invalidateSize({ animate: false });
 				setViewVisibleCenter(
@@ -330,7 +340,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			if (
 				mapInstanceRef.current &&
 				!activeNavRoute &&
-				!selectedNavDestination
+				!selectedNavDestination &&
+				!activeTripId &&
+				!isCreateMarkerOpen &&
+				!activeEditingLocation
 			) {
 				mapInstanceRef.current.invalidateSize({ animate: false });
 				setViewVisibleCenter(
@@ -347,16 +360,11 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			clearTimeout(timer2);
 			clearTimeout(timer3);
 		};
-	}, [
-		isAppleMapsMode,
-		displayedUserLocation,
-		activeNavRoute,
-		selectedNavDestination,
-	]);
+	}, [isAppleMapsMode]);
 
-	// Fetch fresh GPS immediately when Create Marker dock opens
+	// Fetch fresh GPS only when creating a net-new marker (not editing existing)
 	useEffect(() => {
-		if (!isCreateMarkerOpen) return;
+		if (!isCreateMarkerOpen || activeEditingLocation) return;
 		if (typeof window !== 'undefined' && 'geolocation' in navigator) {
 			navigator.geolocation.getCurrentPosition(
 				(pos) => {
@@ -371,29 +379,35 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				{ enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 },
 			);
 		}
-	}, [isCreateMarkerOpen, onUserLocationChange]);
+	}, [isCreateMarkerOpen, activeEditingLocation, onUserLocationChange]);
 
-	// Center user in visible map canvas initially when Create/Edit Marker dock opens
+	// Center user or active location with radius framing when Create/Edit Marker dock opens
 	useEffect(() => {
 		if (!isCreateMarkerOpen || !mapInstanceRef.current) return;
-		const timer = setTimeout(() => {
-			if (mapInstanceRef.current) {
-				mapInstanceRef.current.invalidateSize({ animate: false });
-				const centerCoord = activeEditingLocation
-					? { lat: activeEditingLocation.lat, lng: activeEditingLocation.lng }
-					: userLocation;
-				setViewVisibleCenter(
-					mapInstanceRef.current,
-					centerCoord,
-					16,
-					380, // covers bottom ~380px marker dock so GPS dot is centered in visible upper canvas
-				);
-			}
-		}, 320);
-		return () => clearTimeout(timer);
-	}, [isCreateMarkerOpen, activeEditingLocation, userLocation]);
 
-	// Keep focus on the entered/selected address coordinates while creating or editing marker
+		const timer = setTimeout(() => {
+			if (!mapInstanceRef.current) return;
+			mapInstanceRef.current.invalidateSize({ animate: false });
+
+			const targetCoord = activeEditingLocation
+				? { lat: activeEditingLocation.lat, lng: activeEditingLocation.lng }
+				: userLocation;
+			const targetRadius = activeEditingLocation?.radius || 150;
+
+			const circleBounds = getGeofenceBounds(targetCoord, targetRadius);
+
+			mapInstanceRef.current.fitBounds(circleBounds, {
+				paddingTopLeft: [40, 40],
+				paddingBottomRight: [40, 380],
+				maxZoom: 17,
+				animate: true,
+			});
+		}, 300);
+
+		return () => clearTimeout(timer);
+	}, [isCreateMarkerOpen, activeEditingLocation]);
+
+	// Keep focus and dynamic radius framing on the target coordinates while creating or editing marker
 	useEffect(() => {
 		if (
 			!isCreateMarkerOpen ||
@@ -402,14 +416,25 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		) {
 			return;
 		}
-		// Pan/center to the target address coordinate with 380px bottom covered clearance
-		setViewVisibleCenter(
-			mapInstanceRef.current,
+
+		mapInstanceRef.current.invalidateSize({ animate: false });
+		const circleBounds = getGeofenceBounds(
 			{ lat: previewRadiusData.lat, lng: previewRadiusData.lng },
-			16,
-			380,
+			previewRadiusData.radius,
 		);
-	}, [isCreateMarkerOpen, previewRadiusData?.lat, previewRadiusData?.lng]);
+
+		mapInstanceRef.current.fitBounds(circleBounds, {
+			paddingTopLeft: [40, 40],
+			paddingBottomRight: [40, 380],
+			maxZoom: 17,
+			animate: true,
+		});
+	}, [
+		isCreateMarkerOpen,
+		previewRadiusData?.lat,
+		previewRadiusData?.lng,
+		previewRadiusData?.radius,
+	]);
 
 	// Synchronize when external user location changes from tracker
 	useEffect(() => {
@@ -428,6 +453,8 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	// High accuracy GPS detection with smooth fallback
 	useEffect(() => {
 		if (!isLocationEnabled || !('geolocation' in navigator)) return;
+		// Pause active GPS watch while viewing a recorded trip or creating/editing a marker
+		if (activeTripId || isCreateMarkerOpen) return;
 
 		const handleSuccess = (pos: GeolocationPosition) => {
 			const coords = {
@@ -592,15 +619,11 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				.addTo(group)
 				.bindTooltip(loc.name, { direction: 'top', offset: [0, -12] });
 
-			// Tap marker on map to center on it and open the edit dock
+			// Tap marker on map: only open edit dock if currently in fullscreen Apple Maps mode
 			marker.on('click', () => {
+				if (!isAppleMapsModeRef.current) return;
 				setActiveEditingLocation(loc);
 				setIsCreateMarkerOpen(true);
-				if (mapInstanceRef.current) {
-					mapInstanceRef.current.setView([loc.lat, loc.lng], 17, {
-						animate: true,
-					});
-				}
 			});
 		});
 	}, [savedLocations]);
@@ -925,6 +948,17 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			markersLayerRef.current.clearLayers();
 		}
 
+		if (isNavigating) {
+			setIsCameraFollowLocked(true);
+			setViewVisibleCenter(
+				mapInstanceRef.current,
+				displayedUserLocation,
+				17,
+				140,
+			);
+			return;
+		}
+
 		const bottomCovered = isAppleMapsMode ? 250 : 0;
 		setViewVisibleCenter(
 			mapInstanceRef.current,
@@ -948,6 +982,11 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		setActiveEditingLocation(null);
 		setPreviewRadiusData(null);
 
+		if (wasCardModeBeforeMarkerRef.current) {
+			setIsAppleMapsMode(false);
+			wasCardModeBeforeMarkerRef.current = false;
+		}
+
 		// Re-center on user position with standard zoom when closed/saved
 		if (mapInstanceRef.current && userLocation) {
 			mapInstanceRef.current.setView(
@@ -966,6 +1005,11 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		setIsCreateMarkerOpen(false);
 		setActiveEditingLocation(null);
 		setPreviewRadiusData(null);
+
+		if (wasCardModeBeforeMarkerRef.current) {
+			setIsAppleMapsMode(false);
+			wasCardModeBeforeMarkerRef.current = false;
+		}
 
 		// Re-center on user position with standard zoom when closed
 		if (mapInstanceRef.current && userLocation) {
@@ -1156,6 +1200,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		setIsSimulating(enableRouteSimulation);
 		setSimProgressIndex(0);
 		setNavStepIndex(0);
+		setIsCameraFollowLocked(true);
 		if (mapInstanceRef.current && displayedUserLocation) {
 			setViewVisibleCenter(
 				mapInstanceRef.current,
@@ -1165,6 +1210,39 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			);
 		}
 	};
+
+	// Un-lock driving camera auto-follow when user manually drags map during navigation
+	useEffect(() => {
+		if (!mapInstanceRef.current) return;
+		const map = mapInstanceRef.current;
+		const onDragStart = () => {
+			if (isNavigating) {
+				setIsCameraFollowLocked(false);
+			}
+		};
+		map.on('dragstart', onDragStart);
+		return () => {
+			map.off('dragstart', onDragStart);
+		};
+	}, [isNavigating]);
+
+	// Continuous camera auto-follow while live driving navigation is active
+	useEffect(() => {
+		if (
+			!isNavigating ||
+			isSimulating ||
+			!isCameraFollowLocked ||
+			!mapInstanceRef.current
+		) {
+			return;
+		}
+		setViewVisibleCenter(
+			mapInstanceRef.current,
+			displayedUserLocation,
+			17,
+			140,
+		);
+	}, [isNavigating, isSimulating, isCameraFollowLocked, displayedUserLocation]);
 
 	const handleEndNavigation = async () => {
 		if (selectedNavDestination && activeNavRoute) {
@@ -1787,6 +1865,8 @@ export const MapsView: React.FC<MapsViewProps> = ({
 										onClick={() => {
 											setIsMenuOpen(false);
 											setActiveEditingLocation(null);
+											wasCardModeBeforeMarkerRef.current = !isAppleMapsMode;
+											setIsAppleMapsMode(true);
 											setIsCreateMarkerOpen(true);
 										}}
 										className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"

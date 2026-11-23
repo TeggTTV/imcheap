@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SavedLocation, Coordinate } from '../types/maps';
-import { searchAddresses } from '../utils/mapRouting';
+import { searchAddresses, haversineDistanceMiles } from '../utils/mapRouting';
 import { IconPickerDrawer } from './IconPickerDrawer';
 import { LucideIcon } from './LucideIcon';
 import {
@@ -33,13 +33,17 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 	currentGps,
 	onPreviewRadiusChange,
 }) => {
-	const [name, setName] = useState('');
-	const [address, setAddress] = useState('');
-	const [lat, setLat] = useState<number>(39.7032);
-	const [lng, setLng] = useState<number>(-75.122);
-	const [icon, setIcon] = useState('pin_drop');
-	const [radius, setRadius] = useState<number>(150);
-	const [isVisibleOnMap, setIsVisibleOnMap] = useState(true);
+	const [name, setName] = useState(() => initialLocation?.name ?? '');
+	const [address, setAddress] = useState(() => initialLocation?.address ?? '');
+	const [lat, setLat] = useState<number>(
+		() => initialLocation?.lat ?? currentGps?.lat ?? 39.7032,
+	);
+	const [lng, setLng] = useState<number>(
+		() => initialLocation?.lng ?? currentGps?.lng ?? -75.122,
+	);
+	const [icon, setIcon] = useState(() => initialLocation?.icon || (initialLocation?.isHome ? 'home' : 'pin_drop'));
+	const [radius, setRadius] = useState<number>(() => initialLocation?.radius || 150);
+	const [isVisibleOnMap, setIsVisibleOnMap] = useState(() => initialLocation?.isVisibleOnMap !== false);
 	const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
 	const [isSearchingGps, setIsSearchingGps] = useState(false);
 	const [isSearchingAddress, setIsSearchingAddress] = useState(false);
@@ -114,7 +118,8 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 
 		setIsSearchingAddress(true);
 		searchTimeoutRef.current = setTimeout(async () => {
-			const res = await searchAddresses(val);
+			const refCoord = currentGps || { lat, lng };
+			const res = await searchAddresses(val, refCoord, 15);
 			setAddressResults(res);
 			setIsSearchingAddress(false);
 		}, 400);

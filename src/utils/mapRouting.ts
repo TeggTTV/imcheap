@@ -336,24 +336,41 @@ export async function resolveOriginLocationName(
 const addressCache = new Map<string, Array<{ label: string; lat: number; lng: number }>>();
 
 /**
- * Searches for addresses in the US with Nominatim + Photon fallback and in-memory caching.
+ * Searches for addresses in the US with proximity biasing (Nominatim + Photon fallback) and in-memory caching.
+ * Results are sorted strictly by ascending distance when proximity is provided.
  */
 export async function searchAddresses(
 	query: string,
+	proximity?: Coordinate,
+	limit: number = 15,
 ): Promise<Array<{ label: string; lat: number; lng: number }>> {
 	const trimmed = query ? query.trim() : '';
-	if (trimmed.length < 3) return [];
+	if (trimmed.length < 2) return [];
 
-	const cacheKey = trimmed.toLowerCase();
+	const cacheKey = proximity
+		? `${trimmed.toLowerCase()}_${proximity.lat.toFixed(2)}_${proximity.lng.toFixed(2)}_${limit}`
+		: `${trimmed.toLowerCase()}_${limit}`;
 	if (addressCache.has(cacheKey)) {
 		return addressCache.get(cacheKey)!;
 	}
 
-	// 1. Try OpenStreetMap Nominatim
+	let viewboxParam = '';
+	if (proximity) {
+		const latOffset = 0.75;
+		const rad = (proximity.lat * Math.PI) / 180;
+		const lngOffset = 0.75 / Math.max(0.1, Math.cos(rad));
+		const minLon = (proximity.lng - lngOffset).toFixed(4);
+		const maxLat = (proximity.lat + latOffset).toFixed(4);
+		const maxLon = (proximity.lng + lngOffset).toFixed(4);
+		const minLat = (proximity.lat - latOffset).toFixed(4);
+		viewboxParam = `&viewbox=${minLon},${maxLat},${maxLon},${minLat}&bounded=0`;
+	}
+
+	// 1. Try OpenStreetMap Nominatim with proximity viewbox
 	try {
 		const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
 			trimmed,
-		)}&format=json&limit=5&countrycodes=us`;
+		)}&format=json&limit=${limit}&countrycodes=us${viewboxParam}`;
 		const res = await fetch(url, {
 			headers: { 'User-Agent': 'ImCheap-ExpenseTracker/1.0' },
 		});
@@ -365,6 +382,13 @@ export async function searchAddresses(
 					lat: parseFloat(item.lat),
 					lng: parseFloat(item.lon),
 				}));
+				if (proximity) {
+					results.sort((a, b) => {
+						const distA = haversineDistanceMiles(proximity, { lat: a.lat, lng: a.lng });
+						const distB = haversineDistanceMiles(proximity, { lat: b.lat, lng: b.lng });
+						return distA - distB;
+					});
+				}
 				addressCache.set(cacheKey, results);
 				return results;
 			}
@@ -373,16 +397,17 @@ export async function searchAddresses(
 		console.warn('Nominatim search failed, trying Photon fallback', e);
 	}
 
-	// 2. Fallback to Photon (Komoot) which is fast, OSM-based, and has higher rate limits
+	// 2. Fallback to Photon (Komoot) with proximity coordinates
 	try {
+		const photonProximity = proximity ? `&lat=${proximity.lat}&lon=${proximity.lng}` : '';
 		const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(
 			trimmed,
-		)}&limit=5`;
+		)}&limit=${limit}${photonProximity}`;
 		const res = await fetch(photonUrl);
 		if (res.ok) {
 			const data = await res.json();
 			if (data && Array.isArray(data.features)) {
-				const results = data.features.map((f: any) => {
+				const results: Array<{ label: string; lat: number; lng: number }> = data.features.map((f: any) => {
 					const p = f.properties || {};
 					const parts = [
 						p.housenumber ? `${p.housenumber} ${p.street || ''}` : p.street,
@@ -394,6 +419,13 @@ export async function searchAddresses(
 					const [lng, lat] = f.geometry.coordinates;
 					return { label, lat, lng };
 				});
+				if (proximity) {
+					results.sort((a, b) => {
+						const distA = haversineDistanceMiles(proximity, { lat: a.lat, lng: a.lng });
+						const distB = haversineDistanceMiles(proximity, { lat: b.lat, lng: b.lng });
+						return distA - distB;
+					});
+				}
 				addressCache.set(cacheKey, results);
 				return results;
 			}

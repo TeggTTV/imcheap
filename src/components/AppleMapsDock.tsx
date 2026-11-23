@@ -209,10 +209,10 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 		}
 	}, [isOpen, isDockExpanded, collapsedY, sheetHeight]);
 
-	// Debounced search for addresses
+	// Debounced search for addresses and saved locations with proximity bias
 	useEffect(() => {
 		const trimmed = searchQuery.trim();
-		if (trimmed.length < 3) {
+		if (trimmed.length < 2) {
 			setSearchResults([]);
 			setIsSearching(false);
 			return;
@@ -226,8 +226,49 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 
 		searchTimerRef.current = setTimeout(async () => {
 			try {
-				const results = await searchAddresses(trimmed);
-				setSearchResults(results);
+				const lower = trimmed.toLowerCase();
+				// 1. Search matching saved locations
+				const matchedSaved: Array<{ label: string; lat: number; lng: number }> = savedLocations
+					.filter(
+						(loc) =>
+							loc.name.toLowerCase().includes(lower) ||
+							loc.address?.toLowerCase().includes(lower),
+					)
+					.map((loc) => ({
+						label: `${loc.name} · ${loc.address || 'Saved Location'}`,
+						lat: loc.lat,
+						lng: loc.lng,
+					}));
+
+				// 2. Fetch proximity-biased geocoded locations
+				const geoResults = await searchAddresses(trimmed, userLocation, 15);
+
+				// 3. Deduplicate (if geo matches saved coordinate closely)
+				const filteredGeo = geoResults.filter(
+					(g) =>
+						!matchedSaved.some(
+							(s) =>
+								haversineDistanceMiles(
+									{ lat: s.lat, lng: s.lng },
+									{ lat: g.lat, lng: g.lng },
+								) < 0.05,
+						),
+				);
+
+				const combined = [...matchedSaved, ...filteredGeo];
+				combined.sort((a, b) => {
+					const distA = haversineDistanceMiles(userLocation, {
+						lat: a.lat,
+						lng: a.lng,
+					});
+					const distB = haversineDistanceMiles(userLocation, {
+						lat: b.lat,
+						lng: b.lng,
+					});
+					return distA - distB;
+				});
+
+				setSearchResults(combined);
 			} catch {
 				setSearchResults([]);
 			} finally {
@@ -240,7 +281,7 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 				clearTimeout(searchTimerRef.current);
 			}
 		};
-	}, [searchQuery]);
+	}, [searchQuery, savedLocations, userLocation]);
 
 	// Format distance and time
 	const computeMetrics = (destCoord: Coordinate) => {
@@ -406,7 +447,18 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 
 			{/* When a destination is selected, show Route Overview */}
 			{selectedDestination && activeRoute && routeMetrics ? (
-				<div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-16 flex flex-col gap-3.5 min-h-0">
+				<div
+					onScroll={() => {
+						if (!isDockExpanded) {
+							setIsDockExpanded(true);
+						}
+					}}
+					onPointerDownCapture={(e) => {
+						e.stopPropagation();
+					}}
+					style={{ touchAction: 'pan-y' }}
+					className="flex-1 overflow-y-auto px-5 pb-24 flex flex-col gap-3.5 min-h-0 touch-pan-y"
+				>
 					<div className="flex items-start justify-between gap-3 pt-0.5">
 						<div className="flex-1 min-w-0">
 							<h2 className="text-[20px] font-extrabold text-[#111111] tracking-tight truncate">
@@ -484,7 +536,13 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 					<div className="bg-white rounded-2xl border border-neutral-200/80 overflow-hidden shadow-xs">
 						<button
 							type="button"
-							onClick={() => setShowSteps(!showSteps)}
+							onClick={() => {
+								const next = !showSteps;
+								setShowSteps(next);
+								if (next && !isDockExpanded) {
+									setIsDockExpanded(true);
+								}
+							}}
 							className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-neutral-50 transition-colors cursor-pointer"
 						>
 							<div className="flex items-center gap-2">
@@ -557,7 +615,11 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 							setIsDockExpanded(true);
 						}
 					}}
-					className="flex-1 overflow-y-auto no-scrollbar px-4 pb-12 flex flex-col gap-3.5 min-h-0"
+					onPointerDownCapture={(e) => {
+						e.stopPropagation();
+					}}
+					style={{ touchAction: 'pan-y' }}
+					className="flex-1 overflow-y-auto px-4 pb-16 flex flex-col gap-3.5 min-h-0 touch-pan-y"
 				>
 					{/* Row 1: Full-width search bar without Done button */}
 					<div className="relative flex items-center pt-0.5 shrink-0">
@@ -586,7 +648,7 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 					</div>
 
 					{/* Live Search Address Results dropdown */}
-					{searchQuery.trim().length >= 3 && (
+					{searchQuery.trim().length >= 2 && (
 						<div className="relative bg-white rounded-2xl border border-neutral-200/80 shadow-md overflow-hidden mb-1 shrink-0">
 							<div className="px-3.5 py-1.5 bg-neutral-50 border-b border-neutral-100 text-[10.5px] font-bold uppercase tracking-wider text-neutral-500">
 								Search Results {isSearching && '...'}
