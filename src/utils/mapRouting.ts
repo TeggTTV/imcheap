@@ -333,7 +333,15 @@ export async function resolveOriginLocationName(
 	return 'Current Location';
 }
 
-const addressCache = new Map<string, Array<{ label: string; lat: number; lng: number }>>();
+export interface SearchAddressResult {
+	name: string;
+	address: string;
+	label: string;
+	lat: number;
+	lng: number;
+}
+
+const addressCache = new Map<string, Array<SearchAddressResult>>();
 
 /**
  * Searches for addresses in the US with proximity biasing (Nominatim + Photon fallback) and in-memory caching.
@@ -343,7 +351,7 @@ export async function searchAddresses(
 	query: string,
 	proximity?: Coordinate,
 	limit: number = 15,
-): Promise<Array<{ label: string; lat: number; lng: number }>> {
+): Promise<Array<SearchAddressResult>> {
 	const trimmed = query ? query.trim() : '';
 	if (trimmed.length < 2) return [];
 
@@ -366,6 +374,35 @@ export async function searchAddresses(
 		viewboxParam = `&viewbox=${minLon},${maxLat},${maxLon},${minLat}&bounded=0`;
 	}
 
+	// Helper to extract clean business name and address lines from Photon properties
+	const parsePhotonFeature = (f: any): SearchAddressResult => {
+		const p = f.properties || {};
+		const streetLine = [p.housenumber ? `${p.housenumber} ${p.street || ''}` : p.street]
+			.filter(Boolean)
+			.join(' ')
+			.trim();
+		const cityState = [p.city || p.locality || p.district, p.state]
+			.filter(Boolean)
+			.join(', ')
+			.trim();
+		const fullAddress = [streetLine, cityState].filter(Boolean).join(', ').trim();
+
+		let name = '';
+		let address = '';
+
+		if (p.name && p.name.trim().length > 0) {
+			name = p.name.trim();
+			address = fullAddress || cityState || (p.county ? `${p.county}, ${p.state || ''}` : '');
+		} else {
+			name = streetLine || cityState || 'Location';
+			address = cityState && streetLine ? cityState : (p.county ? `${p.county}, ${p.state || ''}` : '');
+		}
+
+		const label = address ? `${name}, ${address}` : name;
+		const [lng, lat] = f.geometry.coordinates;
+		return { name, address, label, lat, lng };
+	};
+
 	// 1. When proximity is provided, use Photon first for hyper-local radial scoring
 	if (proximity) {
 		try {
@@ -376,18 +413,7 @@ export async function searchAddresses(
 			if (res.ok) {
 				const data = await res.json();
 				if (data && Array.isArray(data.features) && data.features.length > 0) {
-					const results: Array<{ label: string; lat: number; lng: number }> = data.features.map((f: any) => {
-						const p = f.properties || {};
-						const parts = [
-							p.housenumber ? `${p.housenumber} ${p.street || ''}` : p.street,
-							p.city || p.locality || p.district,
-							p.state,
-							p.postcode,
-						].filter(Boolean);
-						const label = parts.length > 0 ? parts.join(', ') : (p.name || 'Unknown Location');
-						const [lng, lat] = f.geometry.coordinates;
-						return { label, lat, lng };
-					});
+					const results: Array<SearchAddressResult> = data.features.map(parsePhotonFeature);
 					results.sort((a, b) => {
 						const distA = haversineDistanceMiles(proximity, { lat: a.lat, lng: a.lng });
 						const distB = haversineDistanceMiles(proximity, { lat: b.lat, lng: b.lng });
@@ -413,11 +439,20 @@ export async function searchAddresses(
 		if (res.ok) {
 			const data = await res.json();
 			if (Array.isArray(data) && data.length > 0) {
-				const results = data.map((item) => ({
-					label: item.display_name.split(',').slice(0, 4).join(', '),
-					lat: parseFloat(item.lat),
-					lng: parseFloat(item.lon),
-				}));
+				const results: Array<SearchAddressResult> = data.map((item) => {
+					const rawLabel = item.display_name || '';
+					const parts = rawLabel.split(',').map((s: string) => s.trim());
+					const name = parts[0] || 'Location';
+					const address = parts.slice(1, 4).join(', ');
+					const label = parts.slice(0, 4).join(', ');
+					return {
+						name,
+						address,
+						label,
+						lat: parseFloat(item.lat),
+						lng: parseFloat(item.lon),
+					};
+				});
 				if (proximity) {
 					results.sort((a, b) => {
 						const distA = haversineDistanceMiles(proximity, { lat: a.lat, lng: a.lng });
@@ -443,18 +478,7 @@ export async function searchAddresses(
 			if (res.ok) {
 				const data = await res.json();
 				if (data && Array.isArray(data.features)) {
-					const results: Array<{ label: string; lat: number; lng: number }> = data.features.map((f: any) => {
-						const p = f.properties || {};
-						const parts = [
-							p.housenumber ? `${p.housenumber} ${p.street || ''}` : p.street,
-							p.city || p.locality || p.district,
-							p.state,
-							p.postcode,
-						].filter(Boolean);
-						const label = parts.length > 0 ? parts.join(', ') : (p.name || 'Unknown Location');
-						const [lng, lat] = f.geometry.coordinates;
-						return { label, lat, lng };
-					});
+					const results: Array<SearchAddressResult> = data.features.map(parsePhotonFeature);
 					addressCache.set(cacheKey, results);
 					return results;
 				}

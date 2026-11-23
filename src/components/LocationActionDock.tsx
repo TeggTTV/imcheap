@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SavedLocation, Coordinate } from '../types/maps';
-import { searchAddresses, haversineDistanceMiles } from '../utils/mapRouting';
+import {
+	searchAddresses,
+	haversineDistanceMiles,
+	SearchAddressResult,
+} from '../utils/mapRouting';
 import { IconPickerDrawer } from './IconPickerDrawer';
 import { LucideIcon } from './LucideIcon';
 import {
@@ -47,9 +51,7 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 	const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
 	const [isSearchingGps, setIsSearchingGps] = useState(false);
 	const [isSearchingAddress, setIsSearchingAddress] = useState(false);
-	const [addressResults, setAddressResults] = useState<
-		Array<{ label: string; lat: number; lng: number }>
-	>([]);
+	const [addressResults, setAddressResults] = useState<SearchAddressResult[]>([]);
 	const [showAdvancedCoords, setShowAdvancedCoords] = useState(false);
 	const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -125,8 +127,11 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 		}, 400);
 	};
 
-	const handleSelectAddressResult = (item: { label: string; lat: number; lng: number }) => {
-		setAddress(item.label);
+	const handleSelectAddressResult = (item: SearchAddressResult) => {
+		if (!name && item.name) {
+			setName(item.name);
+		}
+		setAddress(item.address || item.label);
 		setLat(item.lat);
 		setLng(item.lng);
 		setAddressResults([]);
@@ -306,10 +311,17 @@ export const LocationActionDock: React.FC<LocationActionDockProps> = ({
 													key={idx}
 													type="button"
 													onClick={() => handleSelectAddressResult(item)}
-													className="w-full text-left px-3.5 py-2.5 text-[13px] text-neutral-800 hover:bg-neutral-100 border-b border-gray-100 last:border-b-0 flex items-start gap-2 cursor-pointer transition-colors"
+													className="w-full text-left px-3.5 py-2.5 hover:bg-neutral-100 border-b border-gray-100 last:border-b-0 flex items-start gap-2.5 cursor-pointer transition-colors"
 												>
 													<MapPin size={16} className="text-neutral-400 mt-0.5 shrink-0" />
-													<span className="line-clamp-2 leading-snug">{item.label}</span>
+													<div className="flex-1 min-w-0">
+														<div className="text-[13px] font-bold text-neutral-900 truncate">
+															{item.name}
+														</div>
+														<div className="text-[11.5px] text-neutral-500 truncate font-medium">
+															{item.address || item.label}
+														</div>
+													</div>
 												</button>
 											))}
 										</div>

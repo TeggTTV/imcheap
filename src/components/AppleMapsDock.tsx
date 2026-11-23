@@ -27,6 +27,7 @@ import {
 	searchAddresses,
 	haversineDistanceMiles,
 	RouteDirections,
+	SearchAddressResult,
 } from '../utils/mapRouting';
 import { LucideIcon } from './LucideIcon';
 
@@ -166,14 +167,14 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 }) => {
 	const [sheetHeight, setSheetHeight] = useState<number>(() => {
 		if (typeof window !== 'undefined') {
-			return Math.round(window.innerHeight * 0.75);
+			return Math.round(window.innerHeight * 0.88);
 		}
-		return 540;
+		return 650;
 	});
 
 	useEffect(() => {
 		const updateHeight = () => {
-			setSheetHeight(Math.round(window.innerHeight * 0.75));
+			setSheetHeight(Math.round(window.innerHeight * 0.88));
 		};
 		window.addEventListener('resize', updateHeight);
 		return () => window.removeEventListener('resize', updateHeight);
@@ -184,9 +185,9 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 	}, [sheetHeight]);
 
 	const [searchQuery, setSearchQuery] = useState('');
-	const [searchResults, setSearchResults] = useState<
-		Array<{ label: string; lat: number; lng: number }>
-	>([]);
+	const [searchResults, setSearchResults] = useState<SearchAddressResult[]>(
+		[],
+	);
 	const [isSearching, setIsSearching] = useState(false);
 	const [showSteps, setShowSteps] = useState(false);
 	const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -228,20 +229,26 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 			try {
 				const lower = trimmed.toLowerCase();
 				// 1. Search matching saved locations
-				const matchedSaved: Array<{ label: string; lat: number; lng: number }> = savedLocations
+				const matchedSaved: Array<SearchAddressResult> = savedLocations
 					.filter(
 						(loc) =>
 							loc.name.toLowerCase().includes(lower) ||
 							loc.address?.toLowerCase().includes(lower),
 					)
 					.map((loc) => ({
-						label: `${loc.name} · ${loc.address || 'Saved Location'}`,
+						name: loc.name,
+						address: loc.address || 'Saved Location',
+						label: `${loc.name}, ${loc.address || 'Saved Location'}`,
 						lat: loc.lat,
 						lng: loc.lng,
 					}));
 
 				// 2. Fetch proximity-biased geocoded locations
-				const geoResults = await searchAddresses(trimmed, userLocation, 15);
+				const geoResults = await searchAddresses(
+					trimmed,
+					userLocation,
+					15,
+				);
 
 				// 3. Deduplicate (if geo matches saved coordinate closely)
 				const filteredGeo = geoResults.filter(
@@ -426,13 +433,21 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 					}
 				}
 			}}
-			style={{ y: dockY }}
-			className="fixed bottom-0 inset-x-0 z-40 max-w-120 mx-auto bg-[#FFFFFF] rounded-t-[24px] shadow-[0px_-4px_16px_rgba(0,0,0,0.06)] flex flex-col h-[75vh] max-h-[80vh] overflow-hidden select-none pb-2"
+			style={{ y: dockY, touchAction: 'pan-y' }}
+			className="fixed bottom-0 inset-x-0 z-40 max-w-120 mx-auto bg-[#FFFFFF] rounded-t-[24px] shadow-[0px_-4px_16px_rgba(0,0,0,0.06)] flex flex-col h-[88vh] max-h-[92vh] overflow-hidden pb-2"
 		>
 			{/* Top Pull Bar / Grab Handle - ONLY place from which the dock can be dragged */}
 			<div
 				onPointerDown={(e) => dragControls.start(e)}
-				onClick={() => setIsDockExpanded(!isDockExpanded)}
+				onClick={() => {
+					const next = !isDockExpanded;
+					setIsDockExpanded(next);
+					animate(dockY, next ? 0 : collapsedY, {
+						type: 'spring',
+						damping: 28,
+						stiffness: 320,
+					});
+				}}
 				className="w-full pt-3 pb-2.5 flex justify-center cursor-grab active:cursor-grabbing touch-none select-none shrink-0"
 				role="button"
 				tabIndex={0}
@@ -448,18 +463,18 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 			{/* When a destination is selected, show Route Overview */}
 			{selectedDestination && activeRoute && routeMetrics ? (
 				<div
-					onScroll={() => {
-						if (!isDockExpanded) {
-							setIsDockExpanded(true);
-						}
+					style={{
+						touchAction: 'pan-y',
+						WebkitOverflowScrolling: 'touch',
 					}}
-					onPointerDownCapture={(e) => {
-						e.stopPropagation();
-					}}
-					style={{ touchAction: 'pan-y' }}
-					className="flex-1 overflow-y-auto px-5 pb-24 flex flex-col gap-3.5 min-h-0 touch-pan-y"
+					className="flex-1 overflow-y-auto px-5 pb-28 flex flex-col gap-3.5 min-h-0 touch-pan-y"
 				>
-					<div className="flex items-start justify-between gap-3 pt-0.5">
+					<div
+						onPointerDown={(e) => {
+							dragControls.start(e);
+						}}
+						className="flex items-start justify-between gap-3 pt-0.5 cursor-grab active:cursor-grabbing select-none"
+					>
 						<div className="flex-1 min-w-0">
 							<h2 className="text-[20px] font-extrabold text-[#111111] tracking-tight truncate">
 								{selectedDestination.name}
@@ -471,6 +486,7 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 						<button
 							type="button"
 							onClick={onCancelRoute}
+							onPointerDown={(e) => e.stopPropagation()}
 							aria-label="Back to saved locations and search"
 							className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-700 transition-colors cursor-pointer shrink-0"
 						>
@@ -533,14 +549,19 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 					</div>
 
 					{/* Turn-by-Turn Steps Accordion - Fully scrollable */}
-					<div className="bg-white rounded-2xl border border-neutral-200/80 overflow-hidden shadow-xs">
+					<div className="bg-white rounded-2xl border border-neutral-200/80 shadow-xs">
 						<button
 							type="button"
 							onClick={() => {
 								const next = !showSteps;
 								setShowSteps(next);
-								if (next && !isDockExpanded) {
+								if (next) {
 									setIsDockExpanded(true);
+									animate(dockY, 0, {
+										type: 'spring',
+										damping: 28,
+										stiffness: 320,
+									});
 								}
 							}}
 							className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-neutral-50 transition-colors cursor-pointer"
@@ -565,46 +586,39 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 							)}
 						</button>
 
-						<AnimatePresence>
-							{showSteps && (
-								<motion.div
-									initial={{ opacity: 0, height: 0 }}
-									animate={{ opacity: 1, height: 'auto' }}
-									exit={{ opacity: 0, height: 0 }}
-									className="border-t border-neutral-100 divide-y divide-neutral-100 px-4 py-2"
-								>
-									{activeRoute.steps.map((step, idx) => (
-										<div
-											key={idx}
-											className="py-2.5 flex items-start gap-2.5"
-										>
-											<div className="w-6 h-6 rounded-full bg-blue-50 text-[#007AFF] flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">
-												{step.maneuverModifier?.includes(
-													'left',
-												) ? (
-													<CornerUpLeft size={13} />
-												) : step.maneuverModifier?.includes(
-														'right',
-												  ) ? (
-													<CornerUpRight size={13} />
-												) : (
-													<ArrowUp size={13} />
-												)}
+						{showSteps && (
+							<div className="border-t border-neutral-100 divide-y divide-neutral-100 px-4 py-2">
+								{activeRoute.steps.map((step, idx) => (
+									<div
+										key={idx}
+										className="py-2.5 flex items-start gap-2.5"
+									>
+										<div className="w-6 h-6 rounded-full bg-blue-50 text-[#007AFF] flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">
+											{step.maneuverModifier?.includes(
+												'left',
+											) ? (
+												<CornerUpLeft size={13} />
+											) : step.maneuverModifier?.includes(
+													'right',
+											  ) ? (
+												<CornerUpRight size={13} />
+											) : (
+												<ArrowUp size={13} />
+											)}
+										</div>
+										<div className="flex-1 min-w-0">
+											<div className="text-[12.5px] font-bold text-[#111111] leading-snug">
+												{step.instruction}
 											</div>
-											<div className="flex-1 min-w-0">
-												<div className="text-[12.5px] font-bold text-[#111111] leading-snug">
-													{step.instruction}
-												</div>
-												<div className="text-[11px] text-neutral-500 font-medium mt-0.5">
-													{step.distanceMiles} mi ·{' '}
-													{step.street}
-												</div>
+											<div className="text-[11px] text-neutral-500 font-medium mt-0.5">
+												{step.distanceMiles} mi ·{' '}
+												{step.street}
 											</div>
 										</div>
-									))}
-								</motion.div>
-							)}
-						</AnimatePresence>
+									</div>
+								))}
+							</div>
+						)}
 					</div>
 				</div>
 			) : (
@@ -669,16 +683,22 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 												key={i}
 												type="button"
 												onClick={() =>
-													handleSelectDestinationAndCollapse({
-														name: res.label.split(
-															',',
-														)[0],
-														address: res.label,
-														coord: {
-															lat: res.lat,
-															lng: res.lng,
+													handleSelectDestinationAndCollapse(
+														{
+															name:
+																res.name ||
+																res.label.split(
+																	',',
+																)[0],
+															address:
+																res.address ||
+																res.label,
+															coord: {
+																lat: res.lat,
+																lng: res.lng,
+															},
 														},
-													})
+													)
 												}
 												className="w-full px-3.5 py-2.5 flex items-center justify-between text-left hover:bg-blue-50/50 transition-colors cursor-pointer"
 											>
@@ -687,15 +707,15 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 														<MapPin size={15} />
 													</div>
 													<div className="min-w-0">
-														<div className="text-[13px] font-bold text-[#111111] truncate">
-															{
+														<div className="text-[13.5px] font-bold text-[#111111] truncate">
+															{res.name ||
 																res.label.split(
 																	',',
-																)[0]
-															}
+																)[0]}
 														</div>
-														<div className="text-[11px] text-neutral-500 truncate">
-															{res.label}
+														<div className="text-[11.5px] text-neutral-500 truncate font-medium mt-0.5">
+															{res.address ||
+																res.label}
 														</div>
 													</div>
 												</div>
@@ -750,7 +770,9 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 										name={loc.icon}
 										size={18}
 										style={{
-											color: loc.isHome ? '#059669' : '#111111',
+											color: loc.isHome
+												? '#059669'
+												: '#111111',
 										}}
 									/>
 								</div>
