@@ -366,7 +366,43 @@ export async function searchAddresses(
 		viewboxParam = `&viewbox=${minLon},${maxLat},${maxLon},${minLat}&bounded=0`;
 	}
 
-	// 1. Try OpenStreetMap Nominatim with proximity viewbox
+	// 1. When proximity is provided, use Photon first for hyper-local radial scoring
+	if (proximity) {
+		try {
+			const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(
+				trimmed,
+			)}&limit=${limit}&lat=${proximity.lat}&lon=${proximity.lng}`;
+			const res = await fetch(photonUrl);
+			if (res.ok) {
+				const data = await res.json();
+				if (data && Array.isArray(data.features) && data.features.length > 0) {
+					const results: Array<{ label: string; lat: number; lng: number }> = data.features.map((f: any) => {
+						const p = f.properties || {};
+						const parts = [
+							p.housenumber ? `${p.housenumber} ${p.street || ''}` : p.street,
+							p.city || p.locality || p.district,
+							p.state,
+							p.postcode,
+						].filter(Boolean);
+						const label = parts.length > 0 ? parts.join(', ') : (p.name || 'Unknown Location');
+						const [lng, lat] = f.geometry.coordinates;
+						return { label, lat, lng };
+					});
+					results.sort((a, b) => {
+						const distA = haversineDistanceMiles(proximity, { lat: a.lat, lng: a.lng });
+						const distB = haversineDistanceMiles(proximity, { lat: b.lat, lng: b.lng });
+						return distA - distB;
+					});
+					addressCache.set(cacheKey, results);
+					return results;
+				}
+			}
+		} catch (e) {
+			console.warn('Photon proximity search failed, falling back to Nominatim', e);
+		}
+	}
+
+	// 2. OpenStreetMap Nominatim (primary when no proximity, fallback otherwise)
 	try {
 		const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
 			trimmed,
@@ -394,44 +430,38 @@ export async function searchAddresses(
 			}
 		}
 	} catch (e) {
-		console.warn('Nominatim search failed, trying Photon fallback', e);
+		console.warn('Nominatim search failed', e);
 	}
 
-	// 2. Fallback to Photon (Komoot) with proximity coordinates
-	try {
-		const photonProximity = proximity ? `&lat=${proximity.lat}&lon=${proximity.lng}` : '';
-		const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(
-			trimmed,
-		)}&limit=${limit}${photonProximity}`;
-		const res = await fetch(photonUrl);
-		if (res.ok) {
-			const data = await res.json();
-			if (data && Array.isArray(data.features)) {
-				const results: Array<{ label: string; lat: number; lng: number }> = data.features.map((f: any) => {
-					const p = f.properties || {};
-					const parts = [
-						p.housenumber ? `${p.housenumber} ${p.street || ''}` : p.street,
-						p.city || p.locality || p.district,
-						p.state,
-						p.postcode,
-					].filter(Boolean);
-					const label = parts.length > 0 ? parts.join(', ') : (p.name || 'Unknown Location');
-					const [lng, lat] = f.geometry.coordinates;
-					return { label, lat, lng };
-				});
-				if (proximity) {
-					results.sort((a, b) => {
-						const distA = haversineDistanceMiles(proximity, { lat: a.lat, lng: a.lng });
-						const distB = haversineDistanceMiles(proximity, { lat: b.lat, lng: b.lng });
-						return distA - distB;
+	// 3. Photon non-proximity fallback if proximity was not provided
+	if (!proximity) {
+		try {
+			const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(
+				trimmed,
+			)}&limit=${limit}`;
+			const res = await fetch(photonUrl);
+			if (res.ok) {
+				const data = await res.json();
+				if (data && Array.isArray(data.features)) {
+					const results: Array<{ label: string; lat: number; lng: number }> = data.features.map((f: any) => {
+						const p = f.properties || {};
+						const parts = [
+							p.housenumber ? `${p.housenumber} ${p.street || ''}` : p.street,
+							p.city || p.locality || p.district,
+							p.state,
+							p.postcode,
+						].filter(Boolean);
+						const label = parts.length > 0 ? parts.join(', ') : (p.name || 'Unknown Location');
+						const [lng, lat] = f.geometry.coordinates;
+						return { label, lat, lng };
 					});
+					addressCache.set(cacheKey, results);
+					return results;
 				}
-				addressCache.set(cacheKey, results);
-				return results;
 			}
+		} catch (fallbackErr) {
+			console.warn('Photon fallback address search failed', fallbackErr);
 		}
-	} catch (fallbackErr) {
-		console.warn('Photon fallback address search failed', fallbackErr);
 	}
 
 	return [];

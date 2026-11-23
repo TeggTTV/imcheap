@@ -6,6 +6,7 @@ interface ArrivalEndTripModalProps {
 	isOpen: boolean;
 	locationName: string;
 	currentMiles?: number;
+	countdownSeconds?: number | null;
 	onEndTrip: () => void;
 	onKeepDriving: () => void;
 }
@@ -14,6 +15,7 @@ export const ArrivalEndTripModal: React.FC<ArrivalEndTripModalProps> = ({
 	isOpen,
 	locationName,
 	currentMiles,
+	countdownSeconds,
 	onEndTrip,
 	onKeepDriving,
 }) => {
@@ -90,6 +92,13 @@ export const ArrivalEndTripModal: React.FC<ArrivalEndTripModalProps> = ({
 									)}
 								.
 							</p>
+
+							{typeof countdownSeconds === 'number' && countdownSeconds > 0 && (
+								<div className="mt-3.5 px-3 py-1.5 rounded-full bg-emerald-50 text-[12px] font-bold text-emerald-800 flex items-center gap-2 border border-emerald-200/60 shadow-2xs">
+									<span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+									<span>Auto-saving trip in {countdownSeconds}s</span>
+								</div>
+							)}
 						</div>
 
 						<div className="flex flex-col gap-2.5 mt-6 w-full">

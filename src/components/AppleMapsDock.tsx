@@ -380,7 +380,7 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 
 	return (
 		<motion.div
-			drag="y"
+			drag={isDockExpanded ? false : 'y'}
 			dragControls={dragControls}
 			dragListener={false}
 			dragConstraints={{

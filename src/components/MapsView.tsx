@@ -135,9 +135,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		}
 	}, [initialEditLocation]);
 
-	// Arrival prompt state
+	// Arrival prompt state with 30s auto-completion timer
 	const [arrivalPromptLocation, setArrivalPromptLocation] =
 		useState<SavedLocation | null>(null);
+	const [arrivalCountdown, setArrivalCountdown] = useState<number | null>(null);
 
 	// Apple Maps Mode & Routing State
 	const [isAppleMapsMode, setIsAppleMapsMode] = useState(false);
@@ -751,35 +752,12 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		activeTripId,
 	]);
 
-	// Draw static 100m departure geofence circle around Home when dev indicator is active
+	// Clean up any old static dev radius circle (so only configured marker radii render)
 	useEffect(() => {
 		if (!mapInstanceRef.current) return;
-		const map = mapInstanceRef.current;
-
-		if (!devTrackingOverlay) {
-			if (devRadiusCircleRef.current) {
-				map.removeLayer(devRadiusCircleRef.current);
-				devRadiusCircleRef.current = null;
-			}
-			return;
-		}
-
-		const homeCoords = getSavedHomeAddress();
-		const anchorLat = homeCoords.lat;
-		const anchorLng = homeCoords.lng;
-
 		if (devRadiusCircleRef.current) {
-			devRadiusCircleRef.current.setLatLng([anchorLat, anchorLng]);
-		} else {
-			const circle = L.circle([anchorLat, anchorLng], {
-				radius: 100,
-				color: '#059669',
-				weight: 2,
-				dashArray: '6, 6',
-				fillColor: '#059669',
-				fillOpacity: 0.12,
-			}).addTo(map);
-			devRadiusCircleRef.current = circle;
+			mapInstanceRef.current.removeLayer(devRadiusCircleRef.current);
+			devRadiusCircleRef.current = null;
 		}
 	}, [devTrackingOverlay]);
 
@@ -790,10 +768,23 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			trackingStatus?.state === 'TRACKING_TRIP';
 		const miles = trackingStatus?.currentMiles || 0;
 
-		if (!isDriving || miles < 0.25) {
-			if (arrivalPromptLocation) {
+		// If user is currently looking at the arrival prompt, do not wipe it when stopping car
+		if (arrivalPromptLocation) {
+			// Auto dismiss ONLY once user actually drives away (> radius + 50m)
+			const dismissThreshold = (arrivalPromptLocation.radius || 150) + 50;
+			const distAwayMeters =
+				haversineDistanceMiles(userLocation, {
+					lat: arrivalPromptLocation.lat,
+					lng: arrivalPromptLocation.lng,
+				}) * 1609.344;
+			if (distAwayMeters > dismissThreshold && isDriving) {
 				setArrivalPromptLocation(null);
 			}
+			return;
+		}
+
+		// Must have accumulated minimum distance on active trip to trigger arrival prompt
+		if (!isDriving || miles < 0.25) {
 			return;
 		}
 
@@ -813,23 +804,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		}
 
 		if (arrivedLoc) {
-			if (
-				!arrivalPromptLocation ||
-				arrivalPromptLocation.id !== arrivedLoc.id
-			) {
-				setArrivalPromptLocation(arrivedLoc);
-			}
-		} else if (arrivalPromptLocation) {
-			// Auto dismiss once user drives away (> radius + 50m)
-			const dismissThreshold = (arrivalPromptLocation.radius || 150) + 50;
-			const distAwayMeters =
-				haversineDistanceMiles(userLocation, {
-					lat: arrivalPromptLocation.lat,
-					lng: arrivalPromptLocation.lng,
-				}) * 1609.344;
-			if (distAwayMeters > dismissThreshold) {
-				setArrivalPromptLocation(null);
-			}
+			setArrivalPromptLocation(arrivedLoc);
 		}
 	}, [
 		userLocation,
@@ -839,6 +814,34 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		savedLocations,
 		arrivalPromptLocation,
 	]);
+
+	// 30-second arrival countdown timer when arriving at a destination
+	useEffect(() => {
+		if (!arrivalPromptLocation) {
+			setArrivalCountdown(null);
+			return;
+		}
+
+		setArrivalCountdown(30);
+		const interval = setInterval(() => {
+			setArrivalCountdown((prev) => {
+				if (prev === null || prev <= 1) {
+					clearInterval(interval);
+					return 0;
+				}
+				return prev - 1;
+			});
+		}, 1000);
+
+		return () => clearInterval(interval);
+	}, [arrivalPromptLocation]);
+
+	// Automatically end and log trip once 30s countdown finishes
+	useEffect(() => {
+		if (arrivalCountdown === 0 && arrivalPromptLocation) {
+			handleEndTripConfirmed();
+		}
+	}, [arrivalCountdown, arrivalPromptLocation]);
 
 	const renderTripRoute = async (
 		map: L.Map,
@@ -1812,7 +1815,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 
 			{/* Floating Bottom Row on Screen (Search Bar + 3-Option Select Menu) */}
 			{!isAppleMapsMode && (
-				<div className="fixed bottom-20 inset-x-4 max-w-120 mx-auto z-40 flex items-end gap-2.5 pointer-events-auto">
+				<div className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] inset-x-4 max-w-120 mx-auto z-40 flex items-end gap-2.5 pointer-events-auto">
 					{/* Search Bar filling the horizontal space between left edge and menu button */}
 					<div
 						onClick={() => setIsAppleMapsMode(true)}
@@ -1919,6 +1922,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				isOpen={Boolean(arrivalPromptLocation)}
 				locationName={arrivalPromptLocation?.name || 'Destination'}
 				currentMiles={trackingStatus?.currentMiles}
+				countdownSeconds={arrivalCountdown}
 				onEndTrip={handleEndTripConfirmed}
 				onKeepDriving={() => setArrivalPromptLocation(null)}
 			/>
