@@ -23,6 +23,7 @@ import { LocationActionDock } from './LocationActionDock';
 import { ArrivalEndTripModal } from './ArrivalEndTripModal';
 import { MapsOnboardingModal } from './MapsOnboardingModal';
 import { AppleMapsDock } from './AppleMapsDock';
+import { DrivingStatsView } from './DrivingStatsView';
 import { getLucideIconSvgString } from './LucideIcon';
 import {
 	List,
@@ -44,6 +45,7 @@ import {
 	Play,
 	Square,
 	RefreshCw,
+	Gauge,
 } from 'lucide-react';
 
 export interface MapsViewProps {
@@ -65,6 +67,7 @@ export interface MapsViewProps {
 	onUpdateLocations: (locations: SavedLocation[]) => void;
 	onOpenLocationsPage: () => void;
 	onOpenVehicleSettings: () => void;
+	onOpenDrivingStats?: () => void;
 	onEndTripDirect?: (destName?: string, coord?: Coordinate) => void;
 	onUpdateHomeLocation?: (homeLocation: SavedLocation) => void;
 	onDockStateChange?: (isOpen: boolean) => void;
@@ -93,6 +96,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	onUpdateLocations,
 	onOpenLocationsPage,
 	onOpenVehicleSettings,
+	onOpenDrivingStats,
 	onEndTripDirect,
 	onUpdateHomeLocation,
 	onDockStateChange,
@@ -124,6 +128,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const [isCreateMarkerOpen, setIsCreateMarkerOpen] = useState(false);
 	const [activeEditingLocation, setActiveEditingLocation] = useState<SavedLocation | null>(null);
+	const [isDrivingStatsOpen, setIsDrivingStatsOpen] = useState(false);
+	const [isAppleMapsDockExpanded, setIsAppleMapsDockExpanded] = useState(false);
+	const [currentSpeedMph, setCurrentSpeedMph] = useState(0);
+	const lastGpsPosRef = useRef<{ coord: Coordinate; time: number } | null>(null);
 
 	// Sync initialEditLocation passed from parent (e.g. from Locations page)
 	useEffect(() => {
@@ -173,13 +181,15 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			isAppleMapsMode ||
 			isCreateMarkerOpen ||
 			Boolean(arrivalPromptLocation) ||
-			isMapsOnboardingOpen;
+			isMapsOnboardingOpen ||
+			isDrivingStatsOpen;
 		onDockStateChange?.(isAnyDockOpen);
 	}, [
 		isAppleMapsMode,
 		isCreateMarkerOpen,
 		arrivalPromptLocation,
 		isMapsOnboardingOpen,
+		isDrivingStatsOpen,
 		onDockStateChange,
 	]);
 
@@ -466,6 +476,26 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			if (onUserLocationChange) {
 				onUserLocationChange(coords);
 			}
+
+			// Track currentSpeedMph from coords.speed or fallback displacement
+			let speedMph = 0;
+			if (pos.coords.speed !== null && !isNaN(pos.coords.speed) && pos.coords.speed >= 0) {
+				speedMph = pos.coords.speed * 2.23694;
+			} else if (lastGpsPosRef.current) {
+				const deltaSec = (pos.timestamp - lastGpsPosRef.current.time) / 1000;
+				if (deltaSec > 0 && deltaSec < 15) {
+					const deltaMeters =
+						haversineDistanceMiles(lastGpsPosRef.current.coord, coords) * 1609.344;
+					speedMph = (deltaMeters / deltaSec) * 2.23694;
+				}
+			}
+			lastGpsPosRef.current = { coord: coords, time: pos.timestamp || Date.now() };
+
+			if (speedMph < 1.5) {
+				speedMph = 0;
+			}
+			setCurrentSpeedMph(Math.round(speedMph));
+
 			if (typeof window !== 'undefined') {
 				try {
 					localStorage.setItem(
@@ -1396,10 +1426,18 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				const next = prev + 1;
 				if (next >= activeNavRoute.coordinates.length) {
 					setIsSimulating(false);
+					setCurrentSpeedMph(0);
 					return prev;
 				}
 
 				const pt = activeNavRoute.coordinates[next];
+				const prevPt = activeNavRoute.coordinates[prev];
+				if (prevPt && pt) {
+					const distMeters = haversineDistanceMiles(prevPt, pt) * 1609.344;
+					const simSpeed = Math.round(distMeters * 2.23694);
+					setCurrentSpeedMph(simSpeed < 1.5 ? 0 : simSpeed);
+				}
+
 				if (userMarkerRef.current) {
 					userMarkerRef.current.setLatLng([pt.lat, pt.lng]);
 				}
@@ -1422,6 +1460,30 @@ export const MapsView: React.FC<MapsViewProps> = ({
 
 		return () => clearInterval(interval);
 	}, [isNavigating, isSimulating, activeNavRoute]);
+
+	useEffect(() => {
+		if (!isSimulating && !trackingStatus?.isDriving && trackingStatus?.state !== 'TRACKING_TRIP') {
+			setCurrentSpeedMph(0);
+		}
+	}, [isSimulating, trackingStatus?.isDriving, trackingStatus?.state]);
+
+	const isEnRoute = Boolean(
+		(isNavigating && activeNavRoute) ||
+		trackingStatus?.isDriving ||
+		trackingStatus?.state === 'TRACKING_TRIP' ||
+		isSimulating,
+	);
+
+	if (isDrivingStatsOpen) {
+		return (
+			<DrivingStatsView
+				trips={trips}
+				hourlyWage={hourlyWage}
+				mileageRate={mileageRate}
+				onBack={() => setIsDrivingStatsOpen(false)}
+			/>
+		);
+	}
 
 	return (
 		<div className="w-full flex flex-col gap-4">
@@ -1533,6 +1595,21 @@ export const MapsView: React.FC<MapsViewProps> = ({
 								{permissionError}
 							</p>
 						)}
+					</div>
+				)}
+
+				{/* Speedometer Pill in Bottom-Left Corner of Map Card */}
+				{!isAppleMapsMode && isEnRoute && (
+					<div
+						data-testid="speedometer-pill"
+						className="absolute bottom-3.5 left-3.5 z-30 pointer-events-auto bg-white border border-neutral-200/80 shadow-md px-3 py-2 flex flex-col items-center justify-center min-w-[58px] rounded-2xl"
+					>
+						<span className="text-[22px] leading-none font-extrabold text-[#111111] tabular-nums">
+							{currentSpeedMph}
+						</span>
+						<span className="text-[10px] font-bold tracking-wider text-neutral-400 mt-0.5">
+							MPH
+						</span>
 					</div>
 				)}
 			</div>
@@ -1647,8 +1724,22 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				);
 
 				return (
-					<div className="fixed bottom-6 inset-x-4 max-w-120 mx-auto z-50 pointer-events-auto">
-						<div className="bg-white rounded-3xl p-4 shadow-[0_12px_40px_rgba(0,0,0,0.22)] border border-neutral-200/80 flex items-center justify-between">
+					<div className="fixed bottom-6 inset-x-4 max-w-120 mx-auto z-50 pointer-events-auto flex flex-col items-start gap-2.5">
+						{/* Speedometer Pill sitting above the full-width ETA bar */}
+						<div
+							data-testid="speedometer-pill"
+							className="bg-white border border-neutral-200/80 shadow-md px-3 py-2 flex flex-col items-center justify-center min-w-[58px] rounded-2xl pointer-events-auto"
+						>
+							<span className="text-[22px] leading-none font-extrabold text-[#111111] tabular-nums">
+								{currentSpeedMph}
+							</span>
+							<span className="text-[10px] font-bold tracking-wider text-neutral-400 mt-0.5">
+								MPH
+							</span>
+						</div>
+
+						{/* Full-Width ETA Card */}
+						<div className="w-full bg-white rounded-3xl p-4 shadow-[0_12px_40px_rgba(0,0,0,0.22)] border border-neutral-200/80 flex items-center justify-between">
 							<div>
 								<div className="flex items-baseline gap-1.5">
 									<span className="text-[26px] leading-none font-black text-[#111111] tracking-tight">
@@ -1729,6 +1820,7 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			<AppleMapsDock
 				isOpen={isAppleMapsMode}
 				onClose={handleExitAppleMaps}
+				onExpandChange={setIsAppleMapsDockExpanded}
 				userLocation={displayedUserLocation}
 				savedLocations={savedLocations}
 				hourlyWage={hourlyWage}
@@ -1813,6 +1905,21 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				onPreviewRadiusChange={setPreviewRadiusData}
 			/>
 
+			{/* Fullscreen Driving Speedometer Pill (when driving without active navigation ETA bar) */}
+			{isAppleMapsMode && isEnRoute && !activeNavRoute && (
+				<div
+					data-testid="speedometer-pill"
+					className="fixed bottom-6 left-4 z-50 pointer-events-auto bg-white border border-neutral-200/80 shadow-md px-3 py-2 flex flex-col items-center justify-center min-w-[58px] rounded-2xl"
+				>
+					<span className="text-[22px] leading-none font-extrabold text-[#111111] tabular-nums">
+						{currentSpeedMph}
+					</span>
+					<span className="text-[10px] font-bold tracking-wider text-neutral-400 mt-0.5">
+						MPH
+					</span>
+				</div>
+			)}
+
 			{/* Floating Bottom Row on Screen (Search Bar + 3-Option Select Menu) */}
 			{!isAppleMapsMode && (
 				<div className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] inset-x-4 max-w-120 mx-auto z-40 flex items-end gap-2.5 pointer-events-auto">
@@ -1895,6 +2002,26 @@ export const MapsView: React.FC<MapsViewProps> = ({
 											className="text-neutral-600"
 										/>
 										<span>Vehicle Settings</span>
+									</button>
+
+									{/* Option 4: Driving Stats */}
+									<button
+										type="button"
+										onClick={() => {
+											setIsMenuOpen(false);
+											if (onOpenDrivingStats) {
+												onOpenDrivingStats();
+											} else {
+												setIsDrivingStatsOpen(true);
+											}
+										}}
+										className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[15px] font-bold text-[#111111] transition-colors cursor-pointer"
+									>
+										<Gauge
+											size={20}
+											className="w-5 h-5 text-neutral-600 shrink-0"
+										/>
+										<span>Driving Stats</span>
 									</button>
 								</motion.div>
 							)}

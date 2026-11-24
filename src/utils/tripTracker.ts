@@ -13,6 +13,11 @@ import {
 	fetchRoadRoute,
 	reverseGeocode,
 } from './mapRouting';
+import { snapGapToRoads } from './osrmRouter';
+import {
+	classifyStoreDestination,
+	enqueueMerchantSmartPrompt,
+} from './storeDwellDetector';
 import { getSavedLocations } from './savedLocations';
 import { chaikinSmooth } from './geoSmoothing';
 
@@ -353,16 +358,79 @@ export class AutomaticTripDetectionService {
 		}
 	}
 
-	private handleVisibilityChange = () => {
-		if (document.visibilityState === 'visible' && this.activeTrip) {
-			const gapMs = Date.now() - this.activeTrip.lastBreadcrumbTime;
-			if (gapMs > 30 * 60 * 1000) {
-				// Close stale trip if app was suspended over 30 minutes
-				this.completeTrip(
-					'Last Known Location',
-					this.activeTrip.lastBreadcrumbCoord,
-				);
-			}
+	private handleVisibilityChange = async () => {
+		if (typeof document === 'undefined' || document.visibilityState !== 'visible') return;
+		if (!this.activeTrip) return;
+
+		const gapMs = Date.now() - this.activeTrip.lastBreadcrumbTime;
+		if (gapMs > 30 * 60 * 1000) {
+			// Close stale trip if app was suspended over 30 minutes
+			const coord = this.activeTrip.lastBreadcrumbCoord;
+			const resolvedName = await this.resolveLocationName(coord);
+			this.completeTrip(
+				resolvedName && resolvedName !== 'Stationary Stop' ? resolvedName : 'Completed Trip',
+				coord,
+			);
+			return;
+		}
+
+		// When returning to visible during active DRIVING or STOPPED_EVALUATING,
+		// immediately grab current GPS position and bridge any gap from lastKnownCoord using snapGapToRoads
+		if (
+			(this.engineState === 'DRIVING' || this.engineState === 'STOPPED_EVALUATING') &&
+			typeof navigator !== 'undefined' &&
+			'geolocation' in navigator
+		) {
+			navigator.geolocation.getCurrentPosition(
+				async (pos) => {
+					if (!this.activeTrip) return;
+					const currentCoord: Coordinate = {
+						lat: pos.coords.latitude,
+						lng: pos.coords.longitude,
+					};
+					const lastCoord = this.activeTrip.lastBreadcrumbCoord;
+					const distMeters =
+						haversineDistanceMiles(lastCoord, currentCoord) * 1609.344;
+
+					if (distMeters >= 120) {
+						const snapped = await snapGapToRoads(lastCoord, currentCoord);
+						const roadDist =
+							snapped.distanceMiles ??
+							haversineDistanceMiles(lastCoord, currentCoord);
+						this.activeTrip.accumulatedMiles += roadDist;
+						const now = Date.now();
+						for (const pt of snapped) {
+							this.activeTrip.path.push({
+								lat: pt.lat,
+								lng: pt.lng,
+								timestamp: now,
+							});
+						}
+						this.activeTrip.lastBreadcrumbCoord = currentCoord;
+						this.activeTrip.lastBreadcrumbTime = now;
+						this.persistState();
+
+						const rawBreadcrumbs = this.activeTrip.path.map((p) => ({
+							lat: p.lat,
+							lng: p.lng,
+						}));
+						this.onStatusChange({
+							state: 'TRACKING_TRIP',
+							originName: this.activeTrip.originName,
+							destinationName: 'Moving...',
+							currentMiles: Number(
+								this.activeTrip.accumulatedMiles.toFixed(1),
+							),
+							startTime: this.activeTrip.startTime,
+							liveLocation: currentCoord,
+							liveBreadcrumbs: rawBreadcrumbs,
+							isDriving: true,
+						});
+					}
+				},
+				() => {},
+				{ enableHighAccuracy: true, timeout: 4000, maximumAge: 5000 },
+			);
 		}
 	};
 
@@ -513,7 +581,44 @@ export class AutomaticTripDetectionService {
 					now - this.activeTrip.lastBreadcrumbTime;
 
 				// Record breadcrumb every 3 seconds or 15 meters for continuous tracking
-				if (stepDistMeters >= 15 || timeSinceLastBreadcrumb >= 3000) {
+				if (stepDistMeters >= 120) {
+					// Snap large gap to real road geometry via OSRM
+					const snapped = await snapGapToRoads(
+						this.activeTrip.lastBreadcrumbCoord,
+						coord,
+					);
+					const roadMiles =
+						snapped.distanceMiles ?? stepDistMiles;
+					this.activeTrip.accumulatedMiles += roadMiles;
+					for (const pt of snapped) {
+						this.activeTrip.path.push({
+							lat: pt.lat,
+							lng: pt.lng,
+							timestamp: now,
+						});
+					}
+					this.activeTrip.lastBreadcrumbCoord = coord;
+					this.activeTrip.lastBreadcrumbTime = now;
+					this.persistState();
+
+					const rawBreadcrumbs = this.activeTrip.path.map((p) => ({
+						lat: p.lat,
+						lng: p.lng,
+					}));
+
+					this.onStatusChange({
+						state: 'TRACKING_TRIP',
+						originName: this.activeTrip.originName,
+						destinationName: 'Moving...',
+						currentMiles: Number(
+							this.activeTrip.accumulatedMiles.toFixed(1),
+						),
+						startTime: this.activeTrip.startTime,
+						liveLocation: coord,
+						liveBreadcrumbs: rawBreadcrumbs,
+						isDriving: true,
+					});
+				} else if (stepDistMeters >= 15 || timeSinceLastBreadcrumb >= 3000) {
 					if (stepDistMiles > 0.002) {
 						this.activeTrip.accumulatedMiles += stepDistMiles;
 					}
@@ -758,7 +863,19 @@ export class AutomaticTripDetectionService {
 				? Number(((costDollars / this.hourlyWage) * 60).toFixed(1))
 				: 0;
 
-		const category = this.categorizeDestination(toName);
+		let category = this.categorizeDestination(toName);
+		try {
+			const storeClassification = await classifyStoreDestination(endCoord, toName);
+			if (storeClassification.isCommercialStore) {
+				category = storeClassification.category as any;
+				enqueueMerchantSmartPrompt(
+					storeClassification.storeName,
+					storeClassification.category as any,
+				);
+			}
+		} catch (e) {
+			console.warn('Store dwell classification failed', e);
+		}
 
 		const recordedTrip: RecordedTrip = {
 			id: `trip-auto-${Date.now()}`,

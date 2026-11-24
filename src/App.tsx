@@ -31,6 +31,7 @@ import { OnboardingModal } from './components/OnboardingModal';
 import { IconPickerDrawer } from './components/IconPickerDrawer';
 import { LocationsView } from './components/LocationsView';
 import { VehicleSettingsView } from './components/VehicleSettingsView';
+import { DrivingStatsView } from './components/DrivingStatsView';
 import { getSavedLocations, saveLocations } from './utils/savedLocations';
 import { SavedLocation } from './types/maps';
 import { LucideIcon } from './components/LucideIcon';
@@ -78,7 +79,8 @@ type ActiveTab =
 	| 'presets'
 	| 'settings'
 	| 'locations'
-	| 'vehicle_settings';
+	| 'vehicle_settings'
+	| 'driving_stats';
 type ActiveModal = 'none' | 'preset' | 'breakdown';
 
 const COLLAPSED_DOCK_Y = 396;
@@ -703,7 +705,36 @@ export default function App() {
 		},
 	);
 
-	const [customPrompts, setCustomPrompts] = useState<SmartPrompt[]>([]);
+	const [customPrompts, setCustomPrompts] = useState<SmartPrompt[]>(() => {
+		if (typeof window !== 'undefined') {
+			try {
+				const saved = localStorage.getItem('imcheap_smart_prompts');
+				if (saved) return JSON.parse(saved);
+			} catch {}
+		}
+		return [];
+	});
+
+	useEffect(() => {
+		const loadPrompts = () => {
+			if (typeof window !== 'undefined') {
+				try {
+					const saved = localStorage.getItem('imcheap_smart_prompts');
+					if (saved) {
+						setCustomPrompts(JSON.parse(saved));
+					} else {
+						setCustomPrompts([]);
+					}
+				} catch {}
+			}
+		};
+		window.addEventListener('imcheap_smart_prompts_updated', loadPrompts);
+		window.addEventListener('storage', loadPrompts);
+		return () => {
+			window.removeEventListener('imcheap_smart_prompts_updated', loadPrompts);
+			window.removeEventListener('storage', loadPrompts);
+		};
+	}, []);
 
 	const availablePrompts = useMemo(() => {
 		const all = [...customPrompts, ...INITIAL_SMART_PROMPTS];
@@ -720,6 +751,13 @@ export default function App() {
 					'imcheap_dismissed_prompts',
 					JSON.stringify(next),
 				);
+			} catch {}
+			return next;
+		});
+		setCustomPrompts((prev) => {
+			const next = prev.filter((p) => p.id !== promptId);
+			try {
+				localStorage.setItem('imcheap_smart_prompts', JSON.stringify(next));
 			} catch {}
 			return next;
 		});
@@ -988,7 +1026,9 @@ export default function App() {
 							? 'Locations'
 							: activeTab === 'vehicle_settings'
 								? 'Vehicle Settings'
-								: 'Settings';
+								: activeTab === 'driving_stats'
+									? 'Driving Stats'
+									: 'Settings';
 
 	return (
 		<MotionConfig reducedMotion={animationsEnabled ? 'never' : 'always'}>
@@ -1738,6 +1778,9 @@ export default function App() {
 							onOpenVehicleSettings={() =>
 								setActiveTab('vehicle_settings')
 							}
+							onOpenDrivingStats={() =>
+								setActiveTab('driving_stats')
+							}
 							onEndTripDirect={(destName, coord) => {
 								tripDetectorRef.current?.endTripNow(
 									destName,
@@ -1791,6 +1834,15 @@ export default function App() {
 							onUpdateSettings={setIncomeSettings}
 							onBack={() => setActiveTab('maps')}
 							wageRate={incomeSettings.hourlyWage}
+						/>
+					)}
+
+					{activeTab === 'driving_stats' && (
+						<DrivingStatsView
+							trips={trips}
+							hourlyWage={incomeSettings.hourlyWage}
+							mileageRate={incomeSettings.mileageRate}
+							onBack={() => setActiveTab('maps')}
 						/>
 					)}
 

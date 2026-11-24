@@ -145,6 +145,7 @@ export interface AppleMapsDockProps {
 	onEndNavigation: () => void;
 	onOpenLocationsPage?: () => void;
 	onOpenCreateMarker?: () => void;
+	onExpandChange?: (isExpanded: boolean) => void;
 }
 
 const DOCK_PEEK_HEIGHT = 250;
@@ -164,6 +165,7 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 	isNavigating,
 	onOpenLocationsPage,
 	onOpenCreateMarker,
+	onExpandChange,
 }) => {
 	const [sheetHeight, setSheetHeight] = useState<number>(() => {
 		if (typeof window !== 'undefined') {
@@ -196,6 +198,10 @@ export const AppleMapsDock: React.FC<AppleMapsDockProps> = ({
 	const [isDockExpanded, setIsDockExpanded] = useState(false);
 	const dockY = useMotionValue(sheetHeight || 600);
 	const dragControls = useDragControls();
+
+	useEffect(() => {
+		onExpandChange?.(isDockExpanded);
+	}, [isDockExpanded, onExpandChange]);
 
 	// Smooth slide-up transition when opened, expanding/collapsing on state changes
 	useEffect(() => {
