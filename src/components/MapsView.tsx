@@ -127,11 +127,15 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	// Floating 3-option menu state
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 	const [isCreateMarkerOpen, setIsCreateMarkerOpen] = useState(false);
-	const [activeEditingLocation, setActiveEditingLocation] = useState<SavedLocation | null>(null);
+	const [activeEditingLocation, setActiveEditingLocation] =
+		useState<SavedLocation | null>(null);
 	const [isDrivingStatsOpen, setIsDrivingStatsOpen] = useState(false);
-	const [isAppleMapsDockExpanded, setIsAppleMapsDockExpanded] = useState(false);
+	const [isAppleMapsDockExpanded, setIsAppleMapsDockExpanded] =
+		useState(false);
 	const [currentSpeedMph, setCurrentSpeedMph] = useState(0);
-	const lastGpsPosRef = useRef<{ coord: Coordinate; time: number } | null>(null);
+	const lastGpsPosRef = useRef<{ coord: Coordinate; time: number } | null>(
+		null,
+	);
 
 	// Sync initialEditLocation passed from parent (e.g. from Locations page)
 	useEffect(() => {
@@ -146,7 +150,9 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	// Arrival prompt state with 30s auto-completion timer
 	const [arrivalPromptLocation, setArrivalPromptLocation] =
 		useState<SavedLocation | null>(null);
-	const [arrivalCountdown, setArrivalCountdown] = useState<number | null>(null);
+	const [arrivalCountdown, setArrivalCountdown] = useState<number | null>(
+		null,
+	);
 
 	// Apple Maps Mode & Routing State
 	const [isAppleMapsMode, setIsAppleMapsMode] = useState(false);
@@ -157,7 +163,8 @@ export const MapsView: React.FC<MapsViewProps> = ({
 		category?: string;
 		dealBadge?: string;
 	} | null>(null);
-	const [activeNavRoute, setActiveNavRoute] = useState<RouteDirections | null>(null);
+	const [activeNavRoute, setActiveNavRoute] =
+		useState<RouteDirections | null>(null);
 	const [isNavigating, setIsNavigating] = useState(false);
 	const [navStepIndex, setNavStepIndex] = useState(0);
 	const [isSimulating, setIsSimulating] = useState(false);
@@ -274,7 +281,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	]);
 
 	// Helper to calculate latLng bounds for a geofence radius without requiring an attached map layer
-	const getGeofenceBounds = (coord: Coordinate, radiusMeters: number): L.LatLngBounds => {
+	const getGeofenceBounds = (
+		coord: Coordinate,
+		radiusMeters: number,
+	): L.LatLngBounds => {
 		const latOffset = radiusMeters / 111320;
 		const lngOffset =
 			radiusMeters /
@@ -401,7 +411,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			mapInstanceRef.current.invalidateSize({ animate: false });
 
 			const targetCoord = activeEditingLocation
-				? { lat: activeEditingLocation.lat, lng: activeEditingLocation.lng }
+				? {
+						lat: activeEditingLocation.lat,
+						lng: activeEditingLocation.lng,
+					}
 				: userLocation;
 			const targetRadius = activeEditingLocation?.radius || 150;
 
@@ -479,17 +492,28 @@ export const MapsView: React.FC<MapsViewProps> = ({
 
 			// Track currentSpeedMph from coords.speed or fallback displacement
 			let speedMph = 0;
-			if (pos.coords.speed !== null && !isNaN(pos.coords.speed) && pos.coords.speed >= 0) {
+			if (
+				pos.coords.speed !== null &&
+				!isNaN(pos.coords.speed) &&
+				pos.coords.speed >= 0
+			) {
 				speedMph = pos.coords.speed * 2.23694;
 			} else if (lastGpsPosRef.current) {
-				const deltaSec = (pos.timestamp - lastGpsPosRef.current.time) / 1000;
+				const deltaSec =
+					(pos.timestamp - lastGpsPosRef.current.time) / 1000;
 				if (deltaSec > 0 && deltaSec < 15) {
 					const deltaMeters =
-						haversineDistanceMiles(lastGpsPosRef.current.coord, coords) * 1609.344;
+						haversineDistanceMiles(
+							lastGpsPosRef.current.coord,
+							coords,
+						) * 1609.344;
 					speedMph = (deltaMeters / deltaSec) * 2.23694;
 				}
 			}
-			lastGpsPosRef.current = { coord: coords, time: pos.timestamp || Date.now() };
+			lastGpsPosRef.current = {
+				coord: coords,
+				time: pos.timestamp || Date.now(),
+			};
 
 			if (speedMph < 1.5) {
 				speedMph = 0;
@@ -1002,7 +1026,9 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	};
 
 	const handleSaveLocation = (savedLoc: SavedLocation) => {
-		const existingIndex = savedLocations.findIndex((l) => l.id === savedLoc.id);
+		const existingIndex = savedLocations.findIndex(
+			(l) => l.id === savedLoc.id,
+		);
 		let updated: SavedLocation[];
 		if (existingIndex >= 0) {
 			updated = [...savedLocations];
@@ -1209,15 +1235,19 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	};
 
 	const isNearDestination = useMemo(() => {
-		if (!isNavigating || !activeNavRoute || !selectedNavDestination) return false;
+		if (!isNavigating || !activeNavRoute || !selectedNavDestination)
+			return false;
 		const currentPos = isSimulating
-			? activeNavRoute.coordinates[simProgressIndex] || displayedUserLocation
+			? activeNavRoute.coordinates[simProgressIndex] ||
+				displayedUserLocation
 			: displayedUserLocation;
 		const destCoord = selectedNavDestination.coord;
-		const distMeters = haversineDistanceMiles(currentPos, destCoord) * 1609.344;
+		const distMeters =
+			haversineDistanceMiles(currentPos, destCoord) * 1609.344;
 		const reachedEnd =
 			isSimulating &&
-			simProgressIndex >= Math.max(0, activeNavRoute.coordinates.length - 1);
+			simProgressIndex >=
+				Math.max(0, activeNavRoute.coordinates.length - 1);
 		return distMeters <= 80 || reachedEnd;
 	}, [
 		isNavigating,
@@ -1275,7 +1305,12 @@ export const MapsView: React.FC<MapsViewProps> = ({
 			17,
 			140,
 		);
-	}, [isNavigating, isSimulating, isCameraFollowLocked, displayedUserLocation]);
+	}, [
+		isNavigating,
+		isSimulating,
+		isCameraFollowLocked,
+		displayedUserLocation,
+	]);
 
 	const handleEndNavigation = async () => {
 		if (selectedNavDestination && activeNavRoute) {
@@ -1433,7 +1468,8 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				const pt = activeNavRoute.coordinates[next];
 				const prevPt = activeNavRoute.coordinates[prev];
 				if (prevPt && pt) {
-					const distMeters = haversineDistanceMiles(prevPt, pt) * 1609.344;
+					const distMeters =
+						haversineDistanceMiles(prevPt, pt) * 1609.344;
 					const simSpeed = Math.round(distMeters * 2.23694);
 					setCurrentSpeedMph(simSpeed < 1.5 ? 0 : simSpeed);
 				}
@@ -1441,7 +1477,9 @@ export const MapsView: React.FC<MapsViewProps> = ({
 				if (userMarkerRef.current) {
 					userMarkerRef.current.setLatLng([pt.lat, pt.lng]);
 				}
-				mapInstanceRef.current?.panTo([pt.lat, pt.lng], { animate: true });
+				mapInstanceRef.current?.panTo([pt.lat, pt.lng], {
+					animate: true,
+				});
 
 				// Step progression
 				const totalPts = activeNavRoute.coordinates.length;
@@ -1462,7 +1500,11 @@ export const MapsView: React.FC<MapsViewProps> = ({
 	}, [isNavigating, isSimulating, activeNavRoute]);
 
 	useEffect(() => {
-		if (!isSimulating && !trackingStatus?.isDriving && trackingStatus?.state !== 'TRACKING_TRIP') {
+		if (
+			!isSimulating &&
+			!trackingStatus?.isDriving &&
+			trackingStatus?.state !== 'TRACKING_TRIP'
+		) {
 			setCurrentSpeedMph(0);
 		}
 	}, [isSimulating, trackingStatus?.isDriving, trackingStatus?.state]);
@@ -1624,8 +1666,8 @@ export const MapsView: React.FC<MapsViewProps> = ({
 									isNearDestination
 										? 'bg-red-50 text-[#FF3B30]'
 										: isRerouting
-										? 'bg-amber-50 text-amber-600'
-										: 'bg-blue-50 text-[#007AFF]'
+											? 'bg-amber-50 text-amber-600'
+											: 'bg-blue-50 text-[#007AFF]'
 								}`}
 							>
 								{isRerouting ? (
@@ -1639,10 +1681,17 @@ export const MapsView: React.FC<MapsViewProps> = ({
 										strokeWidth={2.5}
 										className="text-[#FF3B30]"
 									/>
-								) : activeNavRoute.steps[navStepIndex]?.maneuverModifier?.includes('left') ? (
+								) : activeNavRoute.steps[
+										navStepIndex
+								  ]?.maneuverModifier?.includes('left') ? (
 									<CornerUpLeft size={26} strokeWidth={2.5} />
-								) : activeNavRoute.steps[navStepIndex]?.maneuverModifier?.includes('right') ? (
-									<CornerUpRight size={26} strokeWidth={2.5} />
+								) : activeNavRoute.steps[
+										navStepIndex
+								  ]?.maneuverModifier?.includes('right') ? (
+									<CornerUpRight
+										size={26}
+										strokeWidth={2.5}
+									/>
 								) : (
 									<ArrowUp size={26} strokeWidth={2.5} />
 								)}
@@ -1653,168 +1702,186 @@ export const MapsView: React.FC<MapsViewProps> = ({
 										isNearDestination
 											? 'text-[#FF3B30]'
 											: isRerouting
-											? 'text-amber-600'
-											: 'text-[#007AFF]'
+												? 'text-amber-600'
+												: 'text-[#007AFF]'
 									}`}
 								>
 									{isRerouting
 										? 'Recalculating...'
 										: isNearDestination
-										? 'Destination'
-										: `In ${activeNavRoute.steps[navStepIndex]?.distanceMiles || 0.4} mi`}
+											? 'Destination'
+											: `In ${activeNavRoute.steps[navStepIndex]?.distanceMiles || 0.4} mi`}
 								</div>
 								<div className="text-[17px] font-black leading-tight text-[#111111] truncate">
 									{isRerouting
 										? 'Finding new route...'
 										: isNearDestination
-										? `Arrived at ${selectedNavDestination?.name || 'Destination'}`
-										: activeNavRoute.steps[navStepIndex]?.instruction || 'Continue on route'}
+											? `Arrived at ${selectedNavDestination?.name || 'Destination'}`
+											: activeNavRoute.steps[navStepIndex]
+													?.instruction ||
+												'Continue on route'}
 								</div>
-								{!isNearDestination && !isRerouting && activeNavRoute.steps[navStepIndex + 1] && (
-									<div className="text-[11.5px] text-neutral-500 font-medium truncate mt-0.5">
-										Then {activeNavRoute.steps[navStepIndex + 1].instruction}
-									</div>
-								)}
+								{!isNearDestination &&
+									!isRerouting &&
+									activeNavRoute.steps[navStepIndex + 1] && (
+										<div className="text-[11.5px] text-neutral-500 font-medium truncate mt-0.5">
+											Then{' '}
+											{
+												activeNavRoute.steps[
+													navStepIndex + 1
+												].instruction
+											}
+										</div>
+									)}
 							</div>
-						</div>
-
-						<div className="px-2.5 py-1 rounded-xl bg-neutral-100 text-neutral-800 font-extrabold text-[12px] shrink-0 text-center border border-neutral-200/60">
-							35 <span className="text-[10px] block font-medium text-neutral-500">MPH</span>
 						</div>
 					</div>
 				</div>
 			)}
 
 			{/* Active Turn-by-Turn Driving Bottom Bar with ImCheap Live Cost Counter */}
-			{isAppleMapsMode && isNavigating && activeNavRoute && (() => {
-				const simRatio = Math.min(
-					1,
-					Math.max(
+			{isAppleMapsMode &&
+				isNavigating &&
+				activeNavRoute &&
+				(() => {
+					const simRatio = Math.min(
+						1,
+						Math.max(
+							0,
+							simProgressIndex /
+								Math.max(
+									1,
+									activeNavRoute.coordinates.length - 1,
+								),
+						),
+					);
+					const drivenMiles = Number(
+						(activeNavRoute.distanceMiles * simRatio).toFixed(2),
+					);
+					const drivenCost = Number(
+						(drivenMiles * mileageRate).toFixed(2),
+					);
+					const laborMins = Math.max(
+						1,
+						Math.round((drivenCost / Math.max(hourlyWage, 5)) * 60),
+					);
+					const remainingRatio = Math.max(0, 1 - simRatio);
+					const remainingMins = Math.max(
+						1,
+						Math.round(
+							activeNavRoute.durationMinutes * remainingRatio,
+						),
+					);
+					const remainingMiles = Math.max(
 						0,
-						simProgressIndex /
-							Math.max(1, activeNavRoute.coordinates.length - 1),
-					),
-				);
-				const drivenMiles = Number(
-					(activeNavRoute.distanceMiles * simRatio).toFixed(2),
-				);
-				const drivenCost = Number(
-					(drivenMiles * mileageRate).toFixed(2),
-				);
-				const laborMins = Math.max(
-					1,
-					Math.round(
-						(drivenCost / Math.max(hourlyWage, 5)) * 60,
-					),
-				);
-				const remainingRatio = Math.max(0, 1 - simRatio);
-				const remainingMins = Math.max(
-					1,
-					Math.round(
-						activeNavRoute.durationMinutes * remainingRatio,
-					),
-				);
-				const remainingMiles = Math.max(
-					0,
-					Number(
-						(
-							activeNavRoute.distanceMiles * remainingRatio
-						).toFixed(1),
-					),
-				);
+						Number(
+							(
+								activeNavRoute.distanceMiles * remainingRatio
+							).toFixed(1),
+						),
+					);
 
-				return (
-					<div className="fixed bottom-6 inset-x-4 max-w-120 mx-auto z-50 pointer-events-auto flex flex-col items-start gap-2.5">
-						{/* Speedometer Pill sitting above the full-width ETA bar */}
-						<div
-							data-testid="speedometer-pill"
-							className="bg-white border border-neutral-200/80 shadow-md px-3 py-2 flex flex-col items-center justify-center min-w-[58px] rounded-2xl pointer-events-auto"
-						>
-							<span className="text-[22px] leading-none font-extrabold text-[#111111] tabular-nums">
-								{currentSpeedMph}
-							</span>
-							<span className="text-[10px] font-bold tracking-wider text-neutral-400 mt-0.5">
-								MPH
-							</span>
-						</div>
-
-						{/* Full-Width ETA Card */}
-						<div className="w-full bg-white rounded-3xl p-4 shadow-[0_12px_40px_rgba(0,0,0,0.22)] border border-neutral-200/80 flex items-center justify-between">
-							<div>
-								<div className="flex items-baseline gap-1.5">
-									<span className="text-[26px] leading-none font-black text-[#111111] tracking-tight">
-										{remainingMins}
-									</span>
-									<span className="text-[14px] font-bold text-neutral-600">min</span>
-								</div>
-								<div className="text-[12px] text-neutral-500 font-semibold mt-0.5">
-									{remainingMiles} mi · ETA{' '}
-									{new Date(
-										Date.now() +
-											remainingMins * 60000,
-									).toLocaleTimeString([], {
-										hour: 'numeric',
-										minute: '2-digit',
-									})}
-								</div>
-								<div className="text-[11.5px] font-bold text-emerald-600 mt-1">
-									ImCheap: ${drivenCost.toFixed(2)} cost ({laborMins}m work)
-								</div>
+					return (
+						<div className="fixed bottom-6 inset-x-4 max-w-120 mx-auto z-50 pointer-events-auto flex flex-col items-start gap-2.5">
+							{/* Speedometer Pill sitting above the full-width ETA bar */}
+							<div
+								data-testid="speedometer-pill"
+								className="bg-white border border-neutral-200/80 shadow-md px-3 py-2 flex flex-col items-center justify-center min-w-[58px] rounded-2xl pointer-events-auto"
+							>
+								<span className="text-[22px] leading-none font-extrabold text-[#111111] tabular-nums">
+									{currentSpeedMph}
+								</span>
+								<span className="text-[10px] font-bold tracking-wider text-neutral-400 mt-0.5">
+									MPH
+								</span>
 							</div>
 
-							{isNearDestination ? (
-								<button
-									type="button"
-									onClick={handleEndNavigation}
-									aria-label="End Route"
-									className="h-12 px-5 rounded-2xl bg-[#FF3B30] hover:bg-red-600 text-white font-extrabold text-[15px] flex items-center gap-2 shadow-lg shadow-red-500/30 active:scale-95 transition-all cursor-pointer animate-pulse"
-								>
-									<Square size={16} className="fill-white text-white" />
-									<span>End Route</span>
-								</button>
-							) : (
-								<div className="flex items-center gap-2.5">
-									{enableRouteSimulation && (
-										<button
-											type="button"
-											onClick={() => setIsSimulating(!isSimulating)}
-											aria-label={
-												isSimulating
-													? 'Pause route simulation'
-													: 'Play route simulation'
-											}
-											className="w-12 h-12 rounded-2xl bg-neutral-100 hover:bg-neutral-200 text-[#111111] flex items-center justify-center transition-all active:scale-95 cursor-pointer shadow-xs"
-										>
-											{isSimulating ? (
-												<Pause
-													size={20}
-													className="fill-current text-[#111111]"
-												/>
-											) : (
-												<Play
-													size={20}
-													className="fill-current text-[#111111] translate-x-0.5"
-												/>
-											)}
-										</button>
-									)}
+							{/* Full-Width ETA Card */}
+							<div className="w-full bg-white rounded-3xl p-4 shadow-[0_12px_40px_rgba(0,0,0,0.22)] border border-neutral-200/80 flex items-center justify-between">
+								<div>
+									<div className="flex items-baseline gap-1.5">
+										<span className="text-[26px] leading-none font-black text-[#111111] tracking-tight">
+											{remainingMins}
+										</span>
+										<span className="text-[14px] font-bold text-neutral-600">
+											min
+										</span>
+									</div>
+									<div className="text-[12px] text-neutral-500 font-semibold mt-0.5">
+										{remainingMiles} mi · ETA{' '}
+										{new Date(
+											Date.now() + remainingMins * 60000,
+										).toLocaleTimeString([], {
+											hour: 'numeric',
+											minute: '2-digit',
+										})}
+									</div>
+									<div className="text-[11.5px] font-bold text-emerald-600 mt-1">
+										ImCheap: ${drivenCost.toFixed(2)} cost (
+										{laborMins}m work)
+									</div>
+								</div>
+
+								{isNearDestination ? (
 									<button
 										type="button"
 										onClick={handleEndNavigation}
-										aria-label="End Navigation"
-										className="w-12 h-12 rounded-2xl bg-[#FF3B30] hover:bg-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/25 active:scale-95 transition-all cursor-pointer"
+										aria-label="End Route"
+										className="h-12 px-5 rounded-2xl bg-[#FF3B30] hover:bg-red-600 text-white font-extrabold text-[15px] flex items-center gap-2 shadow-lg shadow-red-500/30 active:scale-95 transition-all cursor-pointer animate-pulse"
 									>
 										<Square
-											size={18}
+											size={16}
 											className="fill-white text-white"
 										/>
+										<span>End Route</span>
 									</button>
-								</div>
-							)}
+								) : (
+									<div className="flex items-center gap-2.5">
+										{enableRouteSimulation && (
+											<button
+												type="button"
+												onClick={() =>
+													setIsSimulating(
+														!isSimulating,
+													)
+												}
+												aria-label={
+													isSimulating
+														? 'Pause route simulation'
+														: 'Play route simulation'
+												}
+												className="w-12 h-12 rounded-2xl bg-neutral-100 hover:bg-neutral-200 text-[#111111] flex items-center justify-center transition-all active:scale-95 cursor-pointer shadow-xs"
+											>
+												{isSimulating ? (
+													<Pause
+														size={20}
+														className="fill-current text-[#111111]"
+													/>
+												) : (
+													<Play
+														size={20}
+														className="fill-current text-[#111111] translate-x-0.5"
+													/>
+												)}
+											</button>
+										)}
+										<button
+											type="button"
+											onClick={handleEndNavigation}
+											aria-label="End Navigation"
+											className="w-12 h-12 rounded-2xl bg-[#FF3B30] hover:bg-red-600 text-white flex items-center justify-center shadow-md shadow-red-500/25 active:scale-95 transition-all cursor-pointer"
+										>
+											<Square
+												size={18}
+												className="fill-white text-white"
+											/>
+										</button>
+									</div>
+								)}
+							</div>
 						</div>
-					</div>
-				);
-			})()}
+					);
+				})()}
 
 			{/* Apple Maps Action Dock */}
 			<AppleMapsDock
@@ -1953,7 +2020,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 									initial={{ opacity: 0, scale: 0.9, y: 10 }}
 									animate={{ opacity: 1, scale: 1, y: 0 }}
 									exit={{ opacity: 0, scale: 0.9, y: 10 }}
-									transition={{ duration: 0.16, ease: 'easeOut' }}
+									transition={{
+										duration: 0.16,
+										ease: 'easeOut',
+									}}
 									className="absolute bottom-14 right-0 bg-white rounded-2xl shadow-2xl border border-gray-100 p-1.5 flex flex-col gap-1 w-48 mb-1"
 								>
 									{/* Option 1: Locations */}
@@ -1965,7 +2035,10 @@ export const MapsView: React.FC<MapsViewProps> = ({
 										}}
 										className="w-full px-3 py-2.5 rounded-xl hover:bg-neutral-50 flex items-center gap-2.5 text-left text-[13px] font-bold text-[#111111] transition-colors cursor-pointer"
 									>
-										<List size={18} className="text-[#059669]" />
+										<List
+											size={18}
+											className="text-[#059669]"
+										/>
 										<span>Locations</span>
 									</button>
 
@@ -1975,7 +2048,8 @@ export const MapsView: React.FC<MapsViewProps> = ({
 										onClick={() => {
 											setIsMenuOpen(false);
 											setActiveEditingLocation(null);
-											wasCardModeBeforeMarkerRef.current = !isAppleMapsMode;
+											wasCardModeBeforeMarkerRef.current =
+												!isAppleMapsMode;
 											setIsAppleMapsMode(true);
 											setIsCreateMarkerOpen(true);
 										}}
@@ -2038,7 +2112,11 @@ export const MapsView: React.FC<MapsViewProps> = ({
 									: 'bg-white text-[#111111] hover:bg-neutral-50'
 							}`}
 						>
-							{isMenuOpen ? <X size={20} /> : <MapPin size={20} />}
+							{isMenuOpen ? (
+								<X size={20} />
+							) : (
+								<MapPin size={20} />
+							)}
 						</button>
 					</div>
 				</div>
